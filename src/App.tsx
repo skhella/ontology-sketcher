@@ -20,7 +20,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
-import { placeImport } from './layout'
+import { planImport, saveLayout } from './layout'
 import { describeOwlImport, importOwl } from './owlImport'
 import { describeShapesImport, importShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
@@ -183,11 +183,19 @@ export default function App() {
       if (/\.(ttl|nt|owl|rdf)$/i.test(file.name) || !text.trimStart().startsWith('{')) {
         const result = importOwl(text)
         if (nodes.length > 0 && !window.confirm(`Replace this page with ${file.name}? Classes already on it keep their place.`)) return
-        const placed = placeImport(result, { iri, nodes, edges })
-        setNodes(placed.nodes)
-        setEdges(placed.edges.map(markerFor))
+        // The first planned page replaces this one; a saved layout or a large ontology adds more.
+        const { pages } = planImport(result, { iri, workspace: saved(), pageId })
+        let ws = saveCanvas(saved(), pageId, pages[0].nodes, pages[0].edges)
+        if (pages[0].name) ws = { ...ws, pages: ws.pages.map((p) => (p.id === pageId ? { ...p, name: pages[0].name! } : p)) }
+        for (const page of pages.slice(1)) {
+          const id = crypto.randomUUID()
+          ws = saveCanvas({ ...ws, pages: [...ws.pages, { id, name: page.name ?? `Page ${ws.pages.length + 1}`, nodes: [], edges: [] }] }, id, page.nodes, page.edges)
+        }
         setIri(result.iri)
-        setNotice(describeOwlImport(result.summary))
+        show(ws, pageId, true)
+        const added = pages.length > 1 ? ` Added ${pages.length - 1} ${pages.length === 2 ? 'page' : 'pages'}.` : ''
+        setNotice(describeOwlImport(result.summary) + added)
+        return
       } else {
         const result = importExcalidraw(text)
         if (nodes.length > 0 && !window.confirm(`Replace this page with ${file.name}?`)) return
@@ -319,8 +327,10 @@ export default function App() {
   const runExport = async (format: ExportFormat, pageIds: string[]) => {
     setExportPages(null)
     setSvgLook(null)
-    const ontology = mergePages(saved(), pageIds, iri)
-    const turtle = await toTurtle(ontology)
+    const ws = saved()
+    const ontology = mergePages(ws, pageIds, iri)
+    // The OWL file carries the pages' layout so importing it draws them again; Neo4j gets plain OWL.
+    const turtle = await toTurtle(ontology, format === 'owl' ? saveLayout(ws, pageIds, iri) : undefined)
     const shapes = hasConstraints(ontology) ? await toShaclTurtle(ontology) : null
     setShownFile(0)
     setExported(

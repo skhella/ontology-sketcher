@@ -14,6 +14,7 @@ import {
   type RelationEdge,
   type SkosEdgeKind,
 } from './model'
+import { LAYOUT_PROPERTY, parseLayout, type SavedLayout } from './savedLayout'
 import { conceptSchemes, MAPPING_KINDS, NODE_KIND_STYLES } from './skos'
 import { ANNOTATION_PROPERTIES, BUILT_IN_ANNOTATION_PROPERTIES, OWL, RDF, RDFS, SKOS, SKOS_ANNOTATION_PROPERTIES, XSD } from './vocab'
 
@@ -36,7 +37,8 @@ export type OwlImportSummary = {
   skipped: string[]
 }
 
-export type OwlImportResult = { iri: string; nodes: ClassNode[]; edges: RelationEdge[]; summary: OwlImportSummary }
+/** `layout` is how this app drew the ontology when it exported it, see savedLayout.ts. */
+export type OwlImportResult = { iri: string; nodes: ClassNode[]; edges: RelationEdge[]; layout?: SavedLayout; summary: OwlImportSummary }
 
 const TYPE = RDF + 'type'
 const LABEL = RDFS + 'label'
@@ -402,10 +404,13 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
   const shapes = subjectsOfType('http://www.w3.org/ns/shacl#NodeShape').length
   if (shapes) skip('SHACL shapes', shapes)
 
+  const layout = parseLayout(ontologyIri ? object(ontologyIri, LAYOUT_PROPERTY)?.value : undefined)
+
   return {
     iri,
     nodes,
     edges,
+    ...(layout && { layout }),
     summary: {
       classes: nodes.filter((n) => !n.data.kind).length,
       concepts: nodes.filter((n) => n.data.kind).length,

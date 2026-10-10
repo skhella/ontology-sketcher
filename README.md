@@ -49,7 +49,8 @@ add axioms and data constraints, check a few example instances, and hand the res
 - **Import an ontology** in Turtle (`.ttl`), for example one you exported here or saved from Protégé or GraphDB.
   Classes, the subclass hierarchy, object and data properties, class axioms, annotations and SKOS concepts come
   back onto the canvas with an automatic layout, superclasses above subclasses. Classes already on the page keep
-  their place, so re-importing an edited file only adds what is new.
+  their place, so re-importing an edited file only adds what is new. A file exported here brings back its pages,
+  positions and colours. A large ontology (over 60 classes) opens as an overview page plus a page per branch.
 - **Import an .excalidraw drawing**: labelled shapes become classes in the same place, and arrows between them become
   `rdfs:subClassOf` (unlabelled, or labelled "SCO" / "subClassOf") or an object property named after the label.
   Colours, fill, stroke, sloppiness, ovals and curved arrows carry over.
@@ -101,7 +102,8 @@ add axioms and data constraints, check a few example instances, and hand the res
 - **Export > OWL and SHACL (Turtle)** writes the ontology as Turtle (`ontology.ttl`), and the SHACL shapes as `shapes.ttl` when any class
   has constraints. The OWL output has been checked with [ROBOT](https://robot.obolibrary.org) and the HermiT
   reasoner: it stays inside OWL 2 DL. SKOS concepts and schemes go in the same file, with the SKOS vocabulary
-  declared so it stays in OWL 2 DL too.
+  declared so it stays in OWL 2 DL too. The pages' layout travels along as one annotation on the ontology, which
+  other tools ignore.
 - Properties drawn between several class pairs get a union domain and range, so reusing a property doesn't make
   the reasoner draw conclusions you never drew.
 - **Export > Neo4j script (Cypher)** previews and downloads `ontology.cypher`, a script that loads the ontology and the
