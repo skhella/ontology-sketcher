@@ -209,3 +209,58 @@ describe('toTurtle class axioms', () => {
     expect(one(exactly, OWL + 'onClass').value).toBe(`${P}Topping`)
   })
 })
+
+describe('toTurtle property details', () => {
+  const OWL = 'http://www.w3.org/2002/07/owl#'
+  const RDFS = 'http://www.w3.org/2000/01/rdf-schema#'
+  const RDF = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+  const XSD = 'http://www.w3.org/2001/XMLSchema#'
+  const ontology: Ontology = {
+    ...sampleOntology,
+    nodes: sampleOntology.nodes.map((n) =>
+      n.id === 'pizza'
+        ? { ...n, data: { ...n.data, dataProperties: [{ name: 'price', datatype: XSD + 'decimal', functional: true }, { name: 'name', datatype: XSD + 'string' }] } }
+        : n.id === 'topping'
+          ? { ...n, data: { ...n.data, dataProperties: [{ name: 'name', datatype: XSD + 'string' }, { name: ' ', datatype: XSD + 'string' }] } }
+          : n,
+    ),
+    edges: [
+      ...sampleOntology.edges.map((e) => (e.id === 'e3' ? { ...e, data: { ...e.data!, characteristics: ['inverseFunctional' as const], inverseOf: 'e4' } } : e)),
+      { id: 'e4', type: 'relation', source: 'topping', target: 'pizza', data: { kind: 'objectProperty', label: 'is topping of', subPropertyOf: 'e3', characteristics: ['functional'] } },
+      { id: 'e5', type: 'relation', source: 'tomato', target: 'topping', data: { kind: 'objectProperty', label: 'is topping of' } },
+      { id: 'e6', type: 'relation', source: 'margherita', target: 'tomato', data: { kind: 'annotationProperty', label: 'inspired by' } },
+    ],
+  }
+
+  it('writes characteristics, inverseOf and subPropertyOf once per property', async () => {
+    const store = new Store(new Parser().parse(await toTurtle(ontology)))
+    const objects = (s: string, p: string) => store.getObjects(namedNode(s), namedNode(p), null).map((o) => o.value)
+
+    expect(objects(`${P}hasTopping`, RDF + 'type').sort()).toEqual([OWL + 'InverseFunctionalProperty', OWL + 'ObjectProperty'])
+    expect(objects(`${P}hasTopping`, OWL + 'inverseOf')).toEqual([`${P}isToppingOf`])
+    expect(objects(`${P}isToppingOf`, RDF + 'type').sort()).toEqual([OWL + 'FunctionalProperty', OWL + 'ObjectProperty'])
+    expect(objects(`${P}isToppingOf`, RDFS + 'subPropertyOf')).toEqual([`${P}hasTopping`])
+  })
+
+  it('asserts annotation-property edges between the classes', async () => {
+    const store = new Store(new Parser().parse(await toTurtle(ontology)))
+    const objects = (s: string, p: string) => store.getObjects(namedNode(s), namedNode(p), null).map((o) => o.value)
+    expect(objects(`${P}inspiredBy`, RDF + 'type')).toEqual([OWL + 'AnnotationProperty'])
+    expect(objects(`${P}Margherita`, `${P}inspiredBy`)).toEqual([`${P}TomatoTopping`])
+    expect(objects(`${P}inspiredBy`, RDFS + 'domain')).toEqual([])
+  })
+
+  it('writes data properties with their class as domain and a datatype range', async () => {
+    const quads = new Parser().parse(await toTurtle(ontology))
+    const objects = (s: string, p: string) => quads.filter((q) => q.subject.value === s && q.predicate.value === p).map((q) => q.object.value)
+    expect(objects(`${P}price`, RDF + 'type').sort()).toEqual([OWL + 'DatatypeProperty', OWL + 'FunctionalProperty'])
+    expect(objects(`${P}price`, RDFS + 'domain')).toEqual([`${P}Pizza`])
+    expect(objects(`${P}price`, RDFS + 'range')).toEqual([XSD + 'decimal'])
+
+    const [domain] = objects(`${P}name`, RDFS + 'domain')
+    const list = (head: string): string[] => (head === RDF + 'nil' ? [] : [objects(head, RDF + 'first')[0], ...list(objects(head, RDF + 'rest')[0])])
+    expect(list(objects(domain, OWL + 'unionOf')[0])).toEqual([`${P}Pizza`, `${P}Topping`])
+    expect(objects(`${P}name`, RDFS + 'range')).toEqual([XSD + 'string'])
+    expect(objects(`${P}Unnamed`, RDF + 'type')).toEqual([])
+  })
+})

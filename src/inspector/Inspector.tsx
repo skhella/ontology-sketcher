@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { localName, propertyLocalName, type Annotation, type ClassNode, type EdgeKind, type EntityData, type RelationEdge } from '../model'
 import { entityIri } from '../owl'
 import { ClassAxioms } from './ClassAxioms'
+import { DataProperties, ObjectPropertyDetails } from './PropertyDetails'
 import { ANNOTATION_PROPERTIES, compactIri, expandIri, RDFS_COMMENT, SKOS_DEFINITION } from '../vocab'
 
 type Props = {
@@ -44,6 +45,7 @@ export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeC
           edges={edges}
           onChange={(axioms) => onNodeChange(node.id, { axioms })}
         />
+        <DataProperties properties={node.data.dataProperties ?? []} onChange={(dataProperties) => onNodeChange(node.id, { dataProperties })} />
       </aside>
     )
   }
@@ -51,7 +53,11 @@ export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeC
   const edge = item as RelationEdge
   const data = edge.data ?? { kind: 'subClassOf' as const, label: '' }
   const labelOf = (id: string) => nodes.find((n) => n.id === id)?.data.label ?? '?'
-  const sameName = data.kind === 'objectProperty' ? edges.filter((e) => e.data?.kind === 'objectProperty' && e.data.label === data.label).length : 0
+  const sameName = data.kind === 'subClassOf' ? 0 : edges.filter((e) => e.data?.kind === data.kind && e.data.label === data.label).length
+  // Characteristics, inverse and super property belong to the property, so every edge drawing it gets them.
+  const setOnProperty = (patch: Partial<NonNullable<RelationEdge['data']>>) => {
+    for (const e of edges) if (e.data?.kind === 'objectProperty' && e.data.label === data.label) onEdgeChange(e.id, patch)
+  }
 
   const setKind = (kind: EdgeKind) => {
     if (kind === data.kind) return
@@ -61,12 +67,12 @@ export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeC
 
   return (
     <aside className="inspector" aria-label="Inspector">
-      <h2>{data.kind === 'subClassOf' ? 'Subclass axiom' : 'Object property'}</h2>
+      <h2>{EDGE_TITLES[data.kind]}</h2>
       <Field label="Edge type" group>
         <div className="segmented">
-          {(['subClassOf', 'objectProperty'] as const).map((kind) => (
+          {(['subClassOf', 'objectProperty', 'annotationProperty'] as const).map((kind) => (
             <button key={kind} className={kind === data.kind ? 'active' : undefined} aria-pressed={kind === data.kind} onClick={() => setKind(kind)}>
-              {kind === 'subClassOf' ? 'subClassOf' : 'object property'}
+              {EDGE_KINDS[kind]}
             </button>
           ))}
         </div>
@@ -77,9 +83,11 @@ export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeC
         </p>
       ) : (
         <>
-          <p className="axiom">
-            <span className="keyword">domain</span> {labelOf(edge.source)} · <span className="keyword">range</span> {labelOf(edge.target)}
-          </p>
+          {data.kind === 'annotationProperty' && (
+            <p className="axiom">
+              {labelOf(edge.source)} <span className="keyword">{data.label}</span> {labelOf(edge.target)}
+            </p>
+          )}
           <EntityFields
             base={base}
             data={data}
@@ -87,6 +95,7 @@ export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeC
             derivedLocal={propertyLocalName(data.label)}
             onChange={(patch) => onEdgeChange(edge.id, patch)}
           />
+          {data.kind === 'objectProperty' && <ObjectPropertyDetails edge={edge} nodes={nodes} edges={edges} onChange={setOnProperty} />}
           {sameName > 1 && (
             <p className="muted">
               {sameName} edges are named "{data.label}" and export as one property; each edge's annotations are added to it.
@@ -97,6 +106,9 @@ export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeC
     </aside>
   )
 }
+
+const EDGE_KINDS = { subClassOf: 'subClassOf', objectProperty: 'object', annotationProperty: 'annotation' }
+const EDGE_TITLES = { subClassOf: 'Subclass axiom', objectProperty: 'Object property', annotationProperty: 'Annotation property' }
 
 type EntityFieldsProps = {
   base: string

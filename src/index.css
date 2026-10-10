@@ -581,3 +581,60 @@ body,
   color: var(--accent);
   font-style: italic;
 }
+
+.inspector .domain-range,
+.inspector .characteristics,
+.inspector .data-properties {
+  margin: 0 0 8px;
+  padding: 0;
+  border: none;
+}
+
+.inspector .domain-range legend,
+.inspector .characteristics legend,
+.inspector .data-properties legend {
+  padding: 0 0 4px;
+}
+
+.inspector .characteristics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 8px;
+}
+
+.inspector .characteristics legend {
+  grid-column: 1 / -1;
+}
+
+.inspector .data-properties {
+  margin-top: 8px;
+}
+
+.inspector .data-property {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.inspector .data-property input:not([type='checkbox']) {
+  flex: 1;
+  width: 0;
+}
+
+.inspector .data-property select {
+  width: 128px;
+}
+
+.inspector .data-property label {
+  white-space: nowrap;
+}
+
+.inspector .data-property .remove {
+  padding: 0 6px;
+  border: none;
+}
+
+.inspector .data-properties .add {
+  border-style: dashed;
+}

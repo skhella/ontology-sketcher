@@ -25,6 +25,11 @@ Longer term it aims at Protégé-like editing of classes, properties, axioms and
   are listed too), Equivalent To and Disjoint With. Each entry is a named class or a restriction on an object
   property drawn on the canvas, written in Manchester order (`has topping some Tomato Topping`, `exactly 2 Topping`)
   with `some`, `only`, `min`, `max` and `exactly`. Restrictions export as inline `owl:Restriction` blank nodes.
+- Properties in the inspector: an edge is a subClassOf, an object property or an annotation property (asserted between
+  the two classes). Object properties get characteristics (functional, inverse functional, transitive, symmetric,
+  asymmetric, reflexive, irreflexive), an inverse and a super property; these apply to every edge with the same name.
+  Classes list data properties like Neo4j property keys (name, `xsd` datatype, functional), exported as
+  `owl:DatatypeProperty` with the class as domain; classes sharing a name share one property with a union domain.
 - Style panel for the selection, like Excalidraw's: stroke and background colours (five swatches plus a custom
   picker), fill style, stroke width, stroke style and sloppiness. Select an edge and drag its midpoint dot to curve
   it; double-click the dot or use "Reset curve" to undo. Styles and curves are visual only and are not exported.
