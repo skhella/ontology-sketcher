@@ -81,7 +81,7 @@ add axioms and data constraints, check a few example instances, and hand the res
   datatype, with an optional message. They export as a separate `shapes.ttl` with one `sh:NodeShape` per class.
 - **Suggest from ontology** fills in constraints from what the drawing already says: arrow targets, `some`,
   `only`, `min`, `max` and `exactly` restrictions, functional properties and data property datatypes.
-- **Import shapes** reads an existing SHACL shapes file (Turtle) into the constraints of the classes on the page.
+- **Import > SHACL shapes (Turtle)** reads an existing shapes file into the constraints of the classes on the page.
 - Counts show on the arrows UML style, such as `1` or `1..*`, next to the arrowhead.
 - **Check sample data**: paste a few instances in Turtle and the app validates them against the shapes, lists each
   problem in plain words, and outlines the classes whose instances break a rule in red.
