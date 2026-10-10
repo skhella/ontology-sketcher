@@ -1,19 +1,24 @@
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { Handle, useConnection, useInternalNode, type NodeProps } from '@xyflow/react'
 import { useMemo } from 'react'
 import type { ClassNode } from '../model'
 import { roughRect, seedFor } from './rough'
+import { boxOf, CLASS_HEIGHT as HEIGHT, CLASS_WIDTH as WIDTH, SIDES, snapToClass } from './snap'
 import { dashArray, nodeStyle, roughNodeOptions } from './style'
-
-const WIDTH = 180
-const HEIGHT = 64
 
 export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
   const style = data.style
   const paths = useMemo(() => roughRect(WIDTH, HEIGHT, roughNodeOptions(style, seedFor(id))), [id, style])
   const { strokeStyle, strokeWidth } = nodeStyle(style)
 
+  // While a new edge is dragged over this class, highlight the dot it will lock to.
+  // `to` is the pointer in flow coordinates, or the dot React Flow itself snapped to.
+  const position = useInternalNode<ClassNode>(id)?.internals.positionAbsolute
+  const snapSide = useConnection((c) =>
+    c.inProgress && position ? (snapToClass([boxOf({ id, position })], c.to, c.fromNode.id)?.side ?? null) : null,
+  )
+
   return (
-    <div className={`class-node${selected ? ' selected' : ''}`} style={{ width: WIDTH, height: HEIGHT }}>
+    <div className={`class-node${selected ? ' selected' : ''}${snapSide ? ' snap-target' : ''}`} style={{ width: WIDTH, height: HEIGHT }}>
       <svg width={WIDTH} height={HEIGHT} className="sketch">
         {paths.map((p, i) => (
           <path
@@ -28,8 +33,10 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
         ))}
       </svg>
       <span className="label">{data.label}</span>
-      <Handle type="target" position={Position.Bottom} />
-      <Handle type="source" position={Position.Top} />
+      {/* One dot per side. With ConnectionMode.Loose any dot can start or end an edge; the id is the side. */}
+      {SIDES.map((side) => (
+        <Handle key={side} id={side} type="source" position={side} className={side === snapSide ? 'snapped' : undefined} />
+      ))}
     </div>
   )
 }
