@@ -1,9 +1,10 @@
-import { Parser } from 'n3'
+import { DataFactory, Parser, Store, type Term } from 'n3'
 import { describe, expect, it } from 'vitest'
-import { importedOntologyIri, localName, sampleOntology, type Ontology } from './model'
+import { importedOntologyIri, localName, sampleOntology, type ClassAxiom, type Ontology } from './model'
 import { toTurtle } from './owl'
 
 const P = 'http://example.org/pizza#'
+const { namedNode } = DataFactory
 
 describe('toTurtle', () => {
   it('emits parseable Turtle with classes, subclass axioms and object properties', async () => {
@@ -157,5 +158,54 @@ describe('importedOntologyIri', () => {
     )
     expect(importedOntologyIri(sampleOntology.iri, '.excalidraw')).toBe('http://example.org/ontology#')
     expect(importedOntologyIri('https://w3id.org/aizop#', 'other.excalidraw')).toBe('https://w3id.org/aizop#')
+  })
+})
+
+describe('toTurtle class axioms', () => {
+  const OWL = 'http://www.w3.org/2002/07/owl#'
+  const RDFS = 'http://www.w3.org/2000/01/rdf-schema#'
+  const XSD = 'http://www.w3.org/2001/XMLSchema#'
+  const axioms: Record<string, ClassAxiom[]> = {
+    margherita: [
+      { kind: 'subClassOf', expression: { type: 'restriction', quantifier: 'some', property: 'e3', filler: 'tomato' } },
+      { kind: 'subClassOf', expression: { type: 'restriction', quantifier: 'exactly', property: 'e3', n: 2, filler: 'topping' } },
+    ],
+    pizza: [
+      { kind: 'disjointWith', expression: { type: 'class', ref: 'topping' } },
+      { kind: 'subClassOf', expression: { type: 'restriction', quantifier: 'min', property: 'e3', n: 1 } },
+      { kind: 'equivalentClass', expression: { type: 'class', ref: 'deleted-node' } },
+      { kind: 'subClassOf', expression: { type: 'restriction', quantifier: 'only', property: 'deleted-edge', filler: 'topping' } },
+    ],
+  }
+  const withAxioms = {
+    ...sampleOntology,
+    nodes: sampleOntology.nodes.map((n) => ({ ...n, data: { ...n.data, axioms: axioms[n.id] } })),
+  }
+
+  it('writes named-class axioms and inline restrictions, skipping ones that point at deleted elements', async () => {
+    const turtle = await toTurtle(withAxioms)
+    const store = new Store(new Parser().parse(turtle))
+    const one = (s: Term | string, p: string) => {
+      const objects = store.getObjects(typeof s === 'string' ? namedNode(s) : s, namedNode(p), null)
+      expect(objects).toHaveLength(1)
+      return objects[0]
+    }
+
+    expect(one(`${P}Pizza`, OWL + 'disjointWith').value).toBe(`${P}Topping`)
+    expect(store.getObjects(namedNode(`${P}Pizza`), namedNode(OWL + 'equivalentClass'), null)).toHaveLength(0)
+
+    const restrictions = (s: string) =>
+      store.getObjects(namedNode(s), namedNode(RDFS + 'subClassOf'), null).filter((o) => o.termType === 'BlankNode')
+    expect(restrictions(`${P}Pizza`)).toHaveLength(1)
+    const min = restrictions(`${P}Pizza`)[0]
+    expect(one(min, OWL + 'onProperty').value).toBe(`${P}hasTopping`)
+    expect(one(min, OWL + 'minCardinality')).toMatchObject({ value: '1', datatype: { value: XSD + 'nonNegativeInteger' } })
+
+    const has = (p: string) => restrictions(`${P}Margherita`).find((r) => store.countQuads(r, namedNode(p), null, null) > 0)!
+    const some = has(OWL + 'someValuesFrom')
+    const exactly = has(OWL + 'qualifiedCardinality')
+    expect(one(some, OWL + 'someValuesFrom').value).toBe(`${P}TomatoTopping`)
+    expect(one(exactly, OWL + 'qualifiedCardinality').value).toBe('2')
+    expect(one(exactly, OWL + 'onClass').value).toBe(`${P}Topping`)
   })
 })
