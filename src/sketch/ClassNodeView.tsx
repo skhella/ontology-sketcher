@@ -8,7 +8,7 @@ import { dashArray, nodeStyle, roughNodeOptions } from './style'
 
 export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
   const style = data.style
-  const { strokeStyle, strokeWidth, shape } = nodeStyle(style)
+  const { strokeStyle, strokeWidth, shape, stroke, fill } = nodeStyle(style)
   const oval = shape === 'oval'
 
   // An oval only holds text inside its inscribed rectangle, which is 1/√2 of its height,
@@ -59,6 +59,12 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
           </Fragment>
         ))}
       </span>
+      {/* SKOS concepts and schemes carry a tab on their top edge, so they stay apart from classes whatever shape and colour they get. */}
+      {data.kind && (
+        <span className="kind-badge" style={{ color: stroke, borderColor: stroke, background: fill === 'transparent' ? undefined : fill }}>
+          {data.kind}
+        </span>
+      )}
       {/* One dot per side. With ConnectionMode.Loose any dot can start or end an edge; the id is the side. */}
       {SIDES.map((side) => (
         <Handle key={side} id={side} type="source" position={side} className={side === snapSide ? 'snapped' : undefined} />

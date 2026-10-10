@@ -166,6 +166,21 @@ body,
   padding: 0 28px;
 }
 
+/* "concept" or "scheme" on the top edge of a SKOS node. */
+.class-node .kind-badge {
+  position: absolute;
+  /* Left of the top dot, which sits in the middle of the edge. */
+  top: -9px;
+  left: 12px;
+  padding: 0 6px;
+  border: 1px solid;
+  border-radius: 8px;
+  background: var(--paper);
+  font-size: 12px;
+  line-height: 16px;
+  pointer-events: none;
+}
+
 /* Selection is a dashed box around the node, so the node keeps its own colours. */
 .class-node.selected::after {
   content: '';
@@ -686,6 +701,7 @@ body,
 
 .inspector .domain-range,
 .inspector .characteristics,
+.inspector .concept-schemes,
 .inspector .data-properties {
   margin: 0 0 8px;
   padding: 0;
@@ -694,6 +710,7 @@ body,
 
 .inspector .domain-range legend,
 .inspector .characteristics legend,
+.inspector .concept-schemes legend,
 .inspector .data-properties legend {
   padding: 0 0 4px;
 }
@@ -805,4 +822,8 @@ body,
   flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 4px;
+}
+
+.inspector .concept-schemes {
+  margin-top: 8px;
 }

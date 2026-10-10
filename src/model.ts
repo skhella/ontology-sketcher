@@ -52,11 +52,20 @@ export type PropertyConstraint = {
 }
 
 /**
- * A named OWL class drawn as a box on the canvas. `style` is visual only.
+ * What a node stands for besides an OWL class: a SKOS concept or concept scheme, both exported as individuals (see skos.ts).
+ * A node without a kind is a class.
+ */
+export type NodeKind = 'concept' | 'scheme'
+
+/**
+ * A named OWL class drawn as a box on the canvas, or with `kind` a SKOS concept or scheme. `style` is visual only.
  * `axioms` adds to the subClassOf edges drawn on the canvas; `constraints` export as a SHACL node shape, see shacl.ts.
+ * `inScheme` lists scheme node ids a concept belongs to besides those its hierarchy reaches, see skos.ts.
  */
 export type ClassData = EntityData & {
   label: string
+  kind?: NodeKind
+  inScheme?: string[]
   axioms?: ClassAxiom[]
   dataProperties?: DataProperty[]
   constraints?: PropertyConstraint[]
@@ -69,8 +78,11 @@ export type ClassNode = Node<ClassData, 'owlClass'>
  * - subClassOf: source rdfs:subClassOf target
  * - objectProperty: an owl:ObjectProperty with domain = source, range = target
  * - annotationProperty: an owl:AnnotationProperty asserted between the two classes (source property target)
+ * - broader, narrower, related: the SKOS relation between two concepts (source skos:broader target)
+ * - topConceptOf: a concept (source) is a top concept of a scheme (target)
  */
-export type EdgeKind = 'subClassOf' | 'objectProperty' | 'annotationProperty'
+export type EdgeKind = 'subClassOf' | 'objectProperty' | 'annotationProperty' | SkosEdgeKind
+export type SkosEdgeKind = 'broader' | 'narrower' | 'related' | 'topConceptOf'
 
 /** OWL object property characteristics; each exports as rdf:type owl:<Name>Property. */
 export type Characteristic = 'functional' | 'inverseFunctional' | 'transitive' | 'symmetric' | 'asymmetric' | 'reflexive' | 'irreflexive'

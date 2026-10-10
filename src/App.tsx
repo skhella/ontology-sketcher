@@ -18,10 +18,11 @@ import '@xyflow/react/dist/style.css'
 import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
 import logoSvg from '../docs/logo-light.svg?raw'
-import { importedOntologyIri, sampleOntology, type ClassNode, type RelationEdge } from './model'
+import { importedOntologyIri, sampleOntology, type ClassNode, type NodeKind, type RelationEdge } from './model'
 import { toTurtle } from './owl'
 import { toCypherScript } from './neo4j'
 import { hasConstraints, toShaclTurtle } from './shacl'
+import { defaultEdge, isSkosEdge, NODE_KIND_NAMES, NODE_KIND_STYLES } from './skos'
 import { Inspector } from './inspector/Inspector'
 import { classesNotOn, loadCanvas, mergePages, placeClass, removePage, saveCanvas, workspaceFrom, type Workspace } from './pages'
 import { ClassNodeView } from './sketch/ClassNodeView'
@@ -73,12 +74,14 @@ export default function App() {
   const fileInput = useRef<HTMLInputElement>(null)
   const [theme, toggleTheme] = useTheme()
 
+  // Between classes a new edge is subClassOf; from a concept it is skos:broader, or skos:topConceptOf into a scheme.
   const onConnect = useCallback(
-    (c: Connection) =>
-      setEdges((eds) =>
-        addEdge(markerFor({ ...c, id: crypto.randomUUID(), type: 'relation', data: { kind: 'subClassOf', label: '' } }), eds),
-      ),
-    [setEdges],
+    (c: Connection) => {
+      const dataOf = (id: string) => nodes.find((n) => n.id === id)?.data
+      const data = defaultEdge(dataOf(c.source), dataOf(c.target))
+      setEdges((eds) => addEdge(markerFor({ ...c, id: crypto.randomUUID(), type: 'relation', data }), eds))
+    },
+    [nodes, setEdges],
   )
 
   // Dropping a new edge anywhere on a class (not just on a dot) connects it to that class's nearest dot.
@@ -90,22 +93,27 @@ export default function App() {
     onConnect({ source: state.fromNode.id, sourceHandle: state.fromHandle?.id ?? null, target: snap.nodeId, targetHandle: snap.side })
   }
 
-  const addClass = () => {
-    const label = window.prompt('Class name', 'New Class')
+  // Adds a class, or with a kind a SKOS concept or scheme, which starts in its own colours.
+  const addNode = (kind?: NodeKind) => {
+    const name = NODE_KIND_NAMES[kind ?? 'class']
+    const label = window.prompt(`${name} name`, `New ${name}`)
     if (!label) return
+    const data = kind ? { label, kind, style: NODE_KIND_STYLES[kind] } : { label }
     setNodes((ns) => [
       ...ns,
-      { id: crypto.randomUUID(), type: 'owlClass', position: { x: 120 + ns.length * 20, y: 120 + ns.length * 20 }, data: { label } },
+      { id: crypto.randomUUID(), type: 'owlClass', position: { x: 120 + ns.length * 20, y: 120 + ns.length * 20 }, data },
     ])
   }
 
   const renameClass: NodeMouseHandler<ClassNode> = (_, node) => {
-    const label = window.prompt('Class name', node.data.label)
+    const label = window.prompt(`${NODE_KIND_NAMES[node.data.kind ?? 'class']} name`, node.data.label)
     if (label) setNodes((ns) => ns.map((n) => (n.id === node.id ? { ...n, data: { ...n.data, label } } : n)))
   }
 
   // Double-click an edge: enter a property name to make it an object property, or leave empty for subClassOf.
+  // SKOS edges have no name to type; their kind is picked in the inspector.
   const editRelation: EdgeMouseHandler<RelationEdge> = (_, edge) => {
+    if (isSkosEdge(edge.data?.kind)) return
     const label = window.prompt('Object property name (leave empty for subClassOf)', edge.data?.label ?? '')
     if (label === null) return
     const kind = label.trim() ? { kind: 'objectProperty' as const, label } : { kind: 'subClassOf' as const, label: '' }
@@ -244,7 +252,13 @@ export default function App() {
           Ontology IRI{' '}
           <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />
         </label>
-        <button onClick={addClass}>+ Class</button>
+        <button onClick={() => addNode()}>+ Class</button>
+        <button onClick={() => addNode('concept')} title="A SKOS concept: a term in a thesaurus or code list, exported as an individual">
+          + Concept
+        </button>
+        <button onClick={() => addNode('scheme')} title="A SKOS concept scheme: the thesaurus or code list concepts belong to">
+          + Scheme
+        </button>
         <button onClick={() => fileInput.current?.click()}>Import .excalidraw</button>
         <input ref={fileInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
         {placeable.length > 0 && (
@@ -262,7 +276,7 @@ export default function App() {
           {theme === 'dark' ? '☀ Light' : '☾ Dark'}
         </button>
         <span className="hint">
-          Drag between boxes to add subClassOf. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its dot to curve it.
+          Drag between boxes to add subClassOf, or broader between concepts. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its dot to curve it.
         </span>
       </header>
       <main className="canvas">
