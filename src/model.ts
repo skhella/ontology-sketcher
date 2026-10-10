@@ -14,8 +14,27 @@ export type Annotation = { property: string; value: string; lang?: string }
  */
 export type EntityData = { iri?: string; annotations?: Annotation[] }
 
-/** A named OWL class drawn as a box on the canvas. `style` is visual only. */
-export type ClassData = EntityData & { label: string; style?: SketchStyle }
+/** OWL restriction keywords, in Manchester syntax. Cardinalities take `n`; `filler` is optional for them. */
+export type Quantifier = 'some' | 'only' | 'min' | 'max' | 'exactly'
+
+/**
+ * A class expression: a named class (a node id) or a restriction on an object property.
+ * `property` is the id of an edge drawing that property; edges with the same label are one property.
+ */
+export type ClassExpression =
+  | { type: 'class'; ref: string }
+  | { type: 'restriction'; quantifier: Quantifier; property: string; n?: number; filler?: string }
+
+export type AxiomKind = 'subClassOf' | 'equivalentClass' | 'disjointWith'
+
+/** A class axiom with this class on the left, e.g. Pizza subClassOf hasTopping some Topping. */
+export type ClassAxiom = { kind: AxiomKind; expression: ClassExpression }
+
+/**
+ * A named OWL class drawn as a box on the canvas. `style` is visual only.
+ * `axioms` adds to the subClassOf edges drawn on the canvas.
+ */
+export type ClassData = EntityData & { label: string; axioms?: ClassAxiom[]; style?: SketchStyle }
 export type ClassNode = Node<ClassData, 'owlClass'>
 
 /**

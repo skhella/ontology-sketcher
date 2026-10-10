@@ -3,6 +3,7 @@ export const RDFS = 'http://www.w3.org/2000/01/rdf-schema#'
 export const OWL = 'http://www.w3.org/2002/07/owl#'
 export const SKOS = 'http://www.w3.org/2004/02/skos/core#'
 export const DCTERMS = 'http://purl.org/dc/terms/'
+export const XSD = 'http://www.w3.org/2001/XMLSchema#'
 
 /** Prefixes the editor knows, for showing and typing compact IRIs. */
 export const PREFIXES: Record<string, string> = { rdf: RDF, rdfs: RDFS, owl: OWL, skos: SKOS, dcterms: DCTERMS }
