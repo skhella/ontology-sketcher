@@ -1,27 +1,54 @@
-import { EdgeLabelRenderer, getBezierPath, useReactFlow, type EdgeProps } from '@xyflow/react'
-import { useMemo, type PointerEvent } from 'react'
+import { EdgeLabelRenderer, getBezierPath, Position, useNodesData, useReactFlow, useStoreApi, type EdgeProps } from '@xyflow/react'
+import { useMemo, type MouseEvent, type PointerEvent } from 'react'
 import type { ClassNode, RelationEdge } from '../model'
-import { bendThrough, bentPath } from './curve'
+import { bendThrough, bentPath, type Point } from './curve'
+import { constraintOnArrow, multiplicity, nearTarget } from './multiplicity'
 import { roughPath, seedFor } from './rough'
 import { dashArray, EDGE_DEFAULTS } from './style'
 
+// Which way a default bezier leaves its target handle, to set the multiplicity beside the arrowhead.
+const OUTWARD: Record<Position, Point> = {
+  [Position.Top]: { x: 0, y: -1 },
+  [Position.Bottom]: { x: 0, y: 1 },
+  [Position.Left]: { x: -1, y: 0 },
+  [Position.Right]: { x: 1, y: 0 },
+}
+
 export function RelationEdgeView(props: EdgeProps<RelationEdge>) {
-  const { id, data, markerEnd, selected, sourceX, sourceY, targetX, targetY } = props
-  const { screenToFlowPosition, updateEdgeData } = useReactFlow<ClassNode, RelationEdge>()
+  const { id, data, markerEnd, selected, source: sourceId, sourceX, sourceY, targetX, targetY, targetPosition } = props
+  const { getEdge, screenToFlowPosition, updateEdgeData } = useReactFlow<ClassNode, RelationEdge>()
+  const store = useStoreApi<ClassNode, RelationEdge>()
+  const sourceClass = useNodesData<ClassNode>(sourceId)
   const source = { x: sourceX, y: sourceY }
   const target = { x: targetX, y: targetY }
 
   // Unbent edges keep React Flow's default bezier; dragging the midpoint handle bends them.
   let d: string
   let mid: { x: number; y: number }
+  // A point the line heads for as it leaves the target.
+  let towards: Point
   if (data?.bend) {
     const bent = bentPath(source, target, data.bend)
     d = bent.d
     mid = bent.through
+    towards = bent.control
   } else {
     const [path, labelX, labelY] = getBezierPath(props)
     d = path
     mid = { x: labelX, y: labelY }
+    towards = { x: target.x + OUTWARD[targetPosition].x, y: target.y + OUTWARD[targetPosition].y }
+  }
+
+  // The SHACL counts the source class puts on this property, shown by the arrowhead as in UML.
+  const constraint =
+    data?.kind === 'objectProperty' ? constraintOnArrow(sourceClass?.data.constraints, data.label, (e) => getEdge(e)?.data?.label) : undefined
+  const counts = constraint && multiplicity(constraint)
+  const countsAt = nearTarget(target, towards)
+  // Clicking the counts selects the class that holds the constraint, so the inspector shows it.
+  // React passes the click up to the edge through the label portal; stop it there so the edge doesn't take the selection.
+  const openConstraint = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    store.getState().addSelectedNodes([sourceId])
   }
 
   const isSubClass = data?.kind === 'subClassOf'
@@ -58,6 +85,16 @@ export function RelationEdgeView(props: EdgeProps<RelationEdge>) {
         <div className="edge-label" style={{ transform: `translate(-50%, ${selected ? '-130%' : '-50%'}) translate(${mid.x}px, ${mid.y}px)` }}>
           {label}
         </div>
+        {counts && (
+          <button
+            className="edge-multiplicity nodrag nopan"
+            title={`SHACL: each ${sourceClass?.data.label ?? 'instance'} needs ${counts} "${data?.label}" values. Click to edit the constraint.`}
+            style={{ transform: `translate(-50%, -50%) translate(${countsAt.x}px, ${countsAt.y}px)` }}
+            onClick={openConstraint}
+          >
+            {counts}
+          </button>
+        )}
         {selected && (
           <div
             className="bend-handle nodrag nopan"
