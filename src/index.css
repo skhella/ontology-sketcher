@@ -313,7 +313,7 @@ body,
   position: absolute;
   top: 12px;
   right: 12px;
-  width: 300px;
+  width: 330px;
   max-height: calc(100% - 24px);
   overflow: auto;
   padding: 8px 12px 12px;
@@ -529,4 +529,55 @@ body,
   border: 1.5px solid var(--ink);
   border-radius: 8px 3px 9px 4px;
   background: white;
+}
+
+.inspector .axioms {
+  margin: 8px 0 0;
+  padding: 0;
+  border: none;
+}
+
+.inspector .axioms legend {
+  padding: 0 0 4px;
+}
+
+.inspector .axiom-row {
+  display: flex;
+  align-items: start;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.inspector .axiom-row.drawn {
+  padding: 3px 6px;
+}
+
+.inspector .expression {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.inspector .expression select {
+  max-width: 100%;
+}
+
+.inspector .expression .cardinality {
+  width: 52px;
+}
+
+.inspector .axioms .add {
+  border-style: dashed;
+}
+
+.inspector .axiom-row .remove {
+  padding: 0 6px;
+  border: none;
+}
+
+.inspector .expression select.keyword {
+  color: var(--accent);
+  font-style: italic;
 }
