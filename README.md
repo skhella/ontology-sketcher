@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.svg">
+    <img src="docs/logo-light.svg" alt="Ontology Sketcher logo: a hand-drawn pencil drawing an edge between two class nodes" width="160">
+  </picture>
+</p>
+
 # Ontology Sketcher
 
 **Sketch an ontology like a whiteboard drawing, and get real OWL 2 out of it.**
