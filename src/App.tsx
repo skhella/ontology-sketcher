@@ -17,6 +17,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
+import logoSvg from '../docs/logo-light.svg?raw'
 import { importedOntologyIri, sampleOntology, type ClassNode, type RelationEdge } from './model'
 import { toTurtle } from './owl'
 import { Inspector } from './inspector/Inspector'
@@ -218,7 +219,10 @@ export default function App() {
   return (
     <div className="app">
       <header className="toolbar">
-        <strong>ontology-sketch</strong>
+        <span className="brand">
+          <span className="brand-logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} />
+          <strong>ontology-sketch</strong>
+        </span>
         <label>
           Ontology IRI{' '}
           <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />

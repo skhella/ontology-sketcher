@@ -107,6 +107,23 @@ body,
   background: var(--hover);
 }
 
+/* The logo is drawn in --ink so it follows the theme toggle, not just the system setting. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brand-logo svg {
+  display: block;
+  width: 36px;
+  height: 36px;
+}
+
+.brand-logo .ink {
+  stroke: var(--ink);
+}
+
 .hint {
   color: var(--muted);
   font-size: 15px;
