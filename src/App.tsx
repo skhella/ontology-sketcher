@@ -17,6 +17,8 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
+import { placeImport } from './layout'
+import { describeOwlImport, importOwl } from './owlImport'
 import { describeShapesImport, importShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
 import { importedOntologyIri, sampleOntology, type ClassNode, type NodeKind, type RelationEdge } from './model'
@@ -131,18 +133,29 @@ export default function App() {
     setEdges((es) => es.map((e) => (e.id === edge.id ? markerFor({ ...e, data: { ...e.data, ...kind } }) : e)))
   }
 
-  // Replaces the canvas with the classes and arrows found in an .excalidraw file.
+  // Replaces the canvas with the classes and arrows found in an .excalidraw file, or in an OWL ontology in Turtle.
   const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
     try {
-      const result = importExcalidraw(await file.text())
-      if (nodes.length > 0 && !window.confirm(`Replace this page with ${file.name}?`)) return
-      setNodes(result.nodes)
-      setEdges(result.edges.map((e) => markerFor(withDefaultHandles(e))))
-      setIri((current) => importedOntologyIri(current, file.name))
-      setNotice(describeImport(result.summary))
+      const text = await file.text()
+      if (/\.(ttl|nt|owl|rdf)$/i.test(file.name) || !text.trimStart().startsWith('{')) {
+        const result = importOwl(text)
+        if (nodes.length > 0 && !window.confirm(`Replace this page with ${file.name}? Classes already on it keep their place.`)) return
+        const placed = placeImport(result, { iri, nodes, edges })
+        setNodes(placed.nodes)
+        setEdges(placed.edges.map(markerFor))
+        setIri(result.iri)
+        setNotice(describeOwlImport(result.summary))
+      } else {
+        const result = importExcalidraw(text)
+        if (nodes.length > 0 && !window.confirm(`Replace this page with ${file.name}?`)) return
+        setNodes(result.nodes)
+        setEdges(result.edges.map((e) => markerFor(withDefaultHandles(e))))
+        setIri((current) => importedOntologyIri(current, file.name))
+        setNotice(describeImport(result.summary))
+      }
       requestAnimationFrame(() => flow?.fitView({ padding: 0.2 }))
     } catch (error) {
       setNotice(`Could not import ${file.name}: ${(error as Error).message}`)
@@ -304,8 +317,8 @@ export default function App() {
         <button onClick={() => addNode('scheme')} title="A SKOS concept scheme: the thesaurus or code list concepts belong to">
           + Scheme
         </button>
-        <button onClick={() => fileInput.current?.click()}>Import .excalidraw</button>
-        <input ref={fileInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
+        <button onClick={() => fileInput.current?.click()} title="An ontology in Turtle (.ttl), or an .excalidraw drawing">Import</button>
+        <input ref={fileInput} type="file" accept=".ttl,.nt,.owl,.excalidraw,.json,text/turtle,application/json" hidden onChange={importFile} />
         <button onClick={() => shapesInput.current?.click()} title="Read a SHACL shapes file (Turtle) into the constraints of the classes on this page">
           Import shapes
         </button>
