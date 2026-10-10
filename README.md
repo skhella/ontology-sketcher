@@ -20,8 +20,9 @@ Longer term it aims at Protégé-like editing of classes, properties, axioms and
   picker), fill style, stroke width, stroke style and sloppiness. Select an edge and drag its midpoint dot to curve
   it; double-click the dot or use "Reset curve" to undo. Styles and curves are visual only and are not exported.
 - Import an `.excalidraw` file: labelled rectangles, ellipses and diamonds become classes at the same spot;
-  arrows bound to two of them become `rdfs:subClassOf` (arrow points from subclass to superclass), or an
-  object property when the arrow has a label. Free text, lines, unlabelled shapes and loose arrows are skipped.
+  arrows bound to two of them become `rdfs:subClassOf` when unlabelled or labelled "SCO" or "subClassOf" (arrow
+  points from subclass to superclass), otherwise an object property named after the label. Free text, lines, unlabelled shapes and loose
+  arrows are skipped.
   Colours, fill, stroke and sloppiness carry over, curved arrows keep their bend, and each arrow end attaches to
   the dot on the side it touched.
 
