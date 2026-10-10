@@ -150,14 +150,15 @@ export default function App() {
       <header className="toolbar">
         <strong>ontology-sketch</strong>
         <label>
-          IRI <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} />
+          Ontology IRI{' '}
+          <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />
         </label>
         <button onClick={addClass}>+ Class</button>
         <button onClick={() => fileInput.current?.click()}>Import .excalidraw</button>
         <input ref={fileInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
         <button onClick={exportTurtle}>Export OWL (Turtle)</button>
         <span className="hint">
-          Drag between boxes to add subClassOf. Click a class or edge to edit its IRI, definition and annotations on the right. Select an edge and drag its dot to curve it.
+          Drag between boxes to add subClassOf. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its dot to curve it.
         </span>
       </header>
       <main className="canvas">
