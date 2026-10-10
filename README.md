@@ -10,10 +10,10 @@
 **Sketch an ontology like a whiteboard drawing, and get real OWL 2 out of it.**
 
 Ontology Sketcher is a browser-based ontology editor with the hand-drawn look of Excalidraw and the modelling
-depth of Protégé. Draw classes as boxes, connect them with arrows, refine them in an inspector, and export
+depth of Protégé. Draw classes as boxes or ovals, connect them with arrows, refine them in an inspector, and export
 valid OWL 2 in Turtle.
 
-![A pizza ontology drawn in Ontology Sketcher: hand-drawn coloured class boxes linked by subClassOf arrows and two object properties, "has topping" and "has base"](docs/screenshot-canvas.png)
+![A pizza ontology drawn in Ontology Sketcher: hand-drawn coloured class ovals linked by subClassOf arrows and two object properties, "has topping" and "has base"](docs/screenshot-canvas.png)
 
 ## Why
 
