@@ -16,6 +16,11 @@ Longer term it aims at Protégé-like editing of classes, properties, axioms and
   You can drop anywhere on the box: the edge locks to its dot nearest the pointer, which lights up while you hover.
 - Double-click an edge and name it to turn it into an `owl:ObjectProperty` (domain = source, range = target).
 - Export the ontology as OWL 2 in Turtle.
+- Inspector for the selected class or edge, on the right: label, IRI (a local name, `prefix:name` or full IRI;
+  derived from the label when empty), definition (`skos:definition`), comment (`rdfs:comment`) and any other
+  annotation (SKOS, `rdfs:seeAlso`, Dublin Core or a custom property) with an optional language tag. Edges can be
+  switched between subClassOf and object property there. Everything is exported; annotation properties that OWL 2
+  doesn't build in are declared `owl:AnnotationProperty`.
 - Style panel for the selection, like Excalidraw's: stroke and background colours (five swatches plus a custom
   picker), fill style, stroke width, stroke style and sloppiness. Select an edge and drag its midpoint dot to curve
   it; double-click the dot or use "Reset curve" to undo. Styles and curves are visual only and are not exported.

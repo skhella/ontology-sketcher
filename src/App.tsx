@@ -19,6 +19,7 @@ import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
 import { sampleOntology, type ClassNode, type RelationEdge } from './model'
 import { toTurtle } from './owl'
+import { Inspector } from './inspector/Inspector'
 import { classesNotOn, loadCanvas, mergePages, placeClass, removePage, saveCanvas, workspaceFrom, type Workspace } from './pages'
 import { ClassNodeView } from './sketch/ClassNodeView'
 import { ConnectionLine } from './sketch/ConnectionLine'
@@ -132,6 +133,12 @@ export default function App() {
     )
   }
 
+  const updateNode = (id: string, patch: Partial<ClassNode['data']>) =>
+    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
+
+  const updateEdge = (id: string, patch: Partial<NonNullable<RelationEdge['data']>>) =>
+    setEdges((es) => es.map((e) => (e.id === id && e.data ? markerFor({ ...e, data: { ...e.data, ...patch } }) : e)))
+
   const straighten = () => setEdges((es) => es.map((e) => (e.selected && e.data ? { ...e, data: { ...e.data, bend: undefined } } : e)))
 
   /** The workspace with the canvas's latest edits written back into it. */
@@ -210,7 +217,8 @@ export default function App() {
       <header className="toolbar">
         <strong>ontology-sketch</strong>
         <label>
-          IRI <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} />
+          Ontology IRI{' '}
+          <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />
         </label>
         <button onClick={addClass}>+ Class</button>
         <button onClick={() => fileInput.current?.click()}>Import .excalidraw</button>
@@ -227,7 +235,7 @@ export default function App() {
         )}
         <button onClick={startExport}>Export OWL (Turtle)</button>
         <span className="hint">
-          Drag between boxes to add subClassOf. Double-click to rename or turn an edge into a property. Select an edge and drag its dot to curve it.
+          Drag between boxes to add subClassOf. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its dot to curve it.
         </span>
       </header>
       <main className="canvas">
@@ -259,6 +267,16 @@ export default function App() {
             bentEdges={selectedEdges.filter((e) => e.data?.bend).length}
             onChange={restyle}
             onStraighten={straighten}
+          />
+        )}
+        {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
+          <Inspector
+            base={iri}
+            nodes={nodes}
+            edges={edges}
+            selection={[...selectedNodes, ...selectedEdges]}
+            onNodeChange={updateNode}
+            onEdgeChange={updateEdge}
           />
         )}
         {notice && (
