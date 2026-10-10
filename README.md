@@ -12,7 +12,8 @@ Longer term it aims at Protégé-like editing of classes, properties, axioms and
 
 ## Current scope
 
-- Classes as boxes; drag between boxes for `rdfs:subClassOf`.
+- Classes as boxes with a connection dot on each side; drag from a dot onto another box for `rdfs:subClassOf`.
+  You can drop anywhere on the box: the edge locks to its dot nearest the pointer, which lights up while you hover.
 - Double-click an edge and name it to turn it into an `owl:ObjectProperty` (domain = source, range = target).
 - Export the ontology as OWL 2 in Turtle.
 - Style panel for the selection, like Excalidraw's: stroke and background colours (five swatches plus a custom
