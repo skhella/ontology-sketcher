@@ -1,21 +1,13 @@
-import { EdgeLabelRenderer, getBezierPath, Position, useNodesData, useReactFlow, useStoreApi, type EdgeProps } from '@xyflow/react'
+import { EdgeLabelRenderer, useNodesData, useReactFlow, useStoreApi, type EdgeProps } from '@xyflow/react'
 import { useMemo, type MouseEvent, type PointerEvent } from 'react'
 import type { ClassNode, RelationEdge } from '../model'
-import { bendThrough, bentPath, type Point } from './curve'
+import { bendThrough, edgeLine } from './curve'
 import { constraintOnArrow, multiplicity, nearTarget } from './multiplicity'
 import { roughPath, seedFor } from './rough'
 import { dashArray, EDGE_DEFAULTS } from './style'
 
-// Which way a default bezier leaves its target handle, to set the multiplicity beside the arrowhead.
-const OUTWARD: Record<Position, Point> = {
-  [Position.Top]: { x: 0, y: -1 },
-  [Position.Bottom]: { x: 0, y: 1 },
-  [Position.Left]: { x: -1, y: 0 },
-  [Position.Right]: { x: 1, y: 0 },
-}
-
 export function RelationEdgeView(props: EdgeProps<RelationEdge>) {
-  const { id, data, markerEnd, selected, source: sourceId, sourceX, sourceY, targetX, targetY, targetPosition } = props
+  const { id, data, markerEnd, selected, source: sourceId, sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition } = props
   const { getEdge, screenToFlowPosition, updateEdgeData } = useReactFlow<ClassNode, RelationEdge>()
   const store = useStoreApi<ClassNode, RelationEdge>()
   const sourceClass = useNodesData<ClassNode>(sourceId)
@@ -23,21 +15,7 @@ export function RelationEdgeView(props: EdgeProps<RelationEdge>) {
   const target = { x: targetX, y: targetY }
 
   // Unbent edges keep React Flow's default bezier; dragging the midpoint handle bends them.
-  let d: string
-  let mid: { x: number; y: number }
-  // A point the line heads for as it leaves the target.
-  let towards: Point
-  if (data?.bend) {
-    const bent = bentPath(source, target, data.bend)
-    d = bent.d
-    mid = bent.through
-    towards = bent.control
-  } else {
-    const [path, labelX, labelY] = getBezierPath(props)
-    d = path
-    mid = { x: labelX, y: labelY }
-    towards = { x: target.x + OUTWARD[targetPosition].x, y: target.y + OUTWARD[targetPosition].y }
-  }
+  const { d, mid, towards } = edgeLine(source, sourcePosition, target, targetPosition, data?.bend)
 
   // The SHACL counts the source class puts on this property, shown by the arrowhead as in UML.
   const constraint =

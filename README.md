@@ -97,15 +97,18 @@ add axioms and data constraints, check a few example instances, and hand the res
 
 ### Export that other tools accept
 
-- **Export** writes the ontology as Turtle (`ontology.ttl`), and the SHACL shapes as `shapes.ttl` when any class
+- **Export > OWL (Turtle)** writes the ontology as Turtle (`ontology.ttl`), and the SHACL shapes as `shapes.ttl` when any class
   has constraints. The OWL output has been checked with [ROBOT](https://robot.obolibrary.org) and the HermiT
   reasoner: it stays inside OWL 2 DL. SKOS concepts and schemes go in the same file, with the SKOS vocabulary
   declared so it stays in OWL 2 DL too.
 - Properties drawn between several class pairs get a union domain and range, so reusing a property doesn't make
   the reasoner draw conclusions you never drew.
-- **Export Cypher (Neo4j)** previews and downloads `ontology.cypher`, a script that loads the ontology and the
+- **Export > Cypher (Neo4j)** previews and downloads `ontology.cypher`, a script that loads the ontology and the
   shapes into Neo4j through [neosemantics (n10s)](https://neo4j.com/labs/neosemantics/). Run it in Neo4j Browser
   or cypher-shell; its comments say what n10s keeps and what stays in the `.ttl` export.
+- **Export > SVG image** saves the current page as a drawing for papers and slides, cropped to the content, with
+  or without a background and in light or dark colours. Excalifont is embedded, so browsers show the hand-drawn
+  lettering; viewers that ignore embedded fonts (such as librsvg) fall back to a system font.
 
 ![The Export Cypher (Neo4j) preview next to the pizza drawing: a commented Cypher script that sets up n10s, adds a pizza prefix and imports the ontology inline](docs/screenshot-neo4j.png)
 
