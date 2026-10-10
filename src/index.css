@@ -1059,3 +1059,10 @@ body,
 .inspector .mapping {
   margin-bottom: 4px;
 }
+
+/* A selected edge shows a ring at each end: drag one onto another class to move that end. */
+.react-flow__edge.selected .react-flow__edgeupdater {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  fill: none;
+}

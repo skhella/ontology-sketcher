@@ -10,7 +10,10 @@ import {
   useNodesState,
   type Connection,
   type EdgeMouseHandler,
+  type FinalConnectionState,
+  type HandleType,
   type OnConnectEnd,
+  type OnReconnect,
   type NodeMouseHandler,
   type ReactFlowInstance,
 } from '@xyflow/react'
@@ -103,13 +106,44 @@ export default function App() {
     [nodes, setEdges],
   )
 
-  // Dropping a new edge anywhere on a class (not just on a dot) connects it to that class's nearest dot.
-  const onConnectEnd: OnConnectEnd = (_, state) => {
-    if (state.isValid || !state.fromNode || !state.pointer || !flow) return
+  // The class and dot under the pointer where a dragged edge end was let go, or null over empty canvas.
+  const snapAtDrop = (state: FinalConnectionState) => {
+    if (state.isValid || !state.fromNode || !state.pointer || !flow) return null
     const { x, y, zoom } = flow.getViewport()
-    const snap = snapToClass(nodes.map(boxOf), toFlowPoint(state.pointer, [x, y, zoom]), state.fromNode.id)
-    if (!snap) return
+    return snapToClass(nodes.map(boxOf), toFlowPoint(state.pointer, [x, y, zoom]), state.fromNode.id)
+  }
+
+  // Dropping a new edge anywhere on a class (not just on a dot) connects it to that class's nearest dot.
+  // React Flow also calls this when an existing edge's end is dropped; onReconnectEnd handles that case.
+  const reconnecting = useRef(false)
+  const onConnectEnd: OnConnectEnd = (_, state) => {
+    const snap = reconnecting.current ? null : snapAtDrop(state)
+    if (!snap || !state.fromNode) return
     onConnect({ source: state.fromNode.id, sourceHandle: state.fromHandle?.id ?? null, target: snap.nodeId, targetHandle: snap.side })
+  }
+
+  // Dragging an edge's end onto another class moves only that end. The relation keeps its id, so its
+  // IRI, label, characteristics and axioms stay; on other pages it follows to the new class too.
+  const onReconnect: OnReconnect<RelationEdge> = useCallback(
+    (edge, c) =>
+      setEdges((es) =>
+        es.map((e) => (e.id === edge.id ? { ...e, source: c.source, sourceHandle: c.sourceHandle, target: c.target, targetHandle: c.targetHandle } : e)),
+      ),
+    [setEdges],
+  )
+
+  // Like a new edge, a moved end dropped anywhere on a class locks to its nearest dot; on empty canvas the edge stays as it was.
+  // `fixed` is the end that did not move.
+  const onReconnectEnd = (_: globalThis.MouseEvent | TouchEvent, edge: RelationEdge, fixed: HandleType, state: FinalConnectionState) => {
+    reconnecting.current = false
+    const snap = snapAtDrop(state)
+    if (!snap) return
+    onReconnect(
+      edge,
+      fixed === 'source'
+        ? { source: edge.source, sourceHandle: edge.sourceHandle ?? null, target: snap.nodeId, targetHandle: snap.side }
+        : { source: snap.nodeId, sourceHandle: snap.side, target: edge.target, targetHandle: edge.targetHandle ?? null },
+    )
   }
 
   // Adds a class, or with a kind a SKOS concept or scheme, which starts in its own colours.
@@ -402,7 +436,7 @@ export default function App() {
           {theme === 'dark' ? '☀ Light' : '☾ Dark'}
         </button>
         <span className="hint">
-          Drag between boxes to add subClassOf, or broader between concepts. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its dot to curve it.
+          Drag between boxes to add subClassOf, or broader between concepts. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its middle dot to curve it, or drag either end onto another class to move it.
         </span>
       </header>
       <main className="canvas">
@@ -415,6 +449,11 @@ export default function App() {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onConnectEnd={onConnectEnd}
+          onReconnect={onReconnect}
+          onReconnectStart={() => {
+            reconnecting.current = true
+          }}
+          onReconnectEnd={onReconnectEnd}
           connectionMode={ConnectionMode.Loose}
           connectionLineComponent={ConnectionLine}
           onNodeDoubleClick={renameClass}
