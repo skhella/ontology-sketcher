@@ -106,8 +106,11 @@ add axioms and data constraints, check a few example instances, and hand the res
   declared so it stays in OWL 2 DL too.
 - Properties drawn between several class pairs get a union domain and range, so reusing a property doesn't make
   the reasoner draw conclusions you never drew.
-- **Download for Neo4j** writes a Cypher script that loads the ontology and the shapes into Neo4j through
-  [neosemantics (n10s)](https://neo4j.com/labs/neosemantics/). Run it in Neo4j Browser or cypher-shell.
+- **Export Cypher (Neo4j)** previews and downloads `ontology.cypher`, a script that loads the ontology and the
+  shapes into Neo4j through [neosemantics (n10s)](https://neo4j.com/labs/neosemantics/). Run it in Neo4j Browser
+  or cypher-shell; its comments say what n10s keeps and what stays in the `.ttl` export.
+
+![The Export Cypher (Neo4j) preview next to the pizza drawing: a commented Cypher script that sets up n10s, adds a pizza prefix and imports the ontology inline](docs/screenshot-neo4j.png)
 
 <details>
 <summary>The SHACL shapes exported from the drawing above (<code>shapes.ttl</code>, excerpt)</summary>
