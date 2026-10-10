@@ -111,6 +111,29 @@ describe('importExcalidraw', () => {
     ])
   })
 
+  it('reads arrows labelled SCO or subClassOf as subClassOf', () => {
+    const labelled = {
+      elements: [
+        shape('a', 'rectangle', 0, 0),
+        label('ta', 'a', 'A'),
+        shape('b', 'rectangle', 400, 0),
+        label('tb', 'b', 'B'),
+        arrow('x1', 'a', 'b'),
+        label('l1', 'x1', 'SCO'),
+        arrow('x2', 'a', 'b'),
+        label('l2', 'x2', 'subClassof'),
+        arrow('x3', 'a', 'b'),
+        label('l3', 'x3', 'scope'),
+      ],
+    }
+    const { edges } = importExcalidraw(JSON.stringify(labelled))
+    expect(edges.map((e) => [e.data?.kind, e.data?.label])).toEqual([
+      ['subClassOf', ''],
+      ['subClassOf', ''],
+      ['objectProperty', 'scope'],
+    ])
+  })
+
   it('rejects files that are not Excalidraw', () => {
     expect(() => importExcalidraw('not json')).toThrow(/not valid JSON/)
     expect(() => importExcalidraw('{"foo":1}')).toThrow(/Excalidraw/)

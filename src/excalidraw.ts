@@ -98,7 +98,7 @@ export function importExcalidraw(json: string): ImportResult {
         source,
         target,
         ...handlesOf(e, shapeById.get(source)!, shapeById.get(target)!),
-        data: { ...(label ? { kind: 'objectProperty', label } : { kind: 'subClassOf', label: '' }), style: styleOf(e), bend: bendOf(e) },
+        data: { ...(label && !isSubClassOfLabel(label) ? { kind: 'objectProperty', label } : { kind: 'subClassOf', label: '' }), style: styleOf(e), bend: bendOf(e) },
       })
       continue
     }
@@ -114,6 +114,11 @@ export function importExcalidraw(json: string): ImportResult {
       skipped,
     },
   }
+}
+
+/** True for "SCO" and for spellings of subClassOf such as "subclass of" or "rdfs:subClassOf". */
+function isSubClassOfLabel(label: string): boolean {
+  return /^(sco|(rdfs:)?sub ?class ?of)$/i.test(label.trim())
 }
 
 /** Attaches each end to the dot on the side of the class where the arrow touched the original shape. */
