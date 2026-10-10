@@ -12,13 +12,55 @@
   font-display: swap;
 }
 
-:root {
+:root,
+[data-theme='dark'] .react-flow__viewport {
   --ink: #1e1e1e;
   --paper: #fffdf7;
   --accent: #1971c2;
+  --surface: white;
+  --hover: #e7f5ff;
+  --muted: #6c6c6c;
+  --line: #d0d0d0;
+  --notice: #fff9db;
+}
+
+:root {
+  color-scheme: light;
   font-family: 'Excalifont', 'Shantell Sans', cursive;
   color: var(--ink);
   background: var(--paper);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --ink: #e3e3e8;
+  --paper: #121212;
+  --accent: #74c0fc;
+  --surface: #232329;
+  --hover: #31303b;
+  --muted: #a0a0a8;
+  --line: #4a4a52;
+  --notice: #3b3517;
+}
+
+/*
+ * Dark mode draws the canvas the way Excalidraw does: nodes and edges keep their
+ * light-mode colours and the whole viewport is inverted, with the hue turned back.
+ * The default black stroke shows as light grey, pastel fills as deep tones, and
+ * the stored colours and the OWL export do not change.
+ */
+[data-theme='dark'] .react-flow__viewport {
+  color: var(--ink);
+  filter: invert(93%) hue-rotate(180deg);
+}
+
+[data-theme='dark'] .swatch.transparent {
+  background: repeating-conic-gradient(#3a3a42 0 25%, var(--surface) 0 50%) 0 0 / 8px 8px;
+}
+
+/* The style panel's swatches show colours as they appear on the dark canvas. */
+[data-theme='dark'] .swatch:not(.transparent):not(.custom) {
+  filter: invert(93%) hue-rotate(180deg);
 }
 
 * {
@@ -56,16 +98,17 @@ body,
   padding: 4px 10px;
   border: 1.5px solid var(--ink);
   border-radius: 8px 3px 9px 4px;
-  background: white;
+  background: var(--surface);
+  color: var(--ink);
 }
 
 .toolbar button:hover,
 .export button:hover {
-  background: #e7f5ff;
+  background: var(--hover);
 }
 
 .hint {
-  color: #6c6c6c;
+  color: var(--muted);
   font-size: 15px;
 }
 
@@ -123,7 +166,7 @@ body,
   height: 14px;
   border: 2px solid var(--accent);
   border-radius: 50%;
-  background: white;
+  background: var(--surface);
   cursor: grab;
   pointer-events: all;
   touch-action: none;
@@ -143,7 +186,7 @@ body,
   padding: 8px 12px;
   border: 1.5px solid var(--ink);
   border-radius: 10px 4px 8px 5px;
-  background: white;
+  background: var(--surface);
   font-size: 15px;
   z-index: 10;
 }
@@ -156,7 +199,7 @@ body,
 
 .style-panel legend {
   padding: 0 0 4px;
-  color: #6c6c6c;
+  color: var(--muted);
 }
 
 .style-panel .options {
@@ -176,7 +219,7 @@ body,
   width: 24px;
   height: 24px;
   padding: 0;
-  border: 1px solid #d0d0d0;
+  border: 1px solid var(--line);
   border-radius: 5px;
 }
 
@@ -209,15 +252,15 @@ body,
   min-width: 32px;
   height: 32px;
   padding: 0 6px;
-  border: 1px solid #d0d0d0;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: white;
+  background: var(--surface);
   color: var(--ink);
 }
 
 .style-panel .option.active {
   border-color: var(--accent);
-  background: #e7f5ff;
+  background: var(--hover);
   color: var(--accent);
 }
 
@@ -241,13 +284,14 @@ body,
   padding: 8px 12px;
   border: 1.5px solid var(--ink);
   border-radius: 10px 4px 8px 5px;
-  background: #fff9db;
+  background: var(--notice);
   font-size: 16px;
   z-index: 10;
 }
 
 .notice button {
   font: inherit;
+  color: inherit;
   border: none;
   background: none;
   cursor: pointer;
@@ -263,7 +307,7 @@ body,
   flex-direction: column;
   border: 2px solid var(--ink);
   border-radius: 12px 4px 10px 6px;
-  background: white;
+  background: var(--surface);
   z-index: 10;
 }
 
@@ -323,7 +367,7 @@ body,
   padding: 8px 12px 12px;
   border: 1.5px solid var(--ink);
   border-radius: 4px 10px 5px 8px;
-  background: white;
+  background: var(--surface);
   font-size: 15px;
   z-index: 10;
 }
@@ -344,7 +388,7 @@ body,
 .inspector .field-label,
 .inspector legend,
 .inspector .muted {
-  color: #6c6c6c;
+  color: var(--muted);
 }
 
 .inspector .iri {
@@ -361,9 +405,9 @@ body,
   font-size: 15px;
   min-width: 0;
   padding: 3px 6px;
-  border: 1px solid #d0d0d0;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: white;
+  background: var(--surface);
   color: var(--ink);
 }
 
@@ -376,7 +420,7 @@ body,
 }
 
 .inspector button:hover {
-  background: #e7f5ff;
+  background: var(--hover);
 }
 
 .inspector .segmented {
@@ -386,7 +430,7 @@ body,
 
 .inspector .segmented button.active {
   border-color: var(--accent);
-  background: #e7f5ff;
+  background: var(--hover);
   color: var(--accent);
 }
 
@@ -415,7 +459,7 @@ body,
   gap: 2px 4px;
   margin-bottom: 6px;
   padding-bottom: 6px;
-  border-bottom: 1px dashed #d0d0d0;
+  border-bottom: 1px dashed var(--line);
 }
 
 .inspector .annotation .property {
@@ -455,7 +499,8 @@ body,
   padding: 4px 6px;
   border: 1.5px solid var(--ink);
   border-radius: 8px 3px 9px 4px;
-  background: white;
+  background: var(--surface);
+  color: var(--ink);
 }
 
 /* Page tabs along the bottom, like draw.io; each page is a view onto the same shared classes. */
@@ -471,6 +516,7 @@ body,
 
 .pages button {
   font: inherit;
+  color: inherit;
   border: none;
   background: none;
   cursor: pointer;
@@ -489,11 +535,11 @@ body,
 
 .pages .page.active {
   border-color: var(--ink);
-  background: white;
+  background: var(--surface);
 }
 
 .pages .close {
-  color: #6c6c6c;
+  color: var(--muted);
 }
 
 .pages .add {
@@ -511,7 +557,7 @@ body,
   padding: 12px;
   border: 2px solid var(--ink);
   border-radius: 12px 4px 10px 6px;
-  background: white;
+  background: var(--surface);
   font-size: 16px;
   z-index: 10;
 }
@@ -532,7 +578,8 @@ body,
   padding: 4px 10px;
   border: 1.5px solid var(--ink);
   border-radius: 8px 3px 9px 4px;
-  background: white;
+  background: var(--surface);
+  color: var(--ink);
 }
 
 .inspector .axioms {
