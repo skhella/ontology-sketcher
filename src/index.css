@@ -1,0 +1,139 @@
+/* Excalifont (OFL-1.1) by Excalidraw; Latin and Latin Extended subsets, see public/fonts/excalifont/README.md. */
+@font-face {
+  font-family: 'Excalifont';
+  src: url('/fonts/excalifont/Excalifont-Latin.woff2') format('woff2');
+  unicode-range: U+20-7E, U+A0-FF, U+131, U+152-153, U+2013-2014, U+2018-201E, U+2020, U+2022, U+2026, U+20AC, U+2122, U+2212;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Excalifont';
+  src: url('/fonts/excalifont/Excalifont-LatinExt.woff2') format('woff2');
+  unicode-range: U+100-130, U+132-17E, U+192, U+218-21B;
+  font-display: swap;
+}
+
+:root {
+  --ink: #1e1e1e;
+  --paper: #fffdf7;
+  --accent: #1971c2;
+  font-family: 'Excalifont', 'Shantell Sans', cursive;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 2px solid var(--ink);
+  font-size: 18px;
+}
+
+.toolbar input,
+.toolbar button,
+.export button {
+  font: inherit;
+  font-size: 16px;
+  padding: 4px 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: 8px 3px 9px 4px;
+  background: white;
+}
+
+.toolbar button:hover,
+.export button:hover {
+  background: #e7f5ff;
+}
+
+.hint {
+  color: #6c6c6c;
+  font-size: 15px;
+}
+
+.canvas {
+  position: relative;
+  flex: 1;
+}
+
+.react-flow {
+  --xy-background-color: var(--paper);
+}
+
+.class-node {
+  position: relative;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+}
+
+.class-node .sketch {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.class-node .label {
+  position: relative;
+  padding: 0 8px;
+  text-align: center;
+}
+
+.class-node.selected .sketch path {
+  stroke: var(--accent);
+}
+
+.edge-label {
+  position: absolute;
+  padding: 0 4px;
+  background: var(--paper);
+  font-size: 16px;
+  pointer-events: none;
+}
+
+.export {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: min(480px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  border: 2px solid var(--ink);
+  border-radius: 12px 4px 10px 6px;
+  background: white;
+  z-index: 10;
+}
+
+.export-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1.5px dashed var(--ink);
+}
+
+.export pre {
+  flex: 1;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  font-size: 13px;
+}
