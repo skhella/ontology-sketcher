@@ -48,3 +48,8 @@ npm run dev     # start the editor
 npm test        # run unit tests
 npm run build   # type-check and build
 ```
+
+## License
+
+The code is under the [MIT License](LICENSE). The bundled fonts keep their own licence: Excalifont and Shantell Sans
+are under the SIL Open Font License 1.1.
