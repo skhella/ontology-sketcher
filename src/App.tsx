@@ -19,6 +19,7 @@ import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
 import { importedOntologyIri, sampleOntology, type ClassNode, type RelationEdge } from './model'
 import { toTurtle } from './owl'
+import { loadDefaultNamespace, saveDefaultNamespace } from './settings'
 import { Inspector } from './inspector/Inspector'
 import { classesNotOn, loadCanvas, mergePages, placeClass, removePage, saveCanvas, workspaceFrom, type Workspace } from './pages'
 import { ClassNodeView } from './sketch/ClassNodeView'
@@ -52,6 +53,9 @@ function edgeStyle(edge: RelationEdge): SketchStyle {
 
 export default function App() {
   const [iri, setIri] = useState(sampleOntology.iri)
+  const [defaultNamespace, setDefaultNamespace] = useState(loadDefaultNamespace)
+  // New classes and properties keep the namespace they were created in; changing the setting later leaves them as they are.
+  const created = useMemo(() => (defaultNamespace.trim() ? { namespace: defaultNamespace.trim() } : {}), [defaultNamespace])
   const [nodes, setNodes, onNodesChange] = useNodesState<ClassNode>(sampleOntology.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<RelationEdge>(
     sampleOntology.edges.map((e) => markerFor(withDefaultHandles(e))),
@@ -69,9 +73,9 @@ export default function App() {
   const onConnect = useCallback(
     (c: Connection) =>
       setEdges((eds) =>
-        addEdge(markerFor({ ...c, id: crypto.randomUUID(), type: 'relation', data: { kind: 'subClassOf', label: '' } }), eds),
+        addEdge(markerFor({ ...c, id: crypto.randomUUID(), type: 'relation', data: { kind: 'subClassOf', label: '', ...created } }), eds),
       ),
-    [setEdges],
+    [setEdges, created],
   )
 
   // Dropping a new edge anywhere on a class (not just on a dot) connects it to that class's nearest dot.
@@ -88,7 +92,7 @@ export default function App() {
     if (!label) return
     setNodes((ns) => [
       ...ns,
-      { id: crypto.randomUUID(), type: 'owlClass', position: { x: 120 + ns.length * 20, y: 120 + ns.length * 20 }, data: { label } },
+      { id: crypto.randomUUID(), type: 'owlClass', position: { x: 120 + ns.length * 20, y: 120 + ns.length * 20 }, data: { label, ...created } },
     ])
   }
 
@@ -101,7 +105,11 @@ export default function App() {
   const editRelation: EdgeMouseHandler<RelationEdge> = (_, edge) => {
     const label = window.prompt('Object property name (leave empty for subClassOf)', edge.data?.label ?? '')
     if (label === null) return
-    const kind = label.trim() ? { kind: 'objectProperty' as const, label } : { kind: 'subClassOf' as const, label: '' }
+    // Edges with the same name are one property, so a name already in use brings that property's namespace along.
+    const named = edges.find((e) => e.id !== edge.id && e.data?.kind === 'objectProperty' && e.data.label === label)
+    const kind = label.trim()
+      ? { kind: 'objectProperty' as const, label, ...(named && { namespace: named.data?.namespace }) }
+      : { kind: 'subClassOf' as const, label: '' }
     setEdges((es) => es.map((e) => (e.id === edge.id ? markerFor({ ...e, data: { ...e.data, ...kind } }) : e)))
   }
 
@@ -220,6 +228,19 @@ export default function App() {
         <label>
           Ontology IRI{' '}
           <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />
+        </label>
+        <label>
+          New entities in{' '}
+          <input
+            value={defaultNamespace}
+            placeholder={iri}
+            onChange={(e) => {
+              setDefaultNamespace(e.target.value)
+              saveDefaultNamespace(e.target.value)
+            }}
+            size={32}
+            title="Namespace that new classes and properties get their IRI under, remembered in this browser. Leave empty to use the ontology IRI. Changing it does not move classes and properties that already exist."
+          />
         </label>
         <button onClick={addClass}>+ Class</button>
         <button onClick={() => fileInput.current?.click()}>Import .excalidraw</button>

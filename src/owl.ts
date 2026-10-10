@@ -4,9 +4,10 @@ import { BUILT_IN_ANNOTATION_PROPERTIES, expandIri, IRI_VALUED, isAbsoluteIri, O
 
 const { literal, namedNode, quad } = DataFactory
 
-/** The IRI of a class or property: its own `iri` when set, else `localName` after the ontology IRI. */
+/** The IRI of a class or property: its own `iri` when set, else `localName` after its namespace or the ontology IRI. */
 export function entityIri(base: string, data: EntityData, local: string): string {
-  return data.iri?.trim() ? expandIri(data.iri, base) : base + local
+  const namespace = data.namespace?.trim() || base
+  return data.iri?.trim() ? expandIri(data.iri, namespace) : namespace + local
 }
 
 // The OWL vocabulary for each quantifier: [predicate without a filler, predicate with a filler class].
