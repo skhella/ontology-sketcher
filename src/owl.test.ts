@@ -16,6 +16,16 @@ describe('toTurtle', () => {
     expect(triples).toContain(`${P}hasTopping http://www.w3.org/2000/01/rdf-schema#domain ${P}Pizza`)
     expect(triples).toContain(`${P}hasTopping http://www.w3.org/2000/01/rdf-schema#range ${P}Topping`)
   })
+
+
+  it('ignores visual style and edge curves', async () => {
+    const styled = {
+      ...sampleOntology,
+      nodes: sampleOntology.nodes.map((n) => ({ ...n, data: { ...n.data, style: { stroke: '#e03131', fill: '#ffec99' } } })),
+      edges: sampleOntology.edges.map((e) => ({ ...e, data: { ...e.data!, style: { strokeWidth: 4 }, bend: { x: 10, y: 30 } } })),
+    }
+    expect(await toTurtle(styled)).toBe(await toTurtle(sampleOntology))
+  })
 })
 
 describe('localName', () => {

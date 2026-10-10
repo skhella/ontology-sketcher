@@ -19,13 +19,21 @@ import { sampleOntology, type ClassNode, type RelationEdge } from './model'
 import { toTurtle } from './owl'
 import { ClassNodeView } from './sketch/ClassNodeView'
 import { RelationEdgeView } from './sketch/RelationEdgeView'
+import { StylePanel } from './sketch/StylePanel'
+import { EDGE_DEFAULTS, type SketchStyle } from './sketch/style'
 
 const nodeTypes = { owlClass: ClassNodeView }
 const edgeTypes = { relation: RelationEdgeView }
 
 function markerFor(edge: RelationEdge): RelationEdge {
   const closed = edge.data?.kind === 'subClassOf'
-  return { ...edge, markerEnd: { type: closed ? MarkerType.ArrowClosed : MarkerType.Arrow, color: '#1e1e1e', width: 18, height: 18 } }
+  const color = edge.data?.style?.stroke ?? EDGE_DEFAULTS.stroke
+  return { ...edge, markerEnd: { type: closed ? MarkerType.ArrowClosed : MarkerType.Arrow, color, width: 18, height: 18 } }
+}
+
+/** An edge's style as the panel shows it: without an explicit stroke style, the kind decides. */
+function edgeStyle(edge: RelationEdge): SketchStyle {
+  return { strokeStyle: edge.data?.kind === 'subClassOf' ? 'solid' : 'dashed', ...edge.data?.style }
 }
 
 export default function App() {
@@ -56,15 +64,15 @@ export default function App() {
 
   const renameClass: NodeMouseHandler<ClassNode> = (_, node) => {
     const label = window.prompt('Class name', node.data.label)
-    if (label) setNodes((ns) => ns.map((n) => (n.id === node.id ? { ...n, data: { label } } : n)))
+    if (label) setNodes((ns) => ns.map((n) => (n.id === node.id ? { ...n, data: { ...n.data, label } } : n)))
   }
 
   // Double-click an edge: enter a property name to make it an object property, or leave empty for subClassOf.
   const editRelation: EdgeMouseHandler<RelationEdge> = (_, edge) => {
     const label = window.prompt('Object property name (leave empty for subClassOf)', edge.data?.label ?? '')
     if (label === null) return
-    const data = label.trim() ? { kind: 'objectProperty' as const, label } : { kind: 'subClassOf' as const, label: '' }
-    setEdges((es) => es.map((e) => (e.id === edge.id ? markerFor({ ...e, data }) : e)))
+    const kind = label.trim() ? { kind: 'objectProperty' as const, label } : { kind: 'subClassOf' as const, label: '' }
+    setEdges((es) => es.map((e) => (e.id === edge.id ? markerFor({ ...e, data: { ...e.data, ...kind } }) : e)))
   }
 
   // Replaces the canvas with the classes and arrows found in an .excalidraw file.
@@ -83,6 +91,19 @@ export default function App() {
       setNotice(`Could not import ${file.name}: ${(error as Error).message}`)
     }
   }
+
+  const selectedNodes = nodes.filter((n) => n.selected)
+  const selectedEdges = edges.filter((e) => e.selected)
+
+  // Applies a style change from the panel to everything selected, like Excalidraw.
+  const restyle = (patch: SketchStyle) => {
+    setNodes((ns) => ns.map((n) => (n.selected ? { ...n, data: { ...n.data, style: { ...n.data.style, ...patch } } } : n)))
+    setEdges((es) =>
+      es.map((e) => (e.selected && e.data ? markerFor({ ...e, data: { ...e.data, style: { ...e.data.style, ...patch } } }) : e)),
+    )
+  }
+
+  const straighten = () => setEdges((es) => es.map((e) => (e.selected && e.data ? { ...e, data: { ...e.data, bend: undefined } } : e)))
 
   const exportTurtle = async () => setTurtle(await toTurtle({ iri, nodes, edges }))
 
@@ -105,7 +126,9 @@ export default function App() {
         <button onClick={() => fileInput.current?.click()}>Import .excalidraw</button>
         <input ref={fileInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
         <button onClick={exportTurtle}>Export OWL (Turtle)</button>
-        <span className="hint">Drag between boxes to add subClassOf. Double-click to rename or turn an edge into a property.</span>
+        <span className="hint">
+          Drag between boxes to add subClassOf. Double-click to rename or turn an edge into a property. Select an edge and drag its dot to curve it.
+        </span>
       </header>
       <main className="canvas">
         <ReactFlow
@@ -125,6 +148,15 @@ export default function App() {
           <Background variant={BackgroundVariant.Dots} gap={20} />
           <Controls />
         </ReactFlow>
+        {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
+          <StylePanel
+            current={selectedNodes.length > 0 ? (selectedNodes[0].data.style ?? {}) : edgeStyle(selectedEdges[0])}
+            edgesOnly={selectedNodes.length === 0}
+            bentEdges={selectedEdges.filter((e) => e.data?.bend).length}
+            onChange={restyle}
+            onStraighten={straighten}
+          />
+        )}
         {notice && (
           <div className="notice" role="status">
             {notice}
