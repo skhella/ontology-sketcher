@@ -27,6 +27,7 @@ import { RelationEdgeView } from './sketch/RelationEdgeView'
 import { boxOf, snapToClass, toFlowPoint } from './sketch/snap'
 import { StylePanel } from './sketch/StylePanel'
 import { EDGE_DEFAULTS, type SketchStyle } from './sketch/style'
+import { useTheme } from './theme'
 
 const nodeTypes = { owlClass: ClassNodeView }
 const edgeTypes = { relation: RelationEdgeView }
@@ -65,6 +66,7 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null)
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const [theme, toggleTheme] = useTheme()
 
   const onConnect = useCallback(
     (c: Connection) =>
@@ -235,6 +237,9 @@ export default function App() {
           </select>
         )}
         <button onClick={startExport}>Export OWL (Turtle)</button>
+        <button onClick={toggleTheme} aria-pressed={theme === 'dark'} title="Switch between light and dark mode">
+          {theme === 'dark' ? '☀ Light' : '☾ Dark'}
+        </button>
         <span className="hint">
           Drag between boxes to add subClassOf. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its dot to curve it.
         </span>
@@ -257,6 +262,7 @@ export default function App() {
           onInit={setFlow}
           fitView
           minZoom={0.05}
+          colorMode={theme}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} />
           <Controls />
