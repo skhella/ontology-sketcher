@@ -5,8 +5,23 @@ export const SKOS = 'http://www.w3.org/2004/02/skos/core#'
 export const DCTERMS = 'http://purl.org/dc/terms/'
 export const XSD = 'http://www.w3.org/2001/XMLSchema#'
 
+/** Datatypes offered for data properties, most used first. */
+export const DATATYPES = [
+  XSD + 'string',
+  XSD + 'boolean',
+  XSD + 'integer',
+  XSD + 'decimal',
+  XSD + 'double',
+  XSD + 'date',
+  XSD + 'dateTime',
+  XSD + 'anyURI',
+  XSD + 'nonNegativeInteger',
+  RDF + 'langString',
+  RDFS + 'Literal',
+]
+
 /** Prefixes the editor knows, for showing and typing compact IRIs. */
-export const PREFIXES: Record<string, string> = { rdf: RDF, rdfs: RDFS, owl: OWL, skos: SKOS, dcterms: DCTERMS }
+export const PREFIXES: Record<string, string> = { rdf: RDF, rdfs: RDFS, owl: OWL, xsd: XSD, skos: SKOS, dcterms: DCTERMS }
 
 export const SKOS_DEFINITION = SKOS + 'definition'
 export const RDFS_COMMENT = RDFS + 'comment'
