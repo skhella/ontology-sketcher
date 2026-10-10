@@ -38,13 +38,13 @@ Ontologies usually start on a whiteboard, then get rebuilt by hand in a tool lik
 keeps the whiteboard: the drawing *is* the ontology. You can start from an existing Excalidraw sketch, tidy it up,
 add axioms and data constraints, check a few example instances, and hand the result to the rest of your stack.
 
-| ✏️ Sketch | 🧩 Model | ✅ Validate | 📦 Ship |
+| Sketch | Model | Validate | Ship |
 | --- | --- | --- | --- |
 | Draw classes and arrows on a hand-drawn canvas, or import an `.excalidraw` file. | Annotations, class axioms and property characteristics in a Protégé-style inspector. | SHACL constraints per class, checked against sample data right in the app. | `ontology.ttl`, `shapes.ttl` and a Cypher script for Neo4j. |
 
 ## Features
 
-### ✏️ A canvas that feels like a whiteboard
+### A canvas that feels like a whiteboard
 
 - Hand-drawn shapes and the Excalifont handwriting font, with a style panel like Excalidraw's: box or oval,
   stroke and fill colours, fill style, stroke width and style, and sloppiness.
@@ -57,7 +57,7 @@ add axioms and data constraints, check a few example instances, and hand the res
   `rdfs:subClassOf` (unlabelled, or labelled "SCO" / "subClassOf") or an object property named after the label.
   Colours, fill, stroke, sloppiness, ovals and curved arrows carry over.
 
-### 🧩 Protégé-style modelling in the inspector
+### Protégé-style modelling in the inspector
 
 - Labels, IRIs, `skos:definition`, `rdfs:comment` and any other annotation (SKOS, Dublin Core or your own), with
   language tags.
@@ -67,7 +67,7 @@ add axioms and data constraints, check a few example instances, and hand the res
   irreflexive), inverses and super properties.
 - Data properties on classes with an `xsd` datatype.
 
-### ✅ SHACL constraints, checked as you go
+### SHACL constraints, checked as you go
 
 <table>
   <tr>
@@ -88,7 +88,7 @@ add axioms and data constraints, check a few example instances, and hand the res
 - **Check sample data**: paste a few instances in Turtle and the app validates them against the shapes, lists each
   problem in plain words, and outlines the classes whose instances break a rule in red.
 
-### 🏷️ SKOS vocabularies next to the ontology
+### SKOS vocabularies next to the ontology
 
 ![A concept scheme Spiciness in dark mode, with top concepts Mild and Hot and Extra Hot as a narrower concept of Hot. The inspector shows Hot with an English prefLabel, an altLabel "Spicy", a German prefLabel "Scharf" and an exactMatch mapping](docs/screenshot-skos-dark.png)
 
@@ -98,7 +98,7 @@ add axioms and data constraints, check a few example instances, and hand the res
 - Labels with language tags, alternative and hidden labels, notation, scope notes and the other SKOS notes.
 - Mappings to other vocabularies with `exactMatch`, `closeMatch`, `broadMatch`, `narrowMatch` and `relatedMatch`.
 
-### 📦 Export that other tools accept
+### Export that other tools accept
 
 - **Export** writes the ontology as Turtle (`ontology.ttl`), and the SHACL shapes as `shapes.ttl` when any class
   has constraints. The OWL output has been checked with [ROBOT](https://robot.obolibrary.org) and the HermiT
