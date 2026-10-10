@@ -104,11 +104,18 @@ export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeC
       <Field label="Edge type" group>
         <div className="segmented">
           {(skos ? SKOS_EDGE_KINDS : (['subClassOf', 'objectProperty', 'annotationProperty'] as const)).map((kind) => (
-            <button key={kind} className={kind === data.kind ? 'active' : undefined} aria-pressed={kind === data.kind} onClick={() => setKind(kind)}>
+            <button
+              key={kind}
+              className={kind === data.kind ? 'active' : undefined}
+              aria-pressed={kind === data.kind}
+              title={EDGE_HINTS[kind]}
+              onClick={() => setKind(kind)}
+            >
               {EDGE_KINDS[kind]}
             </button>
           ))}
         </div>
+        {EDGE_HINTS[data.kind] && <p className="muted">{EDGE_HINTS[data.kind]}</p>}
       </Field>
       {data.kind === 'subClassOf' || skos ? (
         <p className="axiom">
@@ -148,6 +155,12 @@ const EDGE_KINDS: Record<EdgeKind, string> = {
   narrower: 'narrower',
   related: 'related',
   topConceptOf: 'top concept',
+}
+// One line under the edge type picker (and its tooltips) saying what the selected kind means.
+const EDGE_HINTS: Partial<Record<EdgeKind, string>> = {
+  subClassOf: 'Every instance of the source is also an instance of the target.',
+  objectProperty: 'Links instances of these classes; used in formal reasoning.',
+  annotationProperty: 'For human understanding only, not formal reasoning.',
 }
 const EDGE_TITLES: Record<EdgeKind, string> = {
   subClassOf: 'Subclass axiom',
