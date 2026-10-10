@@ -1,4 +1,4 @@
-import { DataFactory, Writer, type Quad } from 'n3'
+import { DataFactory, Writer, type Quad, type Quad_Object } from 'n3'
 import { localName, propertyLocalName, type EntityData, type Ontology } from './model'
 import { BUILT_IN_ANNOTATION_PROPERTIES, expandIri, IRI_VALUED, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS } from './vocab'
 
@@ -31,6 +31,8 @@ export function toTurtle(ontology: Ontology): Promise<string> {
   quads.push(quad(namedNode(ontologyIri), type, namedNode(OWL + 'Ontology')))
 
   const classIri = new Map<string, string>()
+  // Per object property IRI: its labels, and source class IRI → target class IRIs over every edge drawn with it.
+  const properties = new Map<string, { labels: Set<string>; uses: Map<string, Set<string>> }>()
   for (const node of ontology.nodes) {
     const iri = entityIri(base, node.data, localName(node.data.label))
     classIri.set(node.id, iri)
@@ -48,11 +50,19 @@ export function toTurtle(ontology: Ontology): Promise<string> {
       quads.push(quad(namedNode(source), namedNode(RDFS + 'subClassOf'), namedNode(target)))
     } else {
       const iri = entityIri(base, edge.data, propertyLocalName(edge.data.label))
-      const prop = namedNode(iri)
-      quads.push(quad(prop, type, namedNode(OWL + 'ObjectProperty')))
-      quads.push(quad(prop, label, literal(edge.data.label)))
-      quads.push(quad(prop, namedNode(RDFS + 'domain'), namedNode(source)))
-      quads.push(quad(prop, namedNode(RDFS + 'range'), namedNode(target)))
+      let property = properties.get(iri)
+      if (!property) {
+        property = { labels: new Set(), uses: new Map() }
+        properties.set(iri, property)
+        quads.push(quad(namedNode(iri), type, namedNode(OWL + 'ObjectProperty')))
+      }
+      // Declared and labelled once, however many arrows carry the property.
+      if (!property.labels.has(edge.data.label)) {
+        property.labels.add(edge.data.label)
+        quads.push(quad(namedNode(iri), label, literal(edge.data.label)))
+      }
+      if (!property.uses.has(source)) property.uses.set(source, new Set())
+      property.uses.get(source)!.add(target)
       annotate(iri, edge.data)
     }
   }
@@ -68,6 +78,37 @@ export function toTurtle(ontology: Ontology): Promise<string> {
   }
   const writer = new Writer({ prefixes })
   writer.addQuads([quads[0], ...declarations, ...quads.slice(1)])
+
+  // A property drawn between several class pairs: OWL reads repeated domain/range axioms as an
+  // intersection, so the domain and range are unions, and each source class keeps its own targets
+  // as `Source ⊑ ∀p.(T1 ⊔ …)` wherever they are narrower than the overall range.
+  const union = (iris: Iterable<string>) => {
+    const members = [...iris].map((i) => namedNode(i))
+    if (members.length === 1) return members[0]
+    return writer.blank([
+      { predicate: type, object: namedNode(OWL + 'Class') },
+      // @types/n3 types list() as an array; at runtime it is one serialized `( … )` term.
+      { predicate: namedNode(OWL + 'unionOf'), object: writer.list(members) as unknown as Quad_Object },
+    ])
+  }
+  const restrictions: [string, string, Set<string>][] = []
+  for (const [iri, { uses }] of properties) {
+    const ranges = new Set([...uses.values()].flatMap((targets) => [...targets]))
+    writer.addQuad(namedNode(iri), namedNode(RDFS + 'domain'), union(uses.keys()))
+    writer.addQuad(namedNode(iri), namedNode(RDFS + 'range'), union(ranges))
+    for (const [source, targets] of uses) if (targets.size < ranges.size) restrictions.push([source, iri, targets])
+  }
+  for (const [source, iri, targets] of restrictions) {
+    writer.addQuad(
+      namedNode(source),
+      namedNode(RDFS + 'subClassOf'),
+      writer.blank([
+        { predicate: type, object: namedNode(OWL + 'Restriction') },
+        { predicate: namedNode(OWL + 'onProperty'), object: namedNode(iri) },
+        { predicate: namedNode(OWL + 'allValuesFrom'), object: union(targets) },
+      ]),
+    )
+  }
 
   return new Promise((resolve, reject) => {
     writer.end((error, result) => (error ? reject(error) : resolve(result)))
