@@ -28,12 +28,12 @@ rules for your data, and export clean Turtle that a reasoner, a SHACL validator 
 ## Why
 
 Ontologies usually start on a whiteboard, then get rebuilt by hand in a tool like Protégé. Ontology Sketcher
-keeps the whiteboard: the drawing *is* the ontology. You can start from an existing Excalidraw sketch, tidy it up,
+keeps the whiteboard: the drawing *is* the ontology. You can start from an existing Excalidraw sketch or Turtle file, tidy it up,
 add axioms and data constraints, check a few example instances, and hand the result to the rest of your stack.
 
 | Sketch | Model | Validate | Ship |
 | --- | --- | --- | --- |
-| Draw classes and arrows on a hand-drawn canvas, or import an `.excalidraw` file. | Annotations, class axioms and property characteristics in a Protégé-style inspector. | SHACL constraints per class, checked against sample data right in the app. | `ontology.ttl`, `shapes.ttl` and a Cypher script for Neo4j. |
+| Draw classes and arrows on a hand-drawn canvas, or import a Turtle ontology or an `.excalidraw` file. | Annotations, class axioms and property characteristics in a Protégé-style inspector. | SHACL constraints per class, checked against sample data right in the app. | `ontology.ttl`, `shapes.ttl`, a Cypher script for Neo4j and an SVG image. |
 
 ## Features
 
@@ -81,6 +81,7 @@ add axioms and data constraints, check a few example instances, and hand the res
   datatype, with an optional message. They export as a separate `shapes.ttl` with one `sh:NodeShape` per class.
 - **Suggest from ontology** fills in constraints from what the drawing already says: arrow targets, `some`,
   `only`, `min`, `max` and `exactly` restrictions, functional properties and data property datatypes.
+- **Import shapes** reads an existing SHACL shapes file (Turtle) into the constraints of the classes on the page.
 - Counts show on the arrows UML style, such as `1` or `1..*`, next to the arrowhead.
 - **Check sample data**: paste a few instances in Turtle and the app validates them against the shapes, lists each
   problem in plain words, and outlines the classes whose instances break a rule in red.
@@ -110,7 +111,7 @@ add axioms and data constraints, check a few example instances, and hand the res
   or without a background and in light or dark colours. Excalifont is embedded, so browsers show the hand-drawn
   lettering; viewers that ignore embedded fonts (such as librsvg) fall back to a system font.
 
-![The Export Cypher (Neo4j) preview next to the pizza drawing: a commented Cypher script that sets up n10s, adds a pizza prefix and imports the ontology inline](docs/screenshot-neo4j.png)
+![The Cypher (Neo4j) export preview next to the pizza drawing: a commented Cypher script that sets up n10s, adds a pizza prefix and imports the ontology inline](docs/screenshot-neo4j.png)
 
 <details>
 <summary>The SHACL shapes exported from the drawing above (<code>shapes.ttl</code>, excerpt)</summary>
