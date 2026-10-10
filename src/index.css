@@ -308,6 +308,143 @@ body,
   stroke-dasharray: 6 4;
 }
 
+/* Protégé-style entity panel on the right; the style panel stays on the left. */
+.inspector {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 300px;
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  padding: 8px 12px 12px;
+  border: 1.5px solid var(--ink);
+  border-radius: 4px 10px 5px 8px;
+  background: white;
+  font-size: 15px;
+  z-index: 10;
+}
+
+.inspector h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: normal;
+}
+
+.inspector .field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.inspector .field-label,
+.inspector legend,
+.inspector .muted {
+  color: #6c6c6c;
+}
+
+.inspector .iri {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.inspector input,
+.inspector textarea,
+.inspector select,
+.inspector button {
+  font: inherit;
+  font-size: 15px;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: white;
+  color: var(--ink);
+}
+
+.inspector textarea {
+  resize: vertical;
+}
+
+.inspector button {
+  cursor: pointer;
+}
+
+.inspector button:hover {
+  background: #e7f5ff;
+}
+
+.inspector .segmented {
+  display: flex;
+  gap: 4px;
+}
+
+.inspector .segmented button.active {
+  border-color: var(--accent);
+  background: #e7f5ff;
+  color: var(--accent);
+}
+
+.inspector .axiom {
+  margin: 0 0 8px;
+}
+
+.inspector .keyword {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.inspector .annotations {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.inspector .annotations legend {
+  padding: 0 0 4px;
+}
+
+.inspector .annotation {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 4px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed #d0d0d0;
+}
+
+.inspector .annotation .property {
+  align-self: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector .annotation .remove {
+  padding: 0 6px;
+  border: none;
+}
+
+.inspector .annotation .value {
+  grid-column: 1;
+}
+
+.inspector .annotation .lang {
+  width: 56px;
+}
+
+.inspector .add-annotation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.inspector .add-annotation select,
+.inspector .add-annotation input {
+  flex: 1;
+}
+
 .toolbar select {
   font: inherit;
   font-size: 16px;
