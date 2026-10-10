@@ -1,10 +1,13 @@
 import { DataFactory, Parser, Store, type Term } from 'n3'
 import { describe, expect, it } from 'vitest'
 import { importedOntologyIri, localName, sampleOntology, type ClassAxiom, type Ontology } from './model'
-import { toTurtle } from './owl'
+import { entityIri, toTurtle } from './owl'
 
 const P = 'http://example.org/pizza#'
 const { namedNode } = DataFactory
+const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
+const RDFS_SUBCLASS = 'http://www.w3.org/2000/01/rdf-schema#subClassOf'
+const OWL_CLASS = 'http://www.w3.org/2002/07/owl#Class'
 
 describe('toTurtle', () => {
   it('emits parseable Turtle with classes, subclass axioms and object properties', async () => {
@@ -26,6 +29,27 @@ describe('toTurtle', () => {
       edges: sampleOntology.edges.map((e) => ({ ...e, data: { ...e.data!, style: { strokeWidth: 4 }, bend: { x: 10, y: 30 } } })),
     }
     expect(await toTurtle(styled)).toBe(await toTurtle(sampleOntology))
+  })
+})
+
+describe('entityIri', () => {
+  it('puts the local name after the namespace the entity was created in, else after the ontology IRI', () => {
+    const ns = 'https://example.org/myonto#'
+    expect(entityIri(P, {}, 'Pizza')).toBe(P + 'Pizza')
+    expect(entityIri(P, { namespace: ns }, 'Pizza')).toBe(ns + 'Pizza')
+    expect(entityIri(P, { namespace: ns, iri: 'Pie' }, 'Pizza')).toBe(ns + 'Pie')
+    expect(entityIri(P, { namespace: ns, iri: 'http://other.org/X' }, 'Pizza')).toBe('http://other.org/X')
+  })
+
+  it('exports classes created in another namespace under it', async () => {
+    const ns = 'https://example.org/myonto#'
+    const ontology: Ontology = {
+      ...sampleOntology,
+      nodes: sampleOntology.nodes.map((n) => (n.id === 'pizza' ? { ...n, data: { ...n.data, namespace: ns } } : n)),
+    }
+    const store = new Store(new Parser().parse(await toTurtle(ontology)))
+    expect(store.has(DataFactory.quad(namedNode(ns + 'Pizza'), namedNode(RDF_TYPE), namedNode(OWL_CLASS)))).toBe(true)
+    expect(store.has(DataFactory.quad(namedNode(P + 'Margherita'), namedNode(RDFS_SUBCLASS), namedNode(ns + 'Pizza')))).toBe(true)
   })
 })
 

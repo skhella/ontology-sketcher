@@ -10,9 +10,10 @@ export type Annotation = { property: string; value: string; lang?: string }
 
 /**
  * What a class or property carries besides its label.
- * `iri`, when set, replaces the IRI derived from the label: a full IRI, or a local name after the ontology IRI.
+ * `namespace` is the namespace the entity was created in (the default namespace at the time); unset means the ontology IRI.
+ * `iri`, when set, replaces the IRI derived from the label: a full IRI, or a local name after the namespace.
  */
-export type EntityData = { iri?: string; annotations?: Annotation[] }
+export type EntityData = { iri?: string; namespace?: string; annotations?: Annotation[] }
 
 /** OWL restriction keywords, in Manchester syntax. Cardinalities take `n`; `filler` is optional for them. */
 export type Quantifier = 'some' | 'only' | 'min' | 'max' | 'exactly'
