@@ -49,6 +49,22 @@ export function propertyLocalName(label: string): string {
   return name[0].toLowerCase() + name.slice(1)
 }
 
+/**
+ * The ontology IRI after importing `fileName`: a placeholder under http://example.org/ (like the sample's)
+ * is replaced by one named after the file, so imported classes don't end up in the pizza namespace.
+ * An IRI the user set themselves is kept.
+ */
+export function importedOntologyIri(current: string, fileName: string): string {
+  if (!current.startsWith('http://example.org/')) return current
+  const slug = fileName
+    .replace(/\.[^.]*$/, '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .join('-')
+  return `http://example.org/${slug || 'ontology'}#`
+}
+
 export const sampleOntology: Ontology = {
   iri: 'http://example.org/pizza#',
   nodes: [
