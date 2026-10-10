@@ -1,5 +1,6 @@
 import { DataFactory, Writer, type NamedNode, type Quad, type Quad_Object } from 'n3'
 import { localName, propertyLocalName, type Characteristic, type ClassExpression, type EntityData, type Ontology, type Quantifier } from './model'
+import { LAYOUT_PROPERTY, type SavedLayout } from './savedLayout'
 import { isSkosEdge, skosQuads } from './skos'
 import { BUILT_IN_ANNOTATION_PROPERTIES, expandIri, IRI_VALUED, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS, XSD } from './vocab'
 
@@ -41,8 +42,11 @@ function annotationQuads(subject: string, data: EntityData): Quad[] {
   })
 }
 
-/** Serializes the canvas model as an OWL 2 ontology in Turtle. */
-export function toTurtle(ontology: Ontology): Promise<string> {
+/**
+ * Serializes the canvas model as an OWL 2 ontology in Turtle. With `layout`, the pages and positions
+ * go along as one annotation on the ontology (see savedLayout.ts), so importing the file draws it the same way.
+ */
+export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<string> {
   const base = ontology.iri
   const ontologyIri = base.replace(/[#/]$/, '')
   const quads: Quad[] = []
@@ -73,6 +77,10 @@ export function toTurtle(ontology: Ontology): Promise<string> {
   const annotate = (subject: string, data: EntityData) => quads.push(...annotationQuads(subject, data))
 
   quads.push(quad(namedNode(ontologyIri), type, namedNode(OWL + 'Ontology')))
+  if (layout) {
+    usedAnnotationProperties.add(LAYOUT_PROPERTY)
+    quads.push(quad(namedNode(ontologyIri), namedNode(LAYOUT_PROPERTY), literal(JSON.stringify(layout))))
+  }
 
   const classIri = new Map<string, string>()
   const annotationProperties = new Set<string>()

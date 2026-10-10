@@ -1,6 +1,7 @@
 import { Parser, type Quad, type Term } from 'n3'
 import { describe, expect, it } from 'vitest'
-import { layoutOntology, placeImport } from './layout'
+import { layoutOntology, planImport, saveLayout } from './layout'
+import { loadCanvas, saveCanvas, workspaceFrom } from './pages'
 import { sampleOntology, type ClassNode, type Ontology, type RelationEdge } from './model'
 import { toTurtle } from './owl'
 import { describeOwlImport, importOwl } from './owlImport'
@@ -150,19 +151,93 @@ describe('layout', () => {
   })
 
   it('keeps classes already on the page where they are, with their ids and look', async () => {
-    const current = {
-      iri: P,
-      nodes: sampleOntology.nodes.map((n) => (n.id === 'pizza' ? { ...n, data: { ...n.data, style: { fill: '#ffec99' } } } : n)),
-      edges: sampleOntology.edges,
-    }
+    const nodes = sampleOntology.nodes.map((n) => (n.id === 'pizza' ? { ...n, data: { ...n.data, style: { fill: '#ffec99' } } } : n))
+    const { workspace, pageId } = workspaceFrom('Page 1', nodes, sampleOntology.edges)
     // The file adds Calzone under Pizza.
     const file = (await toTurtle(sampleOntology)) + `\n<${P}Calzone> a <http://www.w3.org/2002/07/owl#Class> ; <${RDFS}subClassOf> <${P}Pizza> .`
-    const placed = placeImport(importOwl(file), current)
-    expect(placed.kept).toBe(4)
-    for (const n of current.nodes) expect(placed.nodes.find((p) => p.id === n.id)?.position).toEqual(n.position)
+    const { pages, kept } = planImport(importOwl(file), { iri: P, workspace, pageId })
+    expect(pages).toHaveLength(1)
+    expect(kept).toBe(4)
+    const placed = pages[0]
+    for (const n of nodes) expect(placed.nodes.find((p) => p.id === n.id)?.position).toEqual(n.position)
     expect(placed.nodes.find((n) => n.id === 'pizza')?.data.style).toEqual({ fill: '#ffec99' })
     expect(placed.edges.map((e) => e.id)).toEqual(expect.arrayContaining(['e1', 'e2', 'e3']))
     const calzone = placed.nodes.find((n) => n.data.label === 'Calzone')!
-    expect(calzone.position.y).toBeGreaterThan(current.nodes.find((n) => n.id === 'pizza')!.position.y)
+    expect(calzone.position.y).toBeGreaterThan(nodes.find((n) => n.id === 'pizza')!.position.y)
+  })
+})
+
+describe('layout saved in the export', () => {
+  // Two pages: Pizza and Topping with the property on the first, the subclasses on the second.
+  const styled = sampleOntology.nodes.map((n) => (n.id === 'topping' ? { ...n, data: { ...n.data, style: { fill: '#b2f2bb', shape: 'oval' as const } } } : n))
+  const curved = sampleOntology.edges.map((e) => (e.id === 'e3' ? { ...e, sourceHandle: 'right', targetHandle: 'left', data: { ...e.data!, bend: { x: 0, y: -40 } } } : e))
+  const first = workspaceFrom('Main', styled.filter((n) => ['pizza', 'topping'].includes(n.id)), curved.filter((e) => e.id === 'e3'))
+  const secondId = 'page-2'
+  const workspace = saveCanvas(
+    { ...first.workspace, pages: [...first.workspace.pages, { id: secondId, name: 'Kinds', nodes: [], edges: [] }] },
+    secondId,
+    styled.map((n) => ({ ...n, position: { x: n.position.x + 7, y: n.position.y + 300 } })),
+    curved.filter((e) => e.id !== 'e3'),
+  )
+  const pageIds = workspace.pages.map((p) => p.id)
+
+  it('leaves the OWL unchanged apart from one annotation', async () => {
+    const ontology = { iri: P, nodes: styled, edges: curved }
+    const plain = canonical(await toTurtle(ontology))
+    const withLayout = canonical(await toTurtle(ontology, saveLayout(workspace, pageIds, P)))
+    expect(withLayout.filter((line) => !plain.includes(line)).sort().reverse()).toEqual([
+      'https://github.com/skhella/ontology-sketcher#layout http://www.w3.org/1999/02/22-rdf-syntax-ns#type http://www.w3.org/2002/07/owl#AnnotationProperty',
+      expect.stringMatching(/^http:\/\/example.org\/pizza https:\/\/github.com\/skhella\/ontology-sketcher#layout /),
+    ])
+  })
+
+  it('brings back pages, positions, colours, dots and curves', async () => {
+    const turtle = await toTurtle({ iri: P, nodes: styled, edges: curved }, saveLayout(workspace, pageIds, P))
+    const fresh = workspaceFrom('Page 1', [], [])
+    const { pages } = planImport(importOwl(turtle), { iri: P, workspace: fresh.workspace, pageId: fresh.pageId })
+    expect(pages.map((p) => p.name)).toEqual(['Main', 'Kinds'])
+    for (const [page, id] of [[pages[0], first.pageId], [pages[1], secondId]] as const) {
+      const before = loadCanvas(workspace, id)
+      expect(page.nodes.map((n) => [n.data.label, n.position, n.data.style]).sort()).toEqual(before.nodes.map((n) => [n.data.label, n.position, n.data.style]).sort())
+      expect(page.edges).toHaveLength(before.edges.length)
+    }
+    const property = pages[0].edges[0]
+    expect(property).toMatchObject({ sourceHandle: 'right', targetHandle: 'left', data: { label: 'has topping', bend: { x: 0, y: -40 } } })
+  })
+
+  it('places classes the layout does not know on its first page', async () => {
+    const turtle = (await toTurtle({ iri: P, nodes: styled, edges: curved }, saveLayout(workspace, [first.pageId], P))) +
+      `\n<${P}Calzone> a <http://www.w3.org/2002/07/owl#Class> ; <${RDFS}subClassOf> <${P}Pizza> .`
+    const fresh = workspaceFrom('Page 1', [], [])
+    const { pages } = planImport(importOwl(turtle), { iri: P, workspace: fresh.workspace, pageId: fresh.pageId })
+    expect(pages).toHaveLength(1)
+    expect(pages[0].nodes.map((n) => n.data.label).sort()).toEqual(['Calzone', 'Margherita', 'Pizza', 'Tomato Topping', 'Topping'])
+  })
+})
+
+describe('large ontologies', () => {
+  // Three trees: Animal with 30 kinds, Plant with 30, Place with 3; a property links Animal to Place.
+  const nodes: ClassNode[] = []
+  const edges: RelationEdge[] = []
+  for (const [root, n] of [['Animal', 30], ['Plant', 30], ['Place', 3]] as const) {
+    nodes.push(cls(root))
+    for (let i = 0; i < n; i++) {
+      nodes.push(cls(`${root}${i}`))
+      edges.push(rel(`${root}-${i}`, `${root}${i}`, root, { kind: 'subClassOf', label: '' }))
+    }
+  }
+  edges.push(rel('livesIn', 'Animal', 'Place', { kind: 'objectProperty', label: 'lives in' }))
+
+  it('adds an overview and a page per branch, drawing every arrow somewhere', async () => {
+    const imported = importOwl(await toTurtle({ iri: P, nodes, edges }))
+    const fresh = workspaceFrom('Page 1', [], [])
+    const { pages } = planImport(imported, { iri: P, workspace: fresh.workspace, pageId: fresh.pageId }, 40)
+    // Place is small enough to share Animal's page.
+    expect(pages.map((p) => p.name)).toEqual(['Overview', 'Animal · Place', 'Plant'])
+    expect(pages.every((p) => p.nodes.length <= 40)).toBe(true)
+    const drawn = new Set(pages.flatMap((p) => p.edges.map((e) => e.id)))
+    expect(drawn.size).toBe(imported.edges.length)
+    // Every class is on a page, so saving the pages keeps the whole ontology.
+    expect(new Set(pages.flatMap((p) => p.nodes.map((n) => n.id))).size).toBe(imported.nodes.length)
   })
 })
