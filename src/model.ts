@@ -31,23 +31,44 @@ export type AxiomKind = 'subClassOf' | 'equivalentClass' | 'disjointWith'
 export type ClassAxiom = { kind: AxiomKind; expression: ClassExpression }
 
 /**
+ * An owl:DatatypeProperty listed on a class, like a property key on a Neo4j node.
+ * The class is its domain; `datatype` is a full IRI such as xsd:string. Classes listing the same name share one property.
+ */
+export type DataProperty = { name: string; datatype: string; functional?: boolean }
+
+/**
  * A named OWL class drawn as a box on the canvas. `style` is visual only.
  * `axioms` adds to the subClassOf edges drawn on the canvas.
  */
-export type ClassData = EntityData & { label: string; axioms?: ClassAxiom[]; style?: SketchStyle }
+export type ClassData = EntityData & { label: string; axioms?: ClassAxiom[]; dataProperties?: DataProperty[]; style?: SketchStyle }
 export type ClassNode = Node<ClassData, 'owlClass'>
 
 /**
  * Edge kinds the canvas understands.
  * - subClassOf: source rdfs:subClassOf target
  * - objectProperty: an owl:ObjectProperty with domain = source, range = target
+ * - annotationProperty: an owl:AnnotationProperty asserted between the two classes (source property target)
  */
-export type EdgeKind = 'subClassOf' | 'objectProperty'
+export type EdgeKind = 'subClassOf' | 'objectProperty' | 'annotationProperty'
+
+/** OWL object property characteristics; each exports as rdf:type owl:<Name>Property. */
+export type Characteristic = 'functional' | 'inverseFunctional' | 'transitive' | 'symmetric' | 'asymmetric' | 'reflexive' | 'irreflexive'
+
 /**
- * `iri` and `annotations` describe the object property and are ignored on subClassOf edges.
+ * `iri` and `annotations` describe the property and are ignored on subClassOf edges.
+ * `characteristics`, `inverseOf` and `subPropertyOf` apply to object properties; the last two hold the id of an edge
+ * drawing the other property. Edges with the same label are one property, and the inspector keeps these in step on all of them.
  * `style` and `bend` (offset of the curve's midpoint, see sketch/curve.ts) are visual only.
  */
-export type RelationData = EntityData & { kind: EdgeKind; label: string; style?: SketchStyle; bend?: Point }
+export type RelationData = EntityData & {
+  kind: EdgeKind
+  label: string
+  characteristics?: Characteristic[]
+  inverseOf?: string
+  subPropertyOf?: string
+  style?: SketchStyle
+  bend?: Point
+}
 export type RelationEdge = Edge<RelationData, 'relation'>
 
 export type Ontology = {

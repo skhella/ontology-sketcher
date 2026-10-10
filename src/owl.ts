@@ -1,5 +1,5 @@
 import { DataFactory, Writer, type NamedNode, type Quad, type Quad_Object } from 'n3'
-import { localName, propertyLocalName, type ClassExpression, type EntityData, type Ontology, type Quantifier } from './model'
+import { localName, propertyLocalName, type Characteristic, type ClassExpression, type EntityData, type Ontology, type Quantifier } from './model'
 import { BUILT_IN_ANNOTATION_PROPERTIES, expandIri, IRI_VALUED, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS, XSD } from './vocab'
 
 const { literal, namedNode, quad } = DataFactory
@@ -18,6 +18,16 @@ const RESTRICTION: Record<Quantifier, [string, string]> = {
   exactly: [OWL + 'cardinality', OWL + 'qualifiedCardinality'],
 }
 
+const CHARACTERISTIC: Record<Characteristic, string> = {
+  functional: OWL + 'FunctionalProperty',
+  inverseFunctional: OWL + 'InverseFunctionalProperty',
+  transitive: OWL + 'TransitiveProperty',
+  symmetric: OWL + 'SymmetricProperty',
+  asymmetric: OWL + 'AsymmetricProperty',
+  reflexive: OWL + 'ReflexiveProperty',
+  irreflexive: OWL + 'IrreflexiveProperty',
+}
+
 const AXIOM_PREDICATE = { subClassOf: RDFS + 'subClassOf', equivalentClass: OWL + 'equivalentClass', disjointWith: OWL + 'disjointWith' }
 
 /** Serializes the canvas model as an OWL 2 ontology in Turtle. */
@@ -31,15 +41,17 @@ export function toTurtle(ontology: Ontology): Promise<string> {
       (d.annotations ?? []).filter((a) => a.property && a.value.trim()).map((a) => a.property),
     ),
   )
-  const usesCardinality = ontology.nodes.some((n) =>
-    n.data.axioms?.some((a) => a.expression.type === 'restriction' && !['some', 'only'].includes(a.expression.quantifier)),
+  const usesXsd = ontology.nodes.some(
+    (n) =>
+      !!n.data.dataProperties?.length ||
+      n.data.axioms?.some((a) => a.expression.type === 'restriction' && !['some', 'only'].includes(a.expression.quantifier)),
   )
 
   const prefixes: Record<string, string> = { '': base, owl: OWL, rdf: RDF, rdfs: RDFS }
   for (const [prefix, ns] of Object.entries(PREFIXES)) {
     if ([...usedAnnotationProperties].some((p) => p.startsWith(ns))) prefixes[prefix] = ns
   }
-  if (usesCardinality) prefixes.xsd = XSD
+  if (usesXsd) prefixes.xsd = XSD
   const writer = new Writer({ prefixes })
   const type = namedNode(RDF + 'type')
   const label = namedNode(RDFS + 'label')
@@ -56,8 +68,9 @@ export function toTurtle(ontology: Ontology): Promise<string> {
   quads.push(quad(namedNode(ontologyIri), type, namedNode(OWL + 'Ontology')))
 
   const classIri = new Map<string, string>()
+  const annotationProperties = new Set<string>()
   // Per object property IRI: its labels, and source class IRI → target class IRIs over every edge drawn with it.
-  const properties = new Map<string, { labels: Set<string>; uses: Map<string, Set<string>> }>()
+  const properties = new Map<string, { labels: Set<string>; uses: Map<string, Set<string>>; edges: string[] }>()
   for (const node of ontology.nodes) {
     const iri = entityIri(base, node.data, localName(node.data.label))
     classIri.set(node.id, iri)
@@ -109,11 +122,21 @@ export function toTurtle(ontology: Ontology): Promise<string> {
 
     if (edge.data.kind === 'subClassOf') {
       quads.push(quad(namedNode(source), namedNode(RDFS + 'subClassOf'), namedNode(target)))
+    } else if (edge.data.kind === 'annotationProperty') {
+      // An annotation between two classes, e.g. :Pizza :inspiredBy :Flatbread; no domain or range.
+      const iri = entityIri(base, edge.data, propertyLocalName(edge.data.label))
+      if (!annotationProperties.has(iri)) {
+        annotationProperties.add(iri)
+        quads.push(quad(namedNode(iri), type, namedNode(OWL + 'AnnotationProperty')))
+        quads.push(quad(namedNode(iri), label, literal(edge.data.label)))
+      }
+      quads.push(quad(namedNode(source), namedNode(iri), namedNode(target)))
+      annotate(iri, edge.data)
     } else {
       const iri = entityIri(base, edge.data, propertyLocalName(edge.data.label))
       let property = properties.get(iri)
       if (!property) {
-        property = { labels: new Set(), uses: new Map() }
+        property = { labels: new Set(), uses: new Map(), edges: [] }
         properties.set(iri, property)
         quads.push(quad(namedNode(iri), type, namedNode(OWL + 'ObjectProperty')))
       }
@@ -124,7 +147,36 @@ export function toTurtle(ontology: Ontology): Promise<string> {
       }
       if (!property.uses.has(source)) property.uses.set(source, new Set())
       property.uses.get(source)!.add(target)
+      property.edges.push(edge.id)
       annotate(iri, edge.data)
+    }
+  }
+
+  // Characteristics, inverseOf and subPropertyOf, gathered over every edge of each object property.
+  const edgeData = new Map(ontology.edges.map((e) => [e.id, e.data]))
+  for (const [iri, { edges }] of properties) {
+    const data = edges.map((id) => edgeData.get(id)!)
+    const characteristics = new Set(data.flatMap((d) => d.characteristics ?? []))
+    for (const c of Object.keys(CHARACTERISTIC) as Characteristic[]) {
+      if (characteristics.has(c)) quads.push(quad(namedNode(iri), type, namedNode(CHARACTERISTIC[c])))
+    }
+    for (const [field, predicate] of [['inverseOf', OWL + 'inverseOf'], ['subPropertyOf', RDFS + 'subPropertyOf']] as const) {
+      const others = new Set(data.map((d) => d[field] && propertyIri.get(d[field])).filter((o): o is string => !!o && o !== iri))
+      for (const other of others) quads.push(quad(namedNode(iri), namedNode(predicate), namedNode(other)))
+    }
+  }
+
+  // Data properties listed on classes; classes sharing a name share the property.
+  const dataProperties = new Map<string, { label: string; domains: Set<string>; datatypes: Set<string>; functional: boolean }>()
+  for (const node of ontology.nodes) {
+    for (const p of node.data.dataProperties ?? []) {
+      if (!p.name.trim()) continue
+      const iri = base + propertyLocalName(p.name)
+      const entry = dataProperties.get(iri) ?? { label: p.name.trim(), domains: new Set(), datatypes: new Set(), functional: false }
+      entry.domains.add(classIri.get(node.id)!)
+      if (p.datatype) entry.datatypes.add(p.datatype)
+      entry.functional ||= !!p.functional
+      dataProperties.set(iri, entry)
     }
   }
 
@@ -138,11 +190,11 @@ export function toTurtle(ontology: Ontology): Promise<string> {
   // A property drawn between several class pairs: OWL reads repeated domain/range axioms as an
   // intersection, so the domain and range are unions, and each source class keeps its own targets
   // as `Source ⊑ ∀p.(T1 ⊔ …)` wherever they are narrower than the overall range.
-  const union = (iris: Iterable<string>) => {
+  const union = (iris: Iterable<string>, kind = OWL + 'Class') => {
     const members = [...iris].map((i) => namedNode(i))
     if (members.length === 1) return members[0]
     return writer.blank([
-      { predicate: type, object: namedNode(OWL + 'Class') },
+      { predicate: type, object: namedNode(kind) },
       // @types/n3 types list() as an array; at runtime it is one serialized `( … )` term.
       { predicate: namedNode(OWL + 'unionOf'), object: writer.list(members) as unknown as Quad_Object },
     ])
@@ -164,6 +216,14 @@ export function toTurtle(ontology: Ontology): Promise<string> {
         { predicate: namedNode(OWL + 'allValuesFrom'), object: union(targets) },
       ]),
     )
+  }
+
+  for (const [iri, { label: name, domains, datatypes, functional }] of dataProperties) {
+    writer.addQuad(namedNode(iri), type, namedNode(OWL + 'DatatypeProperty'))
+    if (functional) writer.addQuad(namedNode(iri), type, namedNode(OWL + 'FunctionalProperty'))
+    writer.addQuad(namedNode(iri), label, literal(name))
+    writer.addQuad(namedNode(iri), namedNode(RDFS + 'domain'), union(domains))
+    if (datatypes.size > 0) writer.addQuad(namedNode(iri), namedNode(RDFS + 'range'), union(datatypes, RDFS + 'Datatype'))
   }
 
   return new Promise((resolve, reject) => {
