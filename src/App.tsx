@@ -227,7 +227,7 @@ export default function App() {
       <header className="toolbar">
         <span className="brand">
           <span className="brand-logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} />
-          <strong>ontology-sketch</strong>
+          <strong>Ontology Sketcher</strong>
         </span>
         <label>
           Ontology IRI{' '}
