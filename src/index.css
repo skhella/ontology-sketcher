@@ -904,6 +904,37 @@ body,
   white-space: pre;
 }
 
+.inspector .constraint .more-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.inspector .constraint .more-rules summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.inspector .constraint .more-rules[open] summary {
+  margin-bottom: 4px;
+}
+
+.inspector .constraint .more-rules input:not(.cardinality) {
+  flex: 1;
+  min-width: 0;
+}
+
+.inspector .constraint .more-rules > input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.inspector .constraints .closed {
+  display: block;
+  margin-bottom: 6px;
+}
+
 .inspector .constraints .add {
   border-style: dashed;
 }

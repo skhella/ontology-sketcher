@@ -156,12 +156,14 @@ export default function App() {
     if (!file) return
     try {
       const result = await importShapes(await file.text(), iri, nodes, edges)
-      const replaced = nodes.filter((n) => result.classes.has(n.id) && (n.data.constraints?.length || n.data.extraShapes))
+      const replaced = nodes.filter((n) => result.classes.has(n.id) && (n.data.constraints?.length || n.data.extraShapes || n.data.constraintsClosed))
       if (replaced.length > 0 && !window.confirm(`Replace the constraints on ${replaced.map((n) => n.data.label).join(', ')} with those in ${file.name}?`)) return
       setNodes((ns) =>
         ns.map((n) => {
           const imported = result.classes.get(n.id)
-          return imported ? { ...n, data: { ...n.data, constraints: imported.constraints, extraShapes: imported.extra } } : n
+          return imported
+            ? { ...n, data: { ...n.data, constraints: imported.constraints, constraintsClosed: imported.closed, extraShapes: imported.extra } }
+            : n
         }),
       )
       setNotice(describeShapesImport(result))

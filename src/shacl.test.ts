@@ -1,4 +1,4 @@
-import { DataFactory, Parser, Store } from 'n3'
+import { DataFactory, Parser, Store, type Term } from 'n3'
 import Validator from 'shacl-engine/Validator.js'
 import { describe, expect, it } from 'vitest'
 import { sampleOntology, type Ontology, type PropertyConstraint } from './model'
@@ -8,6 +8,7 @@ import { hasConstraints, SH, toShaclTurtle } from './shacl'
 const P = 'http://example.org/pizza#'
 const S = 'http://example.org/pizza/shapes#'
 const XSD = 'http://www.w3.org/2001/XMLSchema#'
+const RDF = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#'
 
 function withConstraints(byNode: Record<string, PropertyConstraint[]>, dataProperties = true): Ontology {
   return {
@@ -80,6 +81,40 @@ describe('toShaclTurtle', () => {
     expect(triples.filter((t) => t.startsWith(`${S}PizzaShape ${SH}property`))).toHaveLength(0)
     expect(triples).toContain(`${S}MargheritaShape ${SH}targetClass ${P}Margherita`)
     expect(triples).toContain(`${S}MargheritaShape2 ${SH}targetClass http://other.example/Margherita`)
+  })
+
+  it('writes value rules as typed literals and a closed shape that still allows rdf:type', async () => {
+    const ontology = withConstraints({
+      pizza: [
+        { path: { type: 'data', name: 'name' }, datatype: XSD + 'string', pattern: ' ^[A-Z] ', allowed: ['Lunch', ' Dinner', ''], minLength: 2, maxLength: 20 },
+        { path: { type: 'data', name: 'price' }, minValue: '4.5', maxValue: '30' },
+        { path: { type: 'object', property: 'e3' }, pattern: 'ignored' },
+      ],
+    })
+    ontology.nodes = ontology.nodes.map((n) => (n.id === 'pizza' ? { ...n, data: { ...n.data, constraintsClosed: true } } : n))
+    const quads = new Parser().parse(await toShaclTurtle(ontology))
+    const store = new Store(quads)
+    const { namedNode } = DataFactory
+    const objects = (s: Term | undefined, p: string) => store.getObjects(s ?? null, namedNode(p), null)
+    const list = (head: Term | undefined) => {
+      const items: Term[] = []
+      for (let at = head; at && at.value !== RDF + 'nil'; at = objects(at, RDF + 'rest')[0]) items.push(objects(at, RDF + 'first')[0])
+      return items
+    }
+    const shape = namedNode(S + 'PizzaShape')
+    expect(objects(shape, SH + 'closed').map((o) => o.id)).toEqual([`"true"^^${XSD}boolean`])
+    expect(list(objects(shape, SH + 'ignoredProperties')[0]).map((o) => o.value)).toEqual([RDF + 'type'])
+
+    const [name, price, topping] = objects(shape, SH + 'property')
+    expect(objects(name, SH + 'pattern').map((o) => o.value)).toEqual(['^[A-Z]'])
+    expect(list(objects(name, SH + 'in')[0]).map((o) => o.id)).toEqual(['"Lunch"', '"Dinner"']) // xsd:string is the plain literal's type
+    expect(objects(name, SH + 'minLength').map((o) => o.value)).toEqual(['2'])
+    expect(objects(name, SH + 'maxLength').map((o) => o.value)).toEqual(['20'])
+    // Without a datatype, numbers compare as numbers.
+    expect(objects(price, SH + 'minInclusive').map((o) => o.id)).toEqual([`"4.5"^^${XSD}decimal`])
+    expect(objects(price, SH + 'maxInclusive').map((o) => o.id)).toEqual([`"30"^^${XSD}decimal`])
+    // Value rules belong to data properties only.
+    expect(objects(topping, SH + 'pattern')).toEqual([])
   })
 
   it('catches broken sample data when validated with shacl-engine', async () => {

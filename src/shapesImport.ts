@@ -1,14 +1,14 @@
 import { DataFactory, Store, type Quad, type Term } from 'n3'
 import { localName, propertyLocalName, type ClassNode, type PropertyConstraint, type RelationEdge } from './model'
 import { entityIri } from './owl'
-import { SH } from './shacl'
+import { constraintValue, SH } from './shacl'
 import { describe, parseTurtle, writeTurtle } from './turtle'
 import { RDF, shortName } from './vocab'
 
 const { namedNode } = DataFactory
 
 /** What a shapes file gives one class: editable constraint rows, and the rest as Turtle kept for export. */
-export type ImportedShapes = { constraints: PropertyConstraint[]; extra?: string }
+export type ImportedShapes = { constraints: PropertyConstraint[]; closed?: boolean; extra?: string }
 
 export type ShapesImport = {
   /** By class node id, for every class some shape in the file targets. */
@@ -21,8 +21,12 @@ export type ShapesImport = {
 }
 
 // What a property shape may say and still become an editable row; anything else keeps it as Turtle.
-const ROW_PREDICATES = new Set([RDF + 'type', SH + 'path', SH + 'minCount', SH + 'maxCount', SH + 'class', SH + 'datatype', SH + 'message'])
-// What a node shape may say and still be split into rows and kept property shapes.
+const ROW_PREDICATES = new Set(
+  [RDF + 'type'].concat(['path', 'minCount', 'maxCount', 'class', 'datatype', 'message', 'pattern', 'in', 'minInclusive', 'maxInclusive', 'minLength', 'maxLength'].map((p) => SH + p)),
+)
+// The rules only data-property rows hold.
+const VALUE_PREDICATES = ['pattern', 'in', 'minInclusive', 'maxInclusive', 'minLength', 'maxLength'].map((p) => SH + p)
+// What a node shape may say and still be split into rows and kept property shapes; sh:closed is checked on its own.
 const SHAPE_PREDICATES = new Set([RDF + 'type', SH + 'targetClass', SH + 'property'])
 
 /**
@@ -47,6 +51,15 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
   }
   // Shapes a kept shape refers to by IRI (sh:node, sh:property, inside sh:or…) are kept with it.
   const isShape = (term: Term) => store.getQuads(term, null, null, null).some((q) => q.predicate.value.startsWith(SH) || q.object.value.startsWith(SH))
+  // The members of an RDF list, or one undefined for anything else.
+  const readList = (head: Term): (Term | undefined)[] => {
+    const items: (Term | undefined)[] = []
+    for (let at: Term | undefined = head; at?.value !== RDF + 'nil'; at = one(at, RDF + 'rest')) {
+      if (!at || at.termType !== 'BlankNode' || items.length > 1000) return [undefined]
+      items.push(one(at, RDF + 'first'))
+    }
+    return items
+  }
   const count = (term: Term | undefined) => (term?.termType === 'Literal' && /^\d+$/.test(term.value) ? Number(term.value) : undefined)
 
   // The row for a property shape on class `classId`, or undefined when it says something a row can't hold.
@@ -59,8 +72,8 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
     const path = one(shape, SH + 'path')
     if (path?.termType !== 'NamedNode') return undefined
     const row: Partial<PropertyConstraint> = {}
-    for (const [field, predicate] of [['minCount', 'minCount'], ['maxCount', 'maxCount']] as const) {
-      const term = one(shape, SH + predicate)
+    for (const field of ['minCount', 'maxCount', 'minLength', 'maxLength'] as const) {
+      const term = one(shape, SH + field)
       if (term && count(term) === undefined) return undefined
       if (term) row[field] = count(term)
     }
@@ -72,12 +85,32 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
     const valueClass = one(shape, SH + 'class')
     const datatype = one(shape, SH + 'datatype')
     const edge = objectProperties.find((e) => propertyIri(e) === path.value && e.source === classId) ?? objectProperties.find((e) => propertyIri(e) === path.value)
-    if (edge && !datatype) {
+    if (edge && !datatype && !quads.some((q) => VALUE_PREDICATES.includes(q.predicate.value))) {
       if (valueClass && (valueClass.termType !== 'NamedNode' || !classOf.has(valueClass.value))) return undefined
       return { path: { type: 'object', property: edge.id }, ...row, ...(valueClass && { class: classOf.get(valueClass.value) }) }
     }
     const name = dataProperties.get(path.value)
     if (name !== undefined && !valueClass && (!datatype || datatype.termType === 'NamedNode')) {
+      const type = datatype?.value
+      // Values are kept as text and typed again on export, so only take those that come back as the same literal.
+      const asText = (term: Term | undefined) => (term?.termType === 'Literal' && constraintValue(term.value, type).equals(term) ? term.value : undefined)
+      const pattern = one(shape, SH + 'pattern')
+      if (pattern) {
+        if (pattern.termType !== 'Literal') return undefined
+        row.pattern = pattern.value
+      }
+      for (const field of ['minValue', 'maxValue'] as const) {
+        const term = one(shape, SH + (field === 'minValue' ? 'minInclusive' : 'maxInclusive'))
+        if (term && asText(term) === undefined) return undefined
+        if (term) row[field] = asText(term)
+      }
+      const list = one(shape, SH + 'in')
+      if (list) {
+        // The inspector edits allowed values as one comma-separated line.
+        const allowed = readList(list).map(asText)
+        if (allowed.length === 0 || allowed.some((a) => a === undefined || a.includes(',') || !a.trim())) return undefined
+        row.allowed = allowed as string[]
+      }
       return { path: { type: 'data', name }, ...row, ...(datatype && { datatype: datatype.value }) }
     }
     return undefined
@@ -95,6 +128,10 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
   for (const s of store.getSubjects(namedNode(RDF + 'type'), namedNode(SH + 'NodeShape'), null)) shapes.set(s.id, s)
   for (const s of store.getSubjects(namedNode(SH + 'targetClass'), null, null)) shapes.set(s.id, s)
 
+  // How many shapes target each class, since a closed shape only becomes the Closed box when it is the only one.
+  const targeting = new Map<string, number>()
+  for (const shape of shapes.values()) for (const t of store.getObjects(shape, namedNode(SH + 'targetClass'), null)) targeting.set(t.value, (targeting.get(t.value) ?? 0) + 1)
+
   for (const shape of shapes.values()) {
     const name = shape.termType === 'NamedNode' ? shortName(shape.value) : 'An unnamed shape'
     const targets = store.getObjects(shape, namedNode(SH + 'targetClass'), null)
@@ -104,7 +141,20 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
     if (onCanvas.length === 0) continue
 
     const quads = store.getQuads(shape, null, null, null)
-    if (quads.some((q) => !SHAPE_PREDICATES.has(q.predicate.value))) {
+    const properties = store.getObjects(shape, namedNode(SH + 'property'), null)
+    // A class's Closed box means sh:closed with only rdf:type ignored, on its one shape, every property of which is a row.
+    const closedFlag = one(shape, SH + 'closed')
+    const ignored = one(shape, SH + 'ignoredProperties')
+    const closed = closedFlag?.termType === 'Literal' && closedFlag.value === 'true'
+    const closable =
+      closed &&
+      !!ignored &&
+      readList(ignored).map((t) => t?.value).join() === RDF + 'type' &&
+      onCanvas.length === 1 &&
+      targeting.get(onCanvas[0].value) === 1 &&
+      properties.every((p) => toRow(p, classOf.get(onCanvas[0].value)!))
+    const own = closable ? quads.filter((q) => q.predicate.value !== SH + 'closed' && q.predicate.value !== SH + 'ignoredProperties') : quads
+    if (own.some((q) => !SHAPE_PREDICATES.has(q.predicate.value))) {
       // Rules on the shape itself (sh:closed, sh:or, other targets…): keep the whole shape, on the first class it targets.
       const classId = classOf.get(onCanvas[0].value)!
       entry(classId)
@@ -115,7 +165,8 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
     for (const target of onCanvas) {
       const classId = classOf.get(target.value)!
       const into = entry(classId)
-      for (const property of store.getObjects(shape, namedNode(SH + 'property'), null)) {
+      if (closable) into.closed = true
+      for (const property of properties) {
         const row = toRow(property, classId)
         if (row) {
           into.constraints.push(row)

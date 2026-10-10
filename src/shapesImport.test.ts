@@ -19,7 +19,7 @@ async function imported(turtle: string): Promise<Ontology> {
   const result = await importShapes(turtle, base.iri, base.nodes, base.edges)
   const nodes = base.nodes.map((n): ClassNode => {
     const shapes = result.classes.get(n.id)
-    return shapes ? { ...n, data: { ...n.data, constraints: shapes.constraints, extraShapes: shapes.extra } } : n
+    return shapes ? { ...n, data: { ...n.data, constraints: shapes.constraints, constraintsClosed: shapes.closed, extraShapes: shapes.extra } } : n
   })
   return { ...base, nodes }
 }
@@ -30,14 +30,16 @@ describe('importShapes', () => {
   it('reads an exported shapes file back into the same constraints', async () => {
     const constraints = [
       { path: { type: 'object' as const, property: 'e3' }, minCount: 1, class: 'topping', message: 'A pizza needs a topping.' },
-      { path: { type: 'data' as const, name: 'name' }, maxCount: 1, datatype: XSD + 'string' },
+      { path: { type: 'data' as const, name: 'name' }, maxCount: 1, datatype: XSD + 'string', pattern: '^[A-Z]', allowed: ['Lunch', 'Dinner'], minLength: 2, maxLength: 20 },
+      { path: { type: 'data' as const, name: 'price' }, minValue: '4.5', maxValue: '30' },
     ]
-    const ontology = { ...base, nodes: base.nodes.map((n) => (n.id === 'pizza' ? { ...n, data: { ...n.data, constraints } } : n)) }
-    const result = await importShapes(await toShaclTurtle(ontology), base.iri, base.nodes, base.edges)
+    const ontology = { ...base, nodes: base.nodes.map((n) => (n.id === 'pizza' ? { ...n, data: { ...n.data, constraints, constraintsClosed: true } } : n)) }
+    ontology.nodes = ontology.nodes.map((n) => (n.id === 'pizza' ? { ...n, data: { ...n.data, dataProperties: [...n.data.dataProperties!, { name: 'price', datatype: XSD + 'decimal' }] } } : n))
+    const result = await importShapes(await toShaclTurtle(ontology), base.iri, ontology.nodes, base.edges)
 
     expect([...result.classes.keys()]).toEqual(['pizza'])
-    expect(result.classes.get('pizza')).toEqual({ constraints })
-    expect(describeShapesImport(result)).toBe('Imported 2 constraints on 1 class.')
+    expect(result.classes.get('pizza')).toEqual({ constraints, closed: true })
+    expect(describeShapesImport(result)).toBe('Imported 3 constraints on 1 class.')
   })
 
   it('keeps what rows cannot hold as Turtle, exports it unchanged and still checks it', async () => {
@@ -45,21 +47,21 @@ describe('importShapes', () => {
       HEADER +
         `ex:PizzaShape a sh:NodeShape ; sh:targetClass :Pizza ;
            sh:property [ sh:path :hasTopping ; sh:minCount 1 ] ;
-           sh:property [ sh:path :name ; sh:pattern "^[A-Z]" ] ;
+           sh:property [ sh:path :name ; sh:pattern "^[0-9]" ; sh:flags "i" ] ;
            sh:property ex:NameLength .
-         ex:NameLength sh:path :name ; sh:maxLength 8 .
+         ex:NameLength sh:path :name ; sh:maxLength 8 ; sh:severity sh:Warning .
          ex:ToppingShape a sh:NodeShape ; sh:targetClass :Topping ; sh:closed true .
          ex:PersonShape a sh:NodeShape ; sh:targetClass :Person ; sh:property [ sh:path :name ; sh:minCount 1 ] .`,
     )
     const pizza = ontology.nodes.find((n) => n.id === 'pizza')!.data
     expect(pizza.constraints).toEqual([{ path: { type: 'object', property: 'e3' }, minCount: 1 }])
-    expect(pizza.extraShapes).toContain('^[A-Z]')
+    expect(pizza.extraShapes).toContain('^[0-9]')
     expect(ontology.nodes.find((n) => n.id === 'topping')!.data).toMatchObject({ constraints: [], extraShapes: expect.stringContaining('closed') })
 
     // The kept parts parse on their own, the named property shape comes with them, and they reach shapes.ttl.
     expect(parseTurtle(pizza.extraShapes!, base.iri).store.getQuads(null, null, null, null).some((q) => q.predicate.value.endsWith('maxLength'))).toBe(true)
     const shapes = await toShaclTurtle(ontology)
-    expect(shapes).toContain('^[A-Z]')
+    expect(shapes).toContain('^[0-9]')
 
     const result = await validateData(ontology, ':a a :Pizza ; :name "lowercase name" ; :hasTopping :t .\n:t a :Topping .')
     // The closed Topping shape ignores no properties, so even rdf:type breaks it.
@@ -73,7 +75,8 @@ describe('importShapes', () => {
   it('says what it imported, kept and skipped', async () => {
     const result = await importShapes(
       HEADER +
-        `ex:A a sh:NodeShape ; sh:targetClass :Pizza ; sh:property [ sh:path ( :hasTopping :name ) ; sh:minCount 1 ] .
+        // A property path, and integers that would come back from the inspector as decimals.
+        `ex:A a sh:NodeShape ; sh:targetClass :Pizza ; sh:property [ sh:path ( :hasTopping :name ) ; sh:minCount 1 ] , [ sh:path :name ; sh:in ( 1 2 ) ] .
          ex:B a sh:NodeShape ; sh:targetClass :Person .
          ex:C a sh:NodeShape .`,
       base.iri,
@@ -81,7 +84,7 @@ describe('importShapes', () => {
       base.edges,
     )
     expect(describeShapesImport(result)).toBe(
-      "Imported 0 constraints on 1 class. Kept 1 rule the inspector can't edit yet; it exports unchanged. Skipped B (targets Person, not on this page), C (no sh:targetClass).",
+      "Imported 0 constraints on 1 class. Kept 2 rules the inspector can't edit yet; they export unchanged. Skipped B (targets Person, not on this page), C (no sh:targetClass).",
     )
   })
 

@@ -52,11 +52,20 @@ export async function validateData(ontology: Ontology, dataTurtle: string): Prom
     const count = (n: unknown) => `${n} value${n === 1 ? '' : 's'}`
     const required = shapes.getObjects(r.shape.ptr.term, SH + 'class', null)[0]?.value
     const datatype = r.args.datatype as { value: string } | undefined
+    const bound = (key: string) => (r.args[key] as { value: string } | undefined)?.value
+    const chars = (n: unknown) => `${n} character${n === 1 ? '' : 's'}`
     const explained: Record<string, string | undefined> = {
       MinCountConstraintComponent: `needs at least ${count(r.args.minCount)}`,
       MaxCountConstraintComponent: `allows at most ${count(r.args.maxCount)}`,
       ClassConstraintComponent: required && `${valueText} is not a ${shortName(required)}`,
       DatatypeConstraintComponent: datatype && `${valueText} is not ${shortName(datatype.value)}`,
+      PatternConstraintComponent: `${valueText} does not match ${r.args.pattern}`,
+      InConstraintComponent: `${valueText} is not one of the allowed values`,
+      MinInclusiveConstraintComponent: `${valueText} is below ${bound('minInclusive')}`,
+      MaxInclusiveConstraintComponent: `${valueText} is above ${bound('maxInclusive')}`,
+      MinLengthConstraintComponent: `${valueText} is shorter than ${chars(r.args.minLength)}`,
+      MaxLengthConstraintComponent: `${valueText} is longer than ${chars(r.args.maxLength)}`,
+      ClosedConstraintComponent: `uses a property this class doesn't allow (the class is closed)`,
     }
     return {
       focus,

@@ -7,11 +7,14 @@ import { ClassSelect } from './ClassAxioms'
 type Props = {
   nodeId: string
   constraints: PropertyConstraint[]
+  /** Whether instances may use only the constrained properties (sh:closed). */
+  closed: boolean
   /** Imported shapes the rows can't hold, as Turtle. */
   extra?: string
   nodes: ClassNode[]
   edges: RelationEdge[]
   onChange: (constraints: PropertyConstraint[]) => void
+  onClosedChange: (closed: boolean) => void
   onRemoveExtra: () => void
 }
 
@@ -19,7 +22,7 @@ type Props = {
  * SHACL constraints on the class: per property, how many values its instances must have and of what type.
  * They export as a node shape targeting this class, see shacl.ts.
  */
-export function Constraints({ nodeId, constraints, extra, nodes, edges, onChange, onRemoveExtra }: Props) {
+export function Constraints({ nodeId, constraints, closed, extra, nodes, edges, onChange, onClosedChange, onRemoveExtra }: Props) {
   // The class "Suggest from ontology" last found nothing new for, to say so under the button.
   const [nothingNewFor, setNothingNewFor] = useState<string | null>(null)
   // Edges with the same label are one property; offer each once, by its first edge.
@@ -80,6 +83,69 @@ export function Constraints({ nodeId, constraints, extra, nodes, edges, onChange
       />
     </label>
   )
+
+  // The rules on literal values: text pattern, allowed values, value range and length.
+  const moreRules = (at: number) => {
+    const c = constraints[at]
+    const text = (field: 'pattern' | 'minValue' | 'maxValue', placeholder: string, title: string) => (
+      <input
+        value={c[field] ?? ''}
+        placeholder={placeholder}
+        title={title}
+        aria-label={title}
+        onChange={(e) => update(at, { [field]: e.target.value || undefined })}
+      />
+    )
+    const length = (field: 'minLength' | 'maxLength', label: string, title: string) => (
+      <label title={title}>
+        {label}{' '}
+        <input
+          className="cardinality"
+          type="number"
+          min={0}
+          value={c[field] ?? ''}
+          placeholder="–"
+          onChange={(e) => update(at, { [field]: e.target.value === '' ? undefined : Math.max(0, Math.floor(Number(e.target.value))) })}
+        />
+      </label>
+    )
+    const used = !!(c.pattern || c.allowed?.length || c.minValue || c.maxValue || c.minLength !== undefined || c.maxLength !== undefined)
+    let badPattern = false
+    try {
+      if (c.pattern) new RegExp(c.pattern)
+    } catch {
+      badPattern = true
+    }
+    const below = (min: string | undefined, max: string | undefined) => !!min?.trim() && !!max?.trim() && Number(max) < Number(min)
+    return (
+      <details className="more-rules" open={used || undefined}>
+        <summary>More rules</summary>
+        {text('pattern', 'Pattern, e.g. ^[A-Z]', 'Values must match this regular expression (sh:pattern)')}
+        {badPattern && <small className="warning">This isn't a valid regular expression.</small>}
+        <input
+          value={c.allowed?.join(',') ?? ''}
+          placeholder="Allowed values, comma-separated"
+          title="Values must be one of these (sh:in)"
+          aria-label="Allowed values"
+          onChange={(e) => update(at, { allowed: e.target.value ? e.target.value.split(',') : undefined })}
+        />
+        <div className="constraint-line">
+          <span>value</span>
+          {text('minValue', 'from', 'Values must be at least this (sh:minInclusive)')}
+          {text('maxValue', 'to', 'Values must be at most this (sh:maxInclusive)')}
+        </div>
+        <div className="constraint-line">
+          <span>length</span>
+          {length('minLength', 'min', 'At least this many characters (sh:minLength)')}
+          {length('maxLength', 'max', 'At most this many characters (sh:maxLength)')}
+        </div>
+        {below(c.minValue, c.maxValue) && <small className="warning">The value range is empty, so no data can pass.</small>}
+        {c.minLength !== undefined && c.maxLength !== undefined && c.maxLength < c.minLength && (
+          <small className="warning">max length is below min length, so no data can pass.</small>
+        )}
+      </details>
+    )
+  }
 
   return (
     <fieldset className="constraints">
@@ -143,6 +209,7 @@ export function Constraints({ nodeId, constraints, extra, nodes, edges, onChange
               aria-label="Message"
               onChange={(e) => update(i, { message: e.target.value || undefined })}
             />
+            {c.path.type === 'data' && moreRules(i)}
             {c.minCount !== undefined && c.maxCount !== undefined && c.maxCount < c.minCount && (
               <small className="warning">max is below min, so no data can pass.</small>
             )}
@@ -171,6 +238,11 @@ export function Constraints({ nodeId, constraints, extra, nodes, edges, onChange
           Suggest from ontology
         </button>
       </div>
+      {constraints.length > 0 && (
+        <label className="closed" title="Instances may use only the properties constrained here, plus rdf:type (sh:closed)">
+          <input type="checkbox" checked={closed} onChange={(e) => onClosedChange(e.target.checked)} /> Closed: no other properties allowed
+        </label>
+      )}
       {nothingNewFor === nodeId && <small className="muted">Nothing new to suggest: every property drawn or stated on this class already has a constraint.</small>}
     </fieldset>
   )

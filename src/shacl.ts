@@ -2,7 +2,7 @@ import { DataFactory, Writer, type NamedNode, type Quad_Object } from 'n3'
 import { localName, propertyLocalName, type Ontology, type PropertyConstraint } from './model'
 import { entityIri } from './owl'
 import { parseTurtle } from './turtle'
-import { OWL, RDF, XSD } from './vocab'
+import { OWL, RDF, RDFS, XSD } from './vocab'
 
 export const SH = 'http://www.w3.org/ns/shacl#'
 
@@ -11,6 +11,16 @@ const { literal, namedNode } = DataFactory
 /** The shapes graph's own IRI, next to the ontology's: http://example.org/pizza# → http://example.org/pizza/shapes. */
 export function shapesIri(base: string): string {
   return base.replace(/[#/]$/, '') + '/shapes'
+}
+
+/**
+ * A value typed in the inspector (an allowed value or a range bound), as a literal of the constraint's datatype.
+ * Without a usable datatype, numbers become xsd:decimal (so ranges compare as numbers) and anything else a plain string.
+ */
+export function constraintValue(text: string, datatype: string | undefined) {
+  const t = text.trim()
+  if (datatype && datatype !== RDFS + 'Literal' && datatype !== RDF + 'langString') return literal(t, namedNode(datatype))
+  return /^[+-]?(\d+\.?\d*|\.\d+)$/.test(t) ? literal(t, namedNode(XSD + 'decimal')) : literal(t)
 }
 
 /** Whether any class carries constraints, i.e. whether there are shapes to export. */
@@ -63,6 +73,10 @@ export function toShaclTurtle(ontology: Ontology): Promise<string> {
 
     writer.addQuad(shape, type, sh('NodeShape'))
     writer.addQuad(shape, sh('targetClass'), namedNode(target))
+    if (node.data.constraintsClosed) {
+      writer.addQuad(shape, sh('closed'), literal('true', namedNode(XSD + 'boolean')))
+      writer.addQuad(shape, sh('ignoredProperties'), writer.list([type]) as unknown as Quad_Object)
+    }
     for (const c of constraints) {
       const path = pathIri(c.path)
       const valueClass = c.path.type === 'object' && c.class !== undefined ? classIri.get(c.class) : undefined
@@ -72,6 +86,19 @@ export function toShaclTurtle(ontology: Ontology): Promise<string> {
       if (c.maxCount !== undefined) parts.push({ predicate: sh('maxCount'), object: count(c.maxCount) })
       if (valueClass) parts.push({ predicate: sh('class'), object: namedNode(valueClass) })
       if (c.path.type === 'data' && c.datatype) parts.push({ predicate: sh('datatype'), object: namedNode(c.datatype) })
+      if (c.path.type === 'data') {
+        if (c.pattern?.trim()) parts.push({ predicate: sh('pattern'), object: literal(c.pattern.trim()) })
+        const allowed = (c.allowed ?? []).filter((a) => a.trim())
+        if (allowed.length > 0) {
+          // @types/n3 types list() as an array; at runtime it is one serialized `( … )` term.
+          const list = writer.list(allowed.map((a) => constraintValue(a, c.datatype))) as unknown as Quad_Object
+          parts.push({ predicate: sh('in'), object: list })
+        }
+        if (c.minValue?.trim()) parts.push({ predicate: sh('minInclusive'), object: constraintValue(c.minValue, c.datatype) })
+        if (c.maxValue?.trim()) parts.push({ predicate: sh('maxInclusive'), object: constraintValue(c.maxValue, c.datatype) })
+        if (c.minLength !== undefined) parts.push({ predicate: sh('minLength'), object: count(c.minLength) })
+        if (c.maxLength !== undefined) parts.push({ predicate: sh('maxLength'), object: count(c.maxLength) })
+      }
       if (c.message?.trim()) parts.push({ predicate: sh('message'), object: literal(c.message.trim()) })
       writer.addQuad(shape, sh('property'), writer.blank(parts) as unknown as Quad_Object)
     }
