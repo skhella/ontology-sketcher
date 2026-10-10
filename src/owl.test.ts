@@ -34,7 +34,7 @@ describe('toTurtle', () => {
 
 describe('entityIri', () => {
   it('puts the local name after the namespace the entity was created in, else after the ontology IRI', () => {
-    const ns = 'https://w3id.org/aizop#'
+    const ns = 'https://example.org/myonto#'
     expect(entityIri(P, {}, 'Pizza')).toBe(P + 'Pizza')
     expect(entityIri(P, { namespace: ns }, 'Pizza')).toBe(ns + 'Pizza')
     expect(entityIri(P, { namespace: ns, iri: 'Pie' }, 'Pizza')).toBe(ns + 'Pie')
@@ -42,7 +42,7 @@ describe('entityIri', () => {
   })
 
   it('exports classes created in another namespace under it', async () => {
-    const ns = 'https://w3id.org/aizop#'
+    const ns = 'https://example.org/myonto#'
     const ontology: Ontology = {
       ...sampleOntology,
       nodes: sampleOntology.nodes.map((n) => (n.id === 'pizza' ? { ...n, data: { ...n.data, namespace: ns } } : n)),
