@@ -10,9 +10,11 @@ import {
   type Connection,
   type EdgeMouseHandler,
   type NodeMouseHandler,
+  type ReactFlowInstance,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState, type ChangeEvent } from 'react'
+import { describeImport, importExcalidraw } from './excalidraw'
 import { sampleOntology, type ClassNode, type RelationEdge } from './model'
 import { toTurtle } from './owl'
 import { ClassNodeView } from './sketch/ClassNodeView'
@@ -31,6 +33,9 @@ export default function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<ClassNode>(sampleOntology.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<RelationEdge>(sampleOntology.edges.map(markerFor))
   const [turtle, setTurtle] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
 
   const onConnect = useCallback(
     (c: Connection) =>
@@ -62,6 +67,23 @@ export default function App() {
     setEdges((es) => es.map((e) => (e.id === edge.id ? markerFor({ ...e, data }) : e)))
   }
 
+  // Replaces the canvas with the classes and arrows found in an .excalidraw file.
+  const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    try {
+      const result = importExcalidraw(await file.text())
+      if (nodes.length > 0 && !window.confirm(`Replace the current canvas with ${file.name}?`)) return
+      setNodes(result.nodes)
+      setEdges(result.edges.map(markerFor))
+      setNotice(describeImport(result.summary))
+      requestAnimationFrame(() => flow?.fitView({ padding: 0.2 }))
+    } catch (error) {
+      setNotice(`Could not import ${file.name}: ${(error as Error).message}`)
+    }
+  }
+
   const exportTurtle = async () => setTurtle(await toTurtle({ iri, nodes, edges }))
 
   const download = () => {
@@ -80,6 +102,8 @@ export default function App() {
           IRI <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} />
         </label>
         <button onClick={addClass}>+ Class</button>
+        <button onClick={() => fileInput.current?.click()}>Import .excalidraw</button>
+        <input ref={fileInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
         <button onClick={exportTurtle}>Export OWL (Turtle)</button>
         <span className="hint">Drag between boxes to add subClassOf. Double-click to rename or turn an edge into a property.</span>
       </header>
@@ -95,11 +119,18 @@ export default function App() {
           onNodeDoubleClick={renameClass}
           onEdgeDoubleClick={editRelation}
           zoomOnDoubleClick={false}
+          onInit={setFlow}
           fitView
         >
           <Background variant={BackgroundVariant.Dots} gap={20} />
           <Controls />
         </ReactFlow>
+        {notice && (
+          <div className="notice" role="status">
+            {notice}
+            <button onClick={() => setNotice(null)} aria-label="Dismiss">×</button>
+          </div>
+        )}
         {turtle && (
           <aside className="export">
             <div className="export-actions">
