@@ -8,7 +8,7 @@
 <h1 align="center">Ontology Sketcher</h1>
 
 <p align="center">
-  <strong>Sketch an ontology like a whiteboard drawing, and get real OWL 2, SHACL and SKOS out of it.</strong>
+  <strong>Sketch an ontology like a whiteboard drawing, and get formal OWL 2, SHACL and SKOS out of it.</strong>
 </p>
 
 <p align="center">
