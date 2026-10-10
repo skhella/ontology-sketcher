@@ -87,6 +87,18 @@ export default function App() {
     onConnect({ source: state.fromNode.id, sourceHandle: state.fromHandle?.id ?? null, target: snap.nodeId, targetHandle: snap.side })
   }
 
+  // Asks for the namespace new classes and properties are created in; empty goes back to the ontology IRI.
+  const editDefaultNamespace = () => {
+    const value = window.prompt(
+      'Default IRI for new classes and properties (leave empty to use the ontology IRI). Existing ones keep their IRI.',
+      defaultNamespace || iri,
+    )
+    if (value === null) return
+    const next = value.trim() === iri ? '' : value.trim()
+    setDefaultNamespace(next)
+    saveDefaultNamespace(next)
+  }
+
   const addClass = () => {
     const label = window.prompt('Class name', 'New Class')
     if (!label) return
@@ -229,19 +241,6 @@ export default function App() {
           Ontology IRI{' '}
           <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />
         </label>
-        <label>
-          New entities in{' '}
-          <input
-            value={defaultNamespace}
-            placeholder={iri}
-            onChange={(e) => {
-              setDefaultNamespace(e.target.value)
-              saveDefaultNamespace(e.target.value)
-            }}
-            size={32}
-            title="Namespace that new classes and properties get their IRI under, remembered in this browser. Leave empty to use the ontology IRI. Changing it does not move classes and properties that already exist."
-          />
-        </label>
         <button onClick={addClass}>+ Class</button>
         <button onClick={() => fileInput.current?.click()}>Import .excalidraw</button>
         <input ref={fileInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
@@ -256,6 +255,12 @@ export default function App() {
           </select>
         )}
         <button onClick={startExport}>Export OWL (Turtle)</button>
+        <button
+          onClick={editDefaultNamespace}
+          title={`New classes and properties get their IRI under ${defaultNamespace || iri}${defaultNamespace ? '' : ' (the ontology IRI)'}`}
+        >
+          Default IRI
+        </button>
         <span className="hint">
           Drag between boxes to add subClassOf. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its dot to curve it.
         </span>
