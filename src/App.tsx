@@ -15,11 +15,12 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useCallback, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
 import { sampleOntology, type ClassNode, type RelationEdge } from './model'
 import { toTurtle } from './owl'
 import { Inspector } from './inspector/Inspector'
+import { classesNotOn, loadCanvas, mergePages, placeClass, removePage, saveCanvas, workspaceFrom, type Workspace } from './pages'
 import { ClassNodeView } from './sketch/ClassNodeView'
 import { ConnectionLine } from './sketch/ConnectionLine'
 import { RelationEdgeView } from './sketch/RelationEdgeView'
@@ -55,6 +56,11 @@ export default function App() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<RelationEdge>(
     sampleOntology.edges.map((e) => markerFor(withDefaultHandles(e))),
   )
+  // The canvas above is the active page; other pages wait in the workspace, see pages.ts.
+  const [initial] = useState(() => workspaceFrom('Page 1', sampleOntology.nodes, sampleOntology.edges))
+  const [workspace, setWorkspace] = useState<Workspace>(initial.workspace)
+  const [pageId, setPageId] = useState(initial.pageId)
+  const [exportPages, setExportPages] = useState<string[] | null>(null)
   const [turtle, setTurtle] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
@@ -106,7 +112,7 @@ export default function App() {
     if (!file) return
     try {
       const result = importExcalidraw(await file.text())
-      if (nodes.length > 0 && !window.confirm(`Replace the current canvas with ${file.name}?`)) return
+      if (nodes.length > 0 && !window.confirm(`Replace this page with ${file.name}?`)) return
       setNodes(result.nodes)
       setEdges(result.edges.map((e) => markerFor(withDefaultHandles(e))))
       setNotice(describeImport(result.summary))
@@ -135,7 +141,68 @@ export default function App() {
 
   const straighten = () => setEdges((es) => es.map((e) => (e.selected && e.data ? { ...e, data: { ...e.data, bend: undefined } } : e)))
 
-  const exportTurtle = async () => setTurtle(await toTurtle({ iri, nodes, edges }))
+  /** The workspace with the canvas's latest edits written back into it. */
+  const saved = () => saveCanvas(workspace, pageId, nodes, edges)
+
+  const show = (ws: Workspace, id: string, fit: boolean) => {
+    const canvas = loadCanvas(ws, id)
+    setWorkspace(ws)
+    setPageId(id)
+    setNodes(canvas.nodes)
+    setEdges(canvas.edges.map((e) => markerFor(withDefaultHandles(e))))
+    if (fit) requestAnimationFrame(() => flow?.fitView({ padding: 0.2 }))
+  }
+
+  const openPage = (id: string) => {
+    if (id !== pageId) show(saved(), id, true)
+  }
+
+  const addPage = () => {
+    const name = window.prompt('Page name', `Page ${workspace.pages.length + 1}`)
+    if (!name) return
+    const id = crypto.randomUUID()
+    const ws = saved()
+    show({ ...ws, pages: [...ws.pages, { id, name, nodes: [], edges: [] }] }, id, false)
+  }
+
+  const renamePage = (id: string) => {
+    const page = workspace.pages.find((p) => p.id === id)
+    const name = window.prompt('Page name', page?.name)
+    if (name) setWorkspace((ws) => ({ ...ws, pages: ws.pages.map((p) => (p.id === id ? { ...p, name } : p)) }))
+  }
+
+  const deletePage = (id: string) => {
+    const page = workspace.pages.find((p) => p.id === id)
+    if (workspace.pages.length < 2 || !page) return
+    if (!window.confirm(`Delete page "${page.name}"? Classes that only appear on this page are deleted too.`)) return
+    const ws = removePage(saved(), id)
+    show(ws, id === pageId ? ws.pages[0].id : pageId, id === pageId)
+  }
+
+  // Classes from other pages that can be placed here; placing shares the class, it does not copy it.
+  const placeable = useMemo(() => classesNotOn(saveCanvas(workspace, pageId, nodes, edges), pageId), [workspace, pageId, nodes, edges])
+
+  const placeExisting = (event: ChangeEvent<HTMLSelectElement>) => {
+    const classId = event.target.value
+    if (!classId) return
+    const rect = document.querySelector('.canvas')?.getBoundingClientRect()
+    const at = flow && rect ? flow.screenToFlowPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }) : { x: 120, y: 120 }
+    // Step down past classes already sitting there, so placements don't stack on top of each other.
+    while (nodes.some((n) => Math.abs(n.position.x - at.x) < 40 && Math.abs(n.position.y - at.y) < 40)) at.y += 100
+    show(placeClass(saved(), pageId, classId, at), pageId, false)
+  }
+
+  const exportTurtle = async (pageIds: string[]) => {
+    setExportPages(null)
+    setTurtle(await toTurtle(mergePages(saved(), pageIds, iri)))
+  }
+
+  // With one page there is nothing to choose; otherwise ask which pages go into the file.
+  const startExport = () =>
+    workspace.pages.length === 1 ? exportTurtle([pageId]) : setExportPages(workspace.pages.map((p) => p.id))
+
+  const toggleExportPage = (id: string) =>
+    setExportPages((ids) => (ids?.includes(id) ? ids.filter((i) => i !== id) : [...(ids ?? []), id]))
 
   const download = () => {
     if (!turtle) return
@@ -156,7 +223,17 @@ export default function App() {
         <button onClick={addClass}>+ Class</button>
         <button onClick={() => fileInput.current?.click()}>Import .excalidraw</button>
         <input ref={fileInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
-        <button onClick={exportTurtle}>Export OWL (Turtle)</button>
+        {placeable.length > 0 && (
+          <select value="" onChange={placeExisting} aria-label="Place a class from another page">
+            <option value="">Place existing class…</option>
+            {placeable.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        )}
+        <button onClick={startExport}>Export OWL (Turtle)</button>
         <span className="hint">
           Drag between boxes to add subClassOf. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its dot to curve it.
         </span>
@@ -178,6 +255,7 @@ export default function App() {
           zoomOnDoubleClick={false}
           onInit={setFlow}
           fitView
+          minZoom={0.05}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} />
           <Controls />
@@ -207,6 +285,32 @@ export default function App() {
             <button onClick={() => setNotice(null)} aria-label="Dismiss">×</button>
           </div>
         )}
+        {exportPages && (
+          <div className="export-pages" role="dialog" aria-label="Pages to export">
+            <strong>Export which pages?</strong>
+            <label>
+              <input
+                type="checkbox"
+                checked={exportPages.length === workspace.pages.length}
+                onChange={(e) => setExportPages(e.target.checked ? workspace.pages.map((p) => p.id) : [])}
+              />
+              All pages
+            </label>
+            {workspace.pages.map((p) => (
+              <label key={p.id} className="indent">
+                <input type="checkbox" checked={exportPages.includes(p.id)} onChange={() => toggleExportPage(p.id)} />
+                {p.name}
+              </label>
+            ))}
+            <span className="hint">Classes on any chosen page are exported once. Relations drawn only on other pages are left out.</span>
+            <div className="export-actions">
+              <button disabled={exportPages.length === 0} onClick={() => exportTurtle(exportPages)}>
+                Export
+              </button>
+              <button onClick={() => setExportPages(null)}>Cancel</button>
+            </div>
+          </div>
+        )}
         {turtle && (
           <aside className="export">
             <div className="export-actions">
@@ -217,6 +321,23 @@ export default function App() {
           </aside>
         )}
       </main>
+      <nav className="pages" aria-label="Pages">
+        {workspace.pages.map((p) => (
+          <span key={p.id} className={p.id === pageId ? 'page active' : 'page'}>
+            <button onClick={() => openPage(p.id)} onDoubleClick={() => renamePage(p.id)} title="Double-click to rename">
+              {p.name}
+            </button>
+            {workspace.pages.length > 1 && (
+              <button className="close" onClick={() => deletePage(p.id)} aria-label={`Delete page ${p.name}`}>
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        <button className="add" onClick={addPage} aria-label="Add page">
+          + Page
+        </button>
+      </nav>
     </div>
   )
 }
