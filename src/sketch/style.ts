@@ -14,10 +14,13 @@ export type SketchStyle = {
   strokeStyle?: StrokeStyle
   /** Excalidraw's "sloppiness": 0 architect, 1 artist, 2 cartoonist. */
   roughness?: number
+  /** Outline of a class; edges ignore it. */
+  shape?: ClassShape
 }
 
 export type FillStyle = 'hachure' | 'cross-hatch' | 'solid'
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted'
+export type ClassShape = 'box' | 'oval'
 
 // Excalidraw's quick-pick swatches (open-color shades), same order as its panel.
 export const STROKE_COLORS = ['#1e1e1e', '#e03131', '#2f9e44', '#1971c2', '#f08c00']
@@ -26,6 +29,7 @@ export const FILL_STYLES: FillStyle[] = ['hachure', 'cross-hatch', 'solid']
 export const STROKE_WIDTHS = [1, 2, 4]
 export const STROKE_STYLES: StrokeStyle[] = ['solid', 'dashed', 'dotted']
 export const ROUGHNESS = [0, 1, 2]
+export const CLASS_SHAPES: ClassShape[] = ['box', 'oval']
 
 export const NODE_DEFAULTS: Required<SketchStyle> = {
   stroke: '#1e1e1e',
@@ -34,6 +38,7 @@ export const NODE_DEFAULTS: Required<SketchStyle> = {
   strokeWidth: 1.5,
   strokeStyle: 'solid',
   roughness: 1.2,
+  shape: 'box',
 }
 
 /** Edges have no fill; strokeStyle stays unset so the edge kind picks solid or dashed. */

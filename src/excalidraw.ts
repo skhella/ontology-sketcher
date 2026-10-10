@@ -142,7 +142,7 @@ function bendOf(e: ExcalidrawElement): Point | undefined {
   return Math.hypot(bend.x, bend.y) < 1 ? undefined : bend
 }
 
-/** Carries over the element's colours, fill, stroke and sloppiness, keeping only values our canvas understands. */
+/** Carries over the element's colours, fill, stroke, sloppiness and oval shape, keeping only values our canvas understands. */
 function styleOf(e: ExcalidrawElement): SketchStyle {
   const style: SketchStyle = {}
   if (typeof e.strokeColor === 'string') style.stroke = e.strokeColor
@@ -152,6 +152,7 @@ function styleOf(e: ExcalidrawElement): SketchStyle {
   if (typeof e.strokeWidth === 'number') style.strokeWidth = e.strokeWidth
   if (e.strokeStyle && ['solid', 'dashed', 'dotted'].includes(e.strokeStyle)) style.strokeStyle = e.strokeStyle as StrokeStyle
   if (typeof e.roughness === 'number') style.roughness = e.roughness
+  if (e.type === 'ellipse') style.shape = 'oval'
   return style
 }
 

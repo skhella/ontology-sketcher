@@ -1,18 +1,29 @@
 import { Handle, useConnection, useInternalNode, type NodeProps } from '@xyflow/react'
-import { Fragment, useMemo } from 'react'
+import { Fragment, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { ClassNode } from '../model'
 import { breakPoints } from './label'
-import { roughRect, seedFor } from './rough'
+import { roughEllipse, roughRect, seedFor } from './rough'
 import { boxOf, CLASS_HEIGHT as HEIGHT, CLASS_WIDTH as WIDTH, SIDES, snapToClass } from './snap'
 import { dashArray, nodeStyle, roughNodeOptions } from './style'
 
 export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
   const style = data.style
+  const { strokeStyle, strokeWidth, shape } = nodeStyle(style)
+  const oval = shape === 'oval'
+
+  // An oval only holds text inside its inscribed rectangle, which is 1/√2 of its height,
+  // so it grows taller than the label (the label's side padding covers the width).
+  const label = useRef<HTMLSpanElement>(null)
+  const labelHeight = useLabelHeight(label)
+  const minHeight = oval ? Math.max(HEIGHT, Math.ceil(labelHeight * Math.SQRT2) + 12) : HEIGHT
+
   // The width is fixed; a long label wraps and the box grows taller, so the outline follows the measured height.
   const internal = useInternalNode<ClassNode>(id)
-  const height = Math.max(HEIGHT, internal?.measured.height ?? HEIGHT)
-  const paths = useMemo(() => roughRect(WIDTH, height, roughNodeOptions(style, seedFor(id))), [id, style, height])
-  const { strokeStyle, strokeWidth } = nodeStyle(style)
+  const height = Math.max(minHeight, internal?.measured.height ?? HEIGHT)
+  const paths = useMemo(
+    () => (oval ? roughEllipse : roughRect)(WIDTH, height, roughNodeOptions(style, seedFor(id))),
+    [id, style, height, oval],
+  )
 
   // While a new edge is dragged over this class, highlight the dot it will lock to.
   // `to` is the pointer in flow coordinates, or the dot React Flow itself snapped to.
@@ -23,7 +34,10 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
   )
 
   return (
-    <div className={`class-node${selected ? ' selected' : ''}${snapSide ? ' snap-target' : ''}`} style={{ width: WIDTH, minHeight: HEIGHT }}>
+    <div
+      className={`class-node${oval ? ' oval' : ''}${selected ? ' selected' : ''}${snapSide ? ' snap-target' : ''}`}
+      style={{ width: WIDTH, minHeight }}
+    >
       <svg width={WIDTH} height={height} className="sketch">
         {paths.map((p, i) => (
           <path
@@ -37,7 +51,7 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
           />
         ))}
       </svg>
-      <span className="label">
+      <span className="label" ref={label}>
         {breakPoints(data.label).map((piece, i) => (
           <Fragment key={i}>
             {i > 0 && <wbr />}
@@ -51,4 +65,18 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
       ))}
     </div>
   )
+}
+
+/** Rendered height of the label, kept current as it wraps or its text changes. */
+function useLabelHeight(ref: RefObject<HTMLElement | null>): number {
+  const [height, setHeight] = useState(0)
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const observer = new ResizeObserver(() => setHeight(element.offsetHeight))
+    observer.observe(element)
+    setHeight(element.offsetHeight)
+    return () => observer.disconnect()
+  }, [ref])
+  return height
 }

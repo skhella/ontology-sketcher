@@ -58,7 +58,7 @@ describe('importExcalidraw', () => {
     )
   })
 
-  it('keeps colours, fill, stroke and sloppiness', () => {
+  it('keeps colours, fill, stroke, sloppiness and ovals', () => {
     const styled = {
       elements: [
         shape('a', 'ellipse', 0, 0, { strokeColor: '#e03131', backgroundColor: '#ffc9c9', fillStyle: 'cross-hatch', strokeWidth: 2, strokeStyle: 'solid', roughness: 0 }),
@@ -70,7 +70,7 @@ describe('importExcalidraw', () => {
     }
     const result = importExcalidraw(JSON.stringify(styled))
     expect(result.nodes.map((n) => n.data.style)).toEqual([
-      { stroke: '#e03131', fill: '#ffc9c9', fillStyle: 'cross-hatch', strokeWidth: 2, strokeStyle: 'solid', roughness: 0 },
+      { stroke: '#e03131', fill: '#ffc9c9', fillStyle: 'cross-hatch', strokeWidth: 2, strokeStyle: 'solid', roughness: 0, shape: 'oval' },
       { stroke: '#1e1e1e', fill: 'transparent', fillStyle: 'hachure', strokeWidth: 1, strokeStyle: 'dotted', roughness: 2 },
     ])
     expect(result.edges[0].data?.style).toEqual({ stroke: '#1971c2', strokeWidth: 4, strokeStyle: 'dashed', roughness: 1 })
