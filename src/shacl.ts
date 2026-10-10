@@ -1,6 +1,7 @@
 import { DataFactory, Writer, type NamedNode, type Quad_Object } from 'n3'
 import { localName, propertyLocalName, type Ontology, type PropertyConstraint } from './model'
 import { entityIri } from './owl'
+import { parseTurtle } from './turtle'
 import { OWL, RDF, XSD } from './vocab'
 
 export const SH = 'http://www.w3.org/ns/shacl#'
@@ -14,12 +15,13 @@ export function shapesIri(base: string): string {
 
 /** Whether any class carries constraints, i.e. whether there are shapes to export. */
 export function hasConstraints(ontology: Ontology): boolean {
-  return ontology.nodes.some((n) => !!n.data.constraints?.length)
+  return ontology.nodes.some((n) => !!n.data.constraints?.length || !!n.data.extraShapes?.trim())
 }
 
 /**
  * Serializes the classes' constraints as a SHACL shapes graph in Turtle, separate from the OWL file:
- * one sh:NodeShape per class with constraints, targeting that class, with one sh:property per constraint.
+ * one sh:NodeShape per class with constraints, targeting that class, with one sh:property per constraint,
+ * plus any shapes imported for the class that the constraints can't hold (see shapesImport.ts).
  * The shapes graph imports the ontology, so tools that follow owl:imports see both.
  */
 export function toShaclTurtle(ontology: Ontology): Promise<string> {
@@ -46,6 +48,8 @@ export function toShaclTurtle(ontology: Ontology): Promise<string> {
 
   const names = new Set<string>()
   for (const node of ontology.nodes) {
+    // Imported shapes the rows can't hold go out as they came in.
+    if (node.data.extraShapes?.trim()) writer.addQuads(parseTurtle(node.data.extraShapes, base).store.getQuads(null, null, null, null))
     const constraints = node.data.constraints ?? []
     if (constraints.length === 0) continue
     const target = classIri.get(node.id)!

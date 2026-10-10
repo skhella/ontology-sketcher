@@ -7,16 +7,19 @@ import { ClassSelect } from './ClassAxioms'
 type Props = {
   nodeId: string
   constraints: PropertyConstraint[]
+  /** Imported shapes the rows can't hold, as Turtle. */
+  extra?: string
   nodes: ClassNode[]
   edges: RelationEdge[]
   onChange: (constraints: PropertyConstraint[]) => void
+  onRemoveExtra: () => void
 }
 
 /**
  * SHACL constraints on the class: per property, how many values its instances must have and of what type.
  * They export as a node shape targeting this class, see shacl.ts.
  */
-export function Constraints({ nodeId, constraints, nodes, edges, onChange }: Props) {
+export function Constraints({ nodeId, constraints, extra, nodes, edges, onChange, onRemoveExtra }: Props) {
   // The class "Suggest from ontology" last found nothing new for, to say so under the button.
   const [nothingNewFor, setNothingNewFor] = useState<string | null>(null)
   // Edges with the same label are one property; offer each once, by its first edge.
@@ -146,6 +149,16 @@ export function Constraints({ nodeId, constraints, nodes, edges, onChange }: Pro
           </div>
         )
       })}
+      {extra?.trim() && (
+        <details className="extra-shapes">
+          <summary>Imported rules this panel can't edit yet</summary>
+          <p className="muted">They came from a shapes file and export as they are.</p>
+          <pre>{extra.replace(/^@prefix[^\n]*\n/gm, '').trim()}</pre>
+          <button className="remove-extra" onClick={onRemoveExtra}>
+            Remove them
+          </button>
+        </details>
+      )}
       <div className="constraint-actions">
         <button className="add" onClick={add} disabled={properties.length === 0 && dataProperties.size === 0}>
           + Constraint

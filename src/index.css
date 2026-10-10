@@ -885,6 +885,25 @@ body,
   color: #c92a2a;
 }
 
+.inspector .constraints .extra-shapes {
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.inspector .constraints .extra-shapes summary {
+  cursor: pointer;
+}
+
+.inspector .constraints .extra-shapes pre {
+  overflow-x: auto;
+  margin: 4px 0;
+  padding: 6px;
+  border: 1.5px dashed var(--line);
+  border-radius: 6px;
+  font-size: 11px;
+  white-space: pre;
+}
+
 .inspector .constraints .add {
   border-style: dashed;
 }

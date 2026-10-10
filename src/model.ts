@@ -78,6 +78,8 @@ export type ClassData = EntityData & {
   axioms?: ClassAxiom[]
   dataProperties?: DataProperty[]
   constraints?: PropertyConstraint[]
+  /** Shapes for this class imported from a shapes file that rows can't hold, as Turtle; exported unchanged. */
+  extraShapes?: string
   style?: SketchStyle
 }
 export type ClassNode = Node<ClassData, 'owlClass'>
