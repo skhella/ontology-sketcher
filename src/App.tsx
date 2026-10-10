@@ -17,6 +17,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
+import { describeShapesImport, importShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
 import { importedOntologyIri, sampleOntology, type ClassNode, type NodeKind, type RelationEdge } from './model'
 import { toTurtle } from './owl'
@@ -81,6 +82,7 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null)
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const shapesInput = useRef<HTMLInputElement>(null)
   const [theme, toggleTheme] = useTheme()
 
   // Between classes a new edge is subClassOf; from a concept it is skos:broader, or skos:topConceptOf into a scheme.
@@ -142,6 +144,29 @@ export default function App() {
       setIri((current) => importedOntologyIri(current, file.name))
       setNotice(describeImport(result.summary))
       requestAnimationFrame(() => flow?.fitView({ padding: 0.2 }))
+    } catch (error) {
+      setNotice(`Could not import ${file.name}: ${(error as Error).message}`)
+    }
+  }
+
+  // Reads a SHACL shapes file onto the classes on this page, replacing their constraints, see shapesImport.ts.
+  const importShapesFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    try {
+      const result = await importShapes(await file.text(), iri, nodes, edges)
+      const replaced = nodes.filter((n) => result.classes.has(n.id) && (n.data.constraints?.length || n.data.extraShapes || n.data.constraintsClosed))
+      if (replaced.length > 0 && !window.confirm(`Replace the constraints on ${replaced.map((n) => n.data.label).join(', ')} with those in ${file.name}?`)) return
+      setNodes((ns) =>
+        ns.map((n) => {
+          const imported = result.classes.get(n.id)
+          return imported
+            ? { ...n, data: { ...n.data, constraints: imported.constraints, constraintsClosed: imported.closed, extraShapes: imported.extra } }
+            : n
+        }),
+      )
+      setNotice(describeShapesImport(result))
     } catch (error) {
       setNotice(`Could not import ${file.name}: ${(error as Error).message}`)
     }
@@ -281,6 +306,10 @@ export default function App() {
         </button>
         <button onClick={() => fileInput.current?.click()}>Import .excalidraw</button>
         <input ref={fileInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
+        <button onClick={() => shapesInput.current?.click()} title="Read a SHACL shapes file (Turtle) into the constraints of the classes on this page">
+          Import shapes
+        </button>
+        <input ref={shapesInput} type="file" accept=".ttl,text/turtle" hidden onChange={importShapesFile} />
         {placeable.length > 0 && (
           <select value="" onChange={placeExisting} aria-label="Place a class from another page">
             <option value="">Place existing class…</option>

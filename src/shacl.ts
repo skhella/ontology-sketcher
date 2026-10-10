@@ -1,6 +1,7 @@
 import { DataFactory, Writer, type NamedNode, type Quad_Object } from 'n3'
 import { localName, propertyLocalName, type Ontology, type PropertyConstraint } from './model'
 import { entityIri } from './owl'
+import { parseTurtle } from './turtle'
 import { OWL, RDF, RDFS, XSD } from './vocab'
 
 export const SH = 'http://www.w3.org/ns/shacl#'
@@ -12,14 +13,25 @@ export function shapesIri(base: string): string {
   return base.replace(/[#/]$/, '') + '/shapes'
 }
 
+/**
+ * A value typed in the inspector (an allowed value or a range bound), as a literal of the constraint's datatype.
+ * Without a usable datatype, numbers become xsd:decimal (so ranges compare as numbers) and anything else a plain string.
+ */
+export function constraintValue(text: string, datatype: string | undefined) {
+  const t = text.trim()
+  if (datatype && datatype !== RDFS + 'Literal' && datatype !== RDF + 'langString') return literal(t, namedNode(datatype))
+  return /^[+-]?(\d+\.?\d*|\.\d+)$/.test(t) ? literal(t, namedNode(XSD + 'decimal')) : literal(t)
+}
+
 /** Whether any class carries constraints, i.e. whether there are shapes to export. */
 export function hasConstraints(ontology: Ontology): boolean {
-  return ontology.nodes.some((n) => !!n.data.constraints?.length)
+  return ontology.nodes.some((n) => !!n.data.constraints?.length || !!n.data.extraShapes?.trim())
 }
 
 /**
  * Serializes the classes' constraints as a SHACL shapes graph in Turtle, separate from the OWL file:
- * one sh:NodeShape per class with constraints, targeting that class, with one sh:property per constraint.
+ * one sh:NodeShape per class with constraints, targeting that class, with one sh:property per constraint,
+ * plus any shapes imported for the class that the constraints can't hold (see shapesImport.ts).
  * The shapes graph imports the ontology, so tools that follow owl:imports see both.
  */
 export function toShaclTurtle(ontology: Ontology): Promise<string> {
@@ -30,13 +42,6 @@ export function toShaclTurtle(ontology: Ontology): Promise<string> {
   const type = namedNode(RDF + 'type')
   const sh = (name: string) => namedNode(SH + name)
   const count = (n: number) => literal(String(Math.max(0, Math.floor(n))), namedNode(XSD + 'integer'))
-  // A value typed in the inspector, as a literal of the constraint's datatype. Without a usable datatype,
-  // numbers become xsd:decimal (so ranges compare as numbers) and anything else a plain string.
-  const value = (text: string, datatype: string | undefined) => {
-    const t = text.trim()
-    if (datatype && datatype !== RDFS + 'Literal' && datatype !== RDF + 'langString') return literal(t, namedNode(datatype))
-    return /^[+-]?(\d+\.?\d*|\.\d+)$/.test(t) ? literal(t, namedNode(XSD + 'decimal')) : literal(t)
-  }
 
   writer.addQuad(namedNode(shapes), type, namedNode(OWL + 'Ontology'))
   writer.addQuad(namedNode(shapes), namedNode(OWL + 'imports'), namedNode(ontologyIri))
@@ -53,6 +58,8 @@ export function toShaclTurtle(ontology: Ontology): Promise<string> {
 
   const names = new Set<string>()
   for (const node of ontology.nodes) {
+    // Imported shapes the rows can't hold go out as they came in.
+    if (node.data.extraShapes?.trim()) writer.addQuads(parseTurtle(node.data.extraShapes, base).store.getQuads(null, null, null, null))
     const constraints = node.data.constraints ?? []
     if (constraints.length === 0) continue
     const target = classIri.get(node.id)!
@@ -84,11 +91,11 @@ export function toShaclTurtle(ontology: Ontology): Promise<string> {
         const allowed = (c.allowed ?? []).filter((a) => a.trim())
         if (allowed.length > 0) {
           // @types/n3 types list() as an array; at runtime it is one serialized `( … )` term.
-          const list = writer.list(allowed.map((a) => value(a, c.datatype))) as unknown as Quad_Object
+          const list = writer.list(allowed.map((a) => constraintValue(a, c.datatype))) as unknown as Quad_Object
           parts.push({ predicate: sh('in'), object: list })
         }
-        if (c.minValue?.trim()) parts.push({ predicate: sh('minInclusive'), object: value(c.minValue, c.datatype) })
-        if (c.maxValue?.trim()) parts.push({ predicate: sh('maxInclusive'), object: value(c.maxValue, c.datatype) })
+        if (c.minValue?.trim()) parts.push({ predicate: sh('minInclusive'), object: constraintValue(c.minValue, c.datatype) })
+        if (c.maxValue?.trim()) parts.push({ predicate: sh('maxInclusive'), object: constraintValue(c.maxValue, c.datatype) })
         if (c.minLength !== undefined) parts.push({ predicate: sh('minLength'), object: count(c.minLength) })
         if (c.maxLength !== undefined) parts.push({ predicate: sh('maxLength'), object: count(c.maxLength) })
       }

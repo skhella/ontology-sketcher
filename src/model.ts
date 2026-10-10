@@ -90,6 +90,8 @@ export type ClassData = EntityData & {
   axioms?: ClassAxiom[]
   dataProperties?: DataProperty[]
   constraints?: PropertyConstraint[]
+  /** Shapes for this class imported from a shapes file that rows can't hold, as Turtle; exported unchanged. */
+  extraShapes?: string
   constraintsClosed?: boolean
   style?: SketchStyle
 }
