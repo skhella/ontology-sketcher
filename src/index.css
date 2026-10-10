@@ -144,6 +144,11 @@ body,
   overflow-wrap: anywhere;
 }
 
+/* Keeps the text inside the oval's inscribed rectangle, which is 1/√2 of its width (180px). */
+.class-node.oval .label {
+  padding: 0 28px;
+}
+
 /* Selection is a dashed box around the node, so the node keeps its own colours. */
 .class-node.selected::after {
   content: '';

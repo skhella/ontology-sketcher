@@ -4,6 +4,7 @@ import {
   FILL_COLORS,
   FILL_STYLES,
   NODE_DEFAULTS,
+  CLASS_SHAPES,
   ROUGHNESS,
   STROKE_COLORS,
   STROKE_STYLES,
@@ -28,6 +29,16 @@ export function StylePanel({ current, edgesOnly, bentEdges, onChange, onStraight
 
   return (
     <aside className="style-panel" aria-label="Style">
+      {!edgesOnly && (
+        <Section title="Shape">
+          {CLASS_SHAPES.map((shape) => (
+            <Option key={shape} label={shape} active={s.shape === shape} onPick={() => onChange({ shape })}>
+              <ShapeIcon shape={shape} />
+            </Option>
+          ))}
+        </Section>
+      )}
+
       <Section title="Stroke">
         <Swatches colors={STROKE_COLORS} value={s.stroke} onPick={(stroke) => onChange({ stroke })} />
       </Section>
@@ -141,6 +152,14 @@ function LineIcon({ width, dash }: { width: number; dash?: string }) {
 function WiggleIcon({ amount }: { amount: number }) {
   const d = ['M3 14 L17 6', 'M3 14 Q8 4 11 10 T17 6', 'M3 14 Q5 2 8 12 T12 8 T17 6'][amount]
   return <path d={d} stroke="currentColor" strokeWidth={1.5} fill="none" strokeLinecap="round" />
+}
+
+function ShapeIcon({ shape }: { shape: string }) {
+  return shape === 'oval' ? (
+    <ellipse cx="10" cy="10" rx="8" ry="5.5" stroke="currentColor" strokeWidth={1.5} fill="none" />
+  ) : (
+    <rect x="2" y="4.5" width="16" height="11" rx="1" stroke="currentColor" strokeWidth={1.5} fill="none" />
+  )
 }
 
 function FillIcon({ fillStyle }: { fillStyle: string }) {
