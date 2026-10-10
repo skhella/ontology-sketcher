@@ -1,0 +1,541 @@
+{
+ "type": "excalidraw",
+ "version": 2,
+ "source": "https://excalidraw.com",
+ "elements": [
+  {
+   "id": "food",
+   "type": "rectangle",
+   "x": 380,
+   "y": 0,
+   "width": 200,
+   "height": 90,
+   "isDeleted": false,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1
+  },
+  {
+   "id": "tfood",
+   "type": "text",
+   "x": 0,
+   "y": 0,
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "text": "Food",
+   "originalText": "Food",
+   "containerId": "food"
+  },
+  {
+   "id": "pizza",
+   "type": "rectangle",
+   "x": 160,
+   "y": 200,
+   "width": 200,
+   "height": 90,
+   "isDeleted": false,
+   "strokeColor": "#e03131",
+   "backgroundColor": "#ffc9c9",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1
+  },
+  {
+   "id": "tpizza",
+   "type": "text",
+   "x": 0,
+   "y": 0,
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "text": "Pizza",
+   "originalText": "Pizza",
+   "containerId": "pizza"
+  },
+  {
+   "id": "topping",
+   "type": "rectangle",
+   "x": 640,
+   "y": 200,
+   "width": 200,
+   "height": 90,
+   "isDeleted": false,
+   "strokeColor": "#2f9e44",
+   "backgroundColor": "#b2f2bb",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1
+  },
+  {
+   "id": "ttopping",
+   "type": "text",
+   "x": 0,
+   "y": 0,
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "text": "Topping",
+   "originalText": "Topping",
+   "containerId": "topping"
+  },
+  {
+   "id": "base",
+   "type": "ellipse",
+   "x": -200,
+   "y": 200,
+   "width": 200,
+   "height": 90,
+   "isDeleted": false,
+   "strokeColor": "#f08c00",
+   "backgroundColor": "#ffec99",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1
+  },
+  {
+   "id": "tbase",
+   "type": "text",
+   "x": 0,
+   "y": 0,
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "text": "Pizza Base",
+   "originalText": "Pizza Base",
+   "containerId": "base"
+  },
+  {
+   "id": "marg",
+   "type": "rectangle",
+   "x": 20,
+   "y": 440,
+   "width": 200,
+   "height": 90,
+   "isDeleted": false,
+   "strokeColor": "#e03131",
+   "backgroundColor": "#ffc9c9",
+   "fillStyle": "cross-hatch",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1
+  },
+  {
+   "id": "tmarg",
+   "type": "text",
+   "x": 0,
+   "y": 0,
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "text": "Margherita",
+   "originalText": "Margherita",
+   "containerId": "marg"
+  },
+  {
+   "id": "veg",
+   "type": "rectangle",
+   "x": 300,
+   "y": 440,
+   "width": 200,
+   "height": 90,
+   "isDeleted": false,
+   "strokeColor": "#e03131",
+   "backgroundColor": "transparent",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1
+  },
+  {
+   "id": "tveg",
+   "type": "text",
+   "x": 0,
+   "y": 0,
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "text": "Vegetarian Pizza",
+   "originalText": "Vegetarian Pizza",
+   "containerId": "veg"
+  },
+  {
+   "id": "tomato",
+   "type": "rectangle",
+   "x": 640,
+   "y": 440,
+   "width": 200,
+   "height": 90,
+   "isDeleted": false,
+   "strokeColor": "#2f9e44",
+   "backgroundColor": "#b2f2bb",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1
+  },
+  {
+   "id": "ttomato",
+   "type": "text",
+   "x": 0,
+   "y": 0,
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "text": "Tomato Topping",
+   "originalText": "Tomato Topping",
+   "containerId": "tomato"
+  },
+  {
+   "id": "cheese",
+   "type": "rectangle",
+   "x": 900,
+   "y": 440,
+   "width": 200,
+   "height": 90,
+   "isDeleted": false,
+   "strokeColor": "#1971c2",
+   "backgroundColor": "#a5d8ff",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1
+  },
+  {
+   "id": "tcheese",
+   "type": "text",
+   "x": 0,
+   "y": 0,
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "text": "Cheese Topping",
+   "originalText": "Cheese Topping",
+   "containerId": "cheese"
+  },
+  {
+   "id": "a1",
+   "type": "arrow",
+   "x": 260.0,
+   "y": 200,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     220.0,
+     -110
+    ]
+   ],
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "startBinding": {
+    "elementId": "pizza",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   },
+   "endBinding": {
+    "elementId": "food",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   }
+  },
+  {
+   "id": "a2",
+   "type": "arrow",
+   "x": 740.0,
+   "y": 200,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     -260.0,
+     -110
+    ]
+   ],
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "startBinding": {
+    "elementId": "topping",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   },
+   "endBinding": {
+    "elementId": "food",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   }
+  },
+  {
+   "id": "a3",
+   "type": "arrow",
+   "x": 360,
+   "y": 245.0,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     140.0,
+     -50.0
+    ],
+    [
+     280,
+     0.0
+    ]
+   ],
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "strokeColor": "#1971c2",
+   "backgroundColor": "transparent",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "startBinding": {
+    "elementId": "pizza",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   },
+   "endBinding": {
+    "elementId": "topping",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   }
+  },
+  {
+   "id": "ta3",
+   "type": "text",
+   "x": 0,
+   "y": 0,
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "text": "has topping",
+   "originalText": "has topping",
+   "containerId": "a3"
+  },
+  {
+   "id": "a4",
+   "type": "arrow",
+   "x": 160,
+   "y": 245.0,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     -160,
+     0.0
+    ]
+   ],
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "strokeColor": "#1971c2",
+   "backgroundColor": "transparent",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "startBinding": {
+    "elementId": "pizza",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   },
+   "endBinding": {
+    "elementId": "base",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   }
+  },
+  {
+   "id": "ta4",
+   "type": "text",
+   "x": 0,
+   "y": 0,
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "text": "has base",
+   "originalText": "has base",
+   "containerId": "a4"
+  },
+  {
+   "id": "a5",
+   "type": "arrow",
+   "x": 120.0,
+   "y": 440,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     140.0,
+     -150
+    ]
+   ],
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "startBinding": {
+    "elementId": "marg",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   },
+   "endBinding": {
+    "elementId": "pizza",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   }
+  },
+  {
+   "id": "a6",
+   "type": "arrow",
+   "x": 400.0,
+   "y": 440,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     -140.0,
+     -150
+    ]
+   ],
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "startBinding": {
+    "elementId": "veg",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   },
+   "endBinding": {
+    "elementId": "pizza",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   }
+  },
+  {
+   "id": "a7",
+   "type": "arrow",
+   "x": 740.0,
+   "y": 440,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     0.0,
+     -150
+    ]
+   ],
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "startBinding": {
+    "elementId": "tomato",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   },
+   "endBinding": {
+    "elementId": "topping",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   }
+  },
+  {
+   "id": "a8",
+   "type": "arrow",
+   "x": 1000.0,
+   "y": 440,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     -260.0,
+     -150
+    ]
+   ],
+   "width": 10,
+   "height": 10,
+   "isDeleted": false,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "startBinding": {
+    "elementId": "cheese",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   },
+   "endBinding": {
+    "elementId": "topping",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": null
+   }
+  }
+ ],
+ "appState": {},
+ "files": {}
+}
