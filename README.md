@@ -5,42 +5,59 @@
   </picture>
 </p>
 
-# Ontology Sketcher
+<h1 align="center">Ontology Sketcher</h1>
 
-**Sketch an ontology like a whiteboard drawing, and get real OWL 2 out of it.**
+<p align="center">
+  <strong>Sketch an ontology like a whiteboard drawing, and get real OWL 2, SHACL and SKOS out of it.</strong>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/OWL%202-DL-6f42c1" alt="OWL 2 DL">
+  <img src="https://img.shields.io/badge/SHACL-shapes%20%2B%20validation-2f9e44" alt="SHACL shapes and validation">
+  <img src="https://img.shields.io/badge/SKOS-concept%20schemes-f08c00" alt="SKOS concept schemes">
+  <img src="https://img.shields.io/badge/Neo4j-n10s%20export-018bff" alt="Neo4j export through n10s">
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#try-it">Try it</a> ·
+  <a href="#built-with">Built with</a> ·
+  <a href="#license">License</a>
+</p>
 
 Ontology Sketcher is a browser-based ontology editor with the hand-drawn look of Excalidraw and the modelling
-depth of Protégé. Draw classes as boxes or ovals, connect them with arrows, refine them in an inspector, and export
-valid OWL 2 in Turtle, SHACL shapes for your data, and SKOS vocabularies alongside.
+depth of Protégé. Draw classes as boxes or ovals, connect them with arrows, refine them in an inspector, add
+rules for your data, and export clean Turtle that a reasoner, a SHACL validator and Neo4j can all load.
 
 ![A pizza ontology drawn in Ontology Sketcher: hand-drawn coloured class ovals linked by subClassOf arrows and two object properties, "has topping" and "has base", with UML-style counts 1 and 1..* next to the arrowheads](docs/screenshot-canvas.png)
 
 ## Why
 
 Ontologies usually start on a whiteboard, then get rebuilt by hand in a tool like Protégé. Ontology Sketcher
-keeps the whiteboard: the drawing *is* the ontology. You can import an existing Excalidraw sketch, tidy it up,
-add axioms and data constraints, and export something a reasoner and a SHACL validator accept.
+keeps the whiteboard: the drawing *is* the ontology. You can start from an existing Excalidraw sketch, tidy it up,
+add axioms and data constraints, check a few example instances, and hand the result to the rest of your stack.
+
+| ✏️ Sketch | 🧩 Model | ✅ Validate | 📦 Ship |
+| --- | --- | --- | --- |
+| Draw classes and arrows on a hand-drawn canvas, or import an `.excalidraw` file. | Annotations, class axioms and property characteristics in a Protégé-style inspector. | SHACL constraints per class, checked against sample data right in the app. | `ontology.ttl`, `shapes.ttl` and a Cypher script for Neo4j. |
 
 ## Features
 
-**A canvas that feels like a whiteboard**
+### ✏️ A canvas that feels like a whiteboard
 
 - Hand-drawn shapes and the Excalifont handwriting font, with a style panel like Excalidraw's: box or oval,
   stroke and fill colours, fill style, stroke width and style, and sloppiness.
 - Light and dark mode, following your system setting until you pick one in the toolbar.
 - Every class has four connection dots. Drag from one onto another class to add `rdfs:subClassOf`; the arrow
-  snaps to the nearest dot.
-- Name an arrow to turn it into an object property. Drag an arrow's midpoint to curve it.
+  snaps to the nearest dot. Name an arrow to turn it into an object property, and drag its midpoint to curve it.
 - Pages, like layers: split a large ontology into views that share the same classes, and pick which pages to
   export.
-
-**Import from Excalidraw**
-
-- Open an `.excalidraw` file and labelled shapes become classes in the same place. Arrows between them become
+- **Import .excalidraw**: labelled shapes become classes in the same place, and arrows between them become
   `rdfs:subClassOf` (unlabelled, or labelled "SCO" / "subClassOf") or an object property named after the label.
-- Colours, fill, stroke, sloppiness and curved arrows carry over.
+  Colours, fill, stroke, sloppiness, ovals and curved arrows carry over.
 
-**Protégé-style editing in the inspector**
+### 🧩 Protégé-style modelling in the inspector
 
 - Labels, IRIs, `skos:definition`, `rdfs:comment` and any other annotation (SKOS, Dublin Core or your own), with
   language tags.
@@ -50,9 +67,18 @@ add axioms and data constraints, and export something a reasoner and a SHACL val
   irreflexive), inverses and super properties.
 - Data properties on classes with an `xsd` datatype.
 
-**SHACL constraints for your data**
+### ✅ SHACL constraints, checked as you go
 
-![The inspector for the class Pizza, scrolled to its SHACL constraints: has topping min 1 of Topping, and has base min 1 max 1 of Pizza Base with the message "Every pizza needs exactly one base."](docs/screenshot-shacl.png)
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshot-shacl.png" alt="The inspector for the class Pizza, scrolled to its SHACL constraints: has topping min 1 of Topping, and has base min 1 max 1 of Pizza Base with the message &quot;Every pizza needs exactly one base.&quot;"></td>
+    <td width="50%"><img src="docs/screenshot-sample-data.png" alt="The sample data panel with :lunch a :Margherita that has a topping but no base. The problem reads &quot;lunch (Margherita) · hasBase: Every pizza needs exactly one base.&quot; and Margherita is outlined in red on the canvas"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Constraints on a class, counts on its arrows</em></td>
+    <td align="center"><em>Sample data that breaks a rule, outlined in red</em></td>
+  </tr>
+</table>
 
 - Each class gets a Constraints section: per property, how many values its instances need and of which class or
   datatype, with an optional message. They export as a separate `shapes.ttl` with one `sh:NodeShape` per class.
@@ -62,9 +88,7 @@ add axioms and data constraints, and export something a reasoner and a SHACL val
 - **Check sample data**: paste a few instances in Turtle and the app validates them against the shapes, lists each
   problem in plain words, and outlines the classes whose instances break a rule in red.
 
-![The sample data panel with ":lunch a :Margherita" that has a topping but no base. The problem list reads "lunch (Margherita) · hasBase: Every pizza needs exactly one base." and Margherita is outlined in red on the canvas](docs/screenshot-sample-data.png)
-
-**SKOS vocabularies next to the ontology**
+### 🏷️ SKOS vocabularies next to the ontology
 
 ![A concept scheme Spiciness in dark mode, with top concepts Mild and Hot and Extra Hot as a narrower concept of Hot. The inspector shows Hot with an English prefLabel, an altLabel "Spicy", a German prefLabel "Scharf" and an exactMatch mapping](docs/screenshot-skos-dark.png)
 
@@ -74,9 +98,9 @@ add axioms and data constraints, and export something a reasoner and a SHACL val
 - Labels with language tags, alternative and hidden labels, notation, scope notes and the other SKOS notes.
 - Mappings to other vocabularies with `exactMatch`, `closeMatch`, `broadMatch`, `narrowMatch` and `relatedMatch`.
 
-**Export**
+### 📦 Export that other tools accept
 
-- One click exports the ontology as Turtle (`ontology.ttl`), and the SHACL shapes as `shapes.ttl` when any class
+- **Export** writes the ontology as Turtle (`ontology.ttl`), and the SHACL shapes as `shapes.ttl` when any class
   has constraints. The OWL output has been checked with [ROBOT](https://robot.obolibrary.org) and the HermiT
   reasoner: it stays inside OWL 2 DL. SKOS concepts and schemes go in the same file, with the SKOS vocabulary
   declared so it stays in OWL 2 DL too.
@@ -121,6 +145,8 @@ npm run dev
 
 Open the address Vite prints. The editor starts with a small pizza example. To get the drawing from the screenshots,
 click **Import .excalidraw** and pick [`docs/pizza-example.excalidraw`](docs/pizza-example.excalidraw).
+
+Everything runs in the browser: there is no server, and nothing leaves your machine until you download a file.
 
 ## Built with
 
