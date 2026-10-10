@@ -97,16 +97,16 @@ add axioms and data constraints, check a few example instances, and hand the res
 
 ### Export that other tools accept
 
-- **Export > OWL (Turtle)** writes the ontology as Turtle (`ontology.ttl`), and the SHACL shapes as `shapes.ttl` when any class
+- **Export > OWL and SHACL (Turtle)** writes the ontology as Turtle (`ontology.ttl`), and the SHACL shapes as `shapes.ttl` when any class
   has constraints. The OWL output has been checked with [ROBOT](https://robot.obolibrary.org) and the HermiT
   reasoner: it stays inside OWL 2 DL. SKOS concepts and schemes go in the same file, with the SKOS vocabulary
   declared so it stays in OWL 2 DL too.
 - Properties drawn between several class pairs get a union domain and range, so reusing a property doesn't make
   the reasoner draw conclusions you never drew.
-- **Export > Cypher (Neo4j)** previews and downloads `ontology.cypher`, a script that loads the ontology and the
+- **Export > Neo4j script (Cypher)** previews and downloads `ontology.cypher`, a script that loads the ontology and the
   shapes into Neo4j through [neosemantics (n10s)](https://neo4j.com/labs/neosemantics/). Run it in Neo4j Browser
   or cypher-shell; its comments say what n10s keeps and what stays in the `.ttl` export.
-- **Export > SVG image** saves the current page as a drawing for papers and slides, cropped to the content, with
+- **Export > Image of this page (SVG)** saves the current page as a drawing for papers and slides, cropped to the content, with
   or without a background and in light or dark colours. Excalifont is embedded, so browsers show the hand-drawn
   lettering; viewers that ignore embedded fonts (such as librsvg) fall back to a system font.
 
@@ -147,7 +147,7 @@ npm run dev
 ```
 
 Open the address Vite prints. The editor starts with a small pizza example. To get the drawing from the screenshots,
-click **Import** and pick [`docs/pizza-example.excalidraw`](docs/pizza-example.excalidraw).
+click **Import > Excalidraw drawing** and pick [`docs/pizza-example.excalidraw`](docs/pizza-example.excalidraw).
 
 Everything runs in the browser: there is no server, and nothing leaves your machine until you download a file.
 

@@ -15,7 +15,7 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
 import { placeImport } from './layout'
 import { describeOwlImport, importOwl } from './owlImport'
@@ -89,6 +89,7 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null)
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const drawingInput = useRef<HTMLInputElement>(null)
   const shapesInput = useRef<HTMLInputElement>(null)
   const [theme, toggleTheme] = useTheme()
 
@@ -166,6 +167,18 @@ export default function App() {
       setNotice(`Could not import ${file.name}: ${(error as Error).message}`)
     }
   }
+
+  // The Import and Export menus close once an entry is picked; a click elsewhere closes them too (see the effect below).
+  const closeMenu = (event: MouseEvent<HTMLDetailsElement>) => {
+    if (event.target instanceof HTMLButtonElement) event.currentTarget.removeAttribute('open')
+  }
+  useEffect(() => {
+    const closeOthers = (event: PointerEvent) => {
+      for (const menu of document.querySelectorAll('details.menu[open]')) if (!menu.contains(event.target as Node)) menu.removeAttribute('open')
+    }
+    document.addEventListener('pointerdown', closeOthers)
+    return () => document.removeEventListener('pointerdown', closeOthers)
+  }, [])
 
   // Reads a SHACL shapes file onto the classes on this page, replacing their constraints, see shapesImport.ts.
   const importShapesFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -341,11 +354,22 @@ export default function App() {
         <button onClick={() => addNode('scheme')} title="A SKOS concept scheme: the thesaurus or code list concepts belong to">
           + Scheme
         </button>
-        <button onClick={() => fileInput.current?.click()} title="An ontology in Turtle (.ttl), or an .excalidraw drawing">Import</button>
-        <input ref={fileInput} type="file" accept=".ttl,.nt,.owl,.excalidraw,.json,text/turtle,application/json" hidden onChange={importFile} />
-        <button onClick={() => shapesInput.current?.click()} title="Read a SHACL shapes file (Turtle) into the constraints of the classes on this page">
-          Import shapes
-        </button>
+        <details className="menu" onClick={closeMenu}>
+          <summary>Import</summary>
+          <div className="menu-items">
+            <button onClick={() => fileInput.current?.click()} title="Load the classes and properties of an ontology in Turtle (.ttl) onto this page">
+              Ontology (Turtle)
+            </button>
+            <button onClick={() => drawingInput.current?.click()} title="Replace this page with the labelled shapes and arrows of an .excalidraw drawing">
+              Excalidraw drawing
+            </button>
+            <button onClick={() => shapesInput.current?.click()} title="Read a SHACL shapes file (Turtle) into the constraints of the classes on this page">
+              SHACL shapes (Turtle)
+            </button>
+          </div>
+        </details>
+        <input ref={fileInput} type="file" accept=".ttl,.nt,.owl,text/turtle" hidden onChange={importFile} />
+        <input ref={drawingInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
         <input ref={shapesInput} type="file" accept=".ttl,text/turtle" hidden onChange={importShapesFile} />
         {placeable.length > 0 && (
           <select value="" onChange={placeExisting} aria-label="Place a class from another page">
@@ -357,15 +381,17 @@ export default function App() {
             ))}
           </select>
         )}
-        <details className="menu" onClick={(e) => e.target instanceof HTMLButtonElement && e.currentTarget.removeAttribute('open')}>
+        <details className="menu" onClick={closeMenu}>
           <summary>Export</summary>
           <div className="menu-items">
-            <button onClick={() => startExport('owl')}>OWL (Turtle)</button>
+            <button onClick={() => startExport('owl')} title="ontology.ttl, plus shapes.ttl when classes have SHACL constraints">
+              OWL and SHACL (Turtle)
+            </button>
             <button onClick={() => startExport('cypher')} title="A Cypher script that loads the ontology (and shapes) into Neo4j with the neosemantics (n10s) plugin">
-              Cypher (Neo4j)
+              Neo4j script (Cypher)
             </button>
             <button onClick={() => exportSvg({ dark: false, background: true })} title="This page as a drawing, for papers and slides">
-              SVG image
+              Image of this page (SVG)
             </button>
           </div>
         </details>
