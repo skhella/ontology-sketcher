@@ -1,5 +1,6 @@
 import type { ClassNode, RelationEdge } from './model'
 import { bendThrough, type Point } from './sketch/curve'
+import { nearestSide } from './sketch/snap'
 import type { FillStyle, SketchStyle, StrokeStyle } from './sketch/style'
 
 /** The subset of an Excalidraw element this importer reads. */
@@ -81,6 +82,7 @@ export function importExcalidraw(json: string): ImportResult {
     })
   }
   const classIds = new Set(nodes.map((n) => n.id))
+  const shapeById = new Map(live.filter((e) => classIds.has(e.id)).map((e) => [e.id, e]))
 
   for (const e of live) {
     if (e.type === 'text' && e.containerId) continue // counted with its container below
@@ -95,6 +97,7 @@ export function importExcalidraw(json: string): ImportResult {
         type: 'relation',
         source,
         target,
+        ...handlesOf(e, shapeById.get(source)!, shapeById.get(target)!),
         data: { ...(label ? { kind: 'objectProperty', label } : { kind: 'subClassOf', label: '' }), style: styleOf(e), bend: bendOf(e) },
       })
       continue
@@ -110,6 +113,18 @@ export function importExcalidraw(json: string): ImportResult {
       objectProperties: edges.filter((e) => e.data?.kind === 'objectProperty').length,
       skipped,
     },
+  }
+}
+
+/** Attaches each end to the dot on the side of the class where the arrow touched the original shape. */
+function handlesOf(arrow: ExcalidrawElement, from: ExcalidrawElement, to: ExcalidrawElement) {
+  const points = arrow.points
+  if (!Array.isArray(points) || points.length < 2) return {}
+  const [first, last] = [points[0], points[points.length - 1]]
+  const box = (e: ExcalidrawElement) => ({ id: e.id, x: e.x, y: e.y, width: e.width, height: e.height })
+  return {
+    sourceHandle: nearestSide(box(from), { x: arrow.x + first[0], y: arrow.y + first[1] }),
+    targetHandle: nearestSide(box(to), { x: arrow.x + last[0], y: arrow.y + last[1] }),
   }
 }
 

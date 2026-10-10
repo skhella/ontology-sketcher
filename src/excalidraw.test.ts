@@ -91,6 +91,26 @@ describe('importExcalidraw', () => {
     expect(edges.map((e) => e.data?.bend)).toEqual([{ x: 0, y: -60 }, undefined])
   })
 
+  it('attaches arrows to the side of the class they touched', () => {
+    const sides = {
+      elements: [
+        shape('a', 'rectangle', 0, 0),
+        label('ta', 'a', 'A'),
+        shape('b', 'rectangle', 400, 0),
+        label('tb', 'b', 'B'),
+        // From A's right edge (200, 50) to B's left edge (400, 50).
+        arrow('ab', 'a', 'b', { x: 200, y: 50, points: [[0, 0], [200, 0]] }),
+        // From B's bottom (500, 100) round to A's bottom (100, 100).
+        arrow('ba', 'b', 'a', { x: 500, y: 100, points: [[0, 0], [-200, 80], [-400, 0]] }),
+      ],
+    }
+    const { edges } = importExcalidraw(JSON.stringify(sides))
+    expect(edges.map((e) => [e.sourceHandle, e.targetHandle])).toEqual([
+      ['right', 'left'],
+      ['bottom', 'bottom'],
+    ])
+  })
+
   it('rejects files that are not Excalidraw', () => {
     expect(() => importExcalidraw('not json')).toThrow(/not valid JSON/)
     expect(() => importExcalidraw('{"foo":1}')).toThrow(/Excalidraw/)
