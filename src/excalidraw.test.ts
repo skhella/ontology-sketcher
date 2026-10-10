@@ -3,10 +3,11 @@ import { describeImport, importExcalidraw } from './excalidraw'
 
 const shape = (id: string, type: string, x: number, y: number, extra = {}) => ({ id, type, x, y, width: 200, height: 100, isDeleted: false, ...extra })
 const label = (id: string, containerId: string | null, text: string) => ({ ...shape(id, 'text', 0, 0), text, originalText: text, containerId })
-const arrow = (id: string, from: string | null, to: string | null) => ({
+const arrow = (id: string, from: string | null, to: string | null, extra = {}) => ({
   ...shape(id, 'arrow', 0, 0),
   startBinding: from ? { elementId: from, focus: 0, gap: 4, fixedPoint: null } : null,
   endBinding: to ? { elementId: to, focus: 0, gap: 4, fixedPoint: null } : null,
+  ...extra,
 })
 
 const file = {
@@ -55,6 +56,39 @@ describe('importExcalidraw', () => {
     expect(describeImport(summary)).toBe(
       'Imported 3 classes, 1 subClassOf, 1 object property. Skipped 4 other elements (free text, lines, unlabelled shapes or loose arrows).',
     )
+  })
+
+  it('keeps colours, fill, stroke and sloppiness', () => {
+    const styled = {
+      elements: [
+        shape('a', 'ellipse', 0, 0, { strokeColor: '#e03131', backgroundColor: '#ffc9c9', fillStyle: 'cross-hatch', strokeWidth: 2, strokeStyle: 'solid', roughness: 0 }),
+        label('ta', 'a', 'A'),
+        shape('b', 'rectangle', 400, 0, { strokeColor: '#1e1e1e', backgroundColor: 'transparent', fillStyle: 'zigzag', strokeWidth: 1, strokeStyle: 'dotted', roughness: 2 }),
+        label('tb', 'b', 'B'),
+        arrow('ab', 'a', 'b', { strokeColor: '#1971c2', backgroundColor: '#ffc9c9', strokeWidth: 4, strokeStyle: 'dashed', roughness: 1 }),
+      ],
+    }
+    const result = importExcalidraw(JSON.stringify(styled))
+    expect(result.nodes.map((n) => n.data.style)).toEqual([
+      { stroke: '#e03131', fill: '#ffc9c9', fillStyle: 'cross-hatch', strokeWidth: 2, strokeStyle: 'solid', roughness: 0 },
+      { stroke: '#1e1e1e', fill: 'transparent', fillStyle: 'hachure', strokeWidth: 1, strokeStyle: 'dotted', roughness: 2 },
+    ])
+    expect(result.edges[0].data?.style).toEqual({ stroke: '#1971c2', strokeWidth: 4, strokeStyle: 'dashed', roughness: 1 })
+  })
+
+  it('keeps the bend of curved arrows', () => {
+    const curved = {
+      elements: [
+        shape('a', 'rectangle', 0, 0),
+        label('ta', 'a', 'A'),
+        shape('b', 'rectangle', 400, 0),
+        label('tb', 'b', 'B'),
+        arrow('ab', 'a', 'b', { points: [[0, 0], [100, -60], [200, 0]] }),
+        arrow('ba', 'b', 'a', { points: [[0, 0], [-200, 0]] }),
+      ],
+    }
+    const { edges } = importExcalidraw(JSON.stringify(curved))
+    expect(edges.map((e) => e.data?.bend)).toEqual([{ x: 0, y: -60 }, undefined])
   })
 
   it('rejects files that are not Excalidraw', () => {

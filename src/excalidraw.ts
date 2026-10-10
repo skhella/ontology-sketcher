@@ -1,4 +1,6 @@
 import type { ClassNode, RelationEdge } from './model'
+import { bendThrough, type Point } from './sketch/curve'
+import type { FillStyle, SketchStyle, StrokeStyle } from './sketch/style'
 
 /** The subset of an Excalidraw element this importer reads. */
 type ExcalidrawElement = {
@@ -12,6 +14,14 @@ type ExcalidrawElement = {
   text?: string
   originalText?: string
   containerId?: string | null
+  strokeColor?: string
+  backgroundColor?: string
+  fillStyle?: string
+  strokeWidth?: number
+  strokeStyle?: string
+  roughness?: number
+  /** Arrow points, relative to x/y. */
+  points?: [number, number][]
   startBinding?: { elementId: string } | null
   endBinding?: { elementId: string } | null
 }
@@ -67,7 +77,7 @@ export function importExcalidraw(json: string): ImportResult {
       id: e.id,
       type: 'owlClass',
       position: { x: e.x + e.width / 2 - NODE_WIDTH / 2, y: e.y + e.height / 2 - NODE_HEIGHT / 2 },
-      data: { label: labelOf.get(e.id)! },
+      data: { label: labelOf.get(e.id)!, style: styleOf(e) },
     })
   }
   const classIds = new Set(nodes.map((n) => n.id))
@@ -85,7 +95,7 @@ export function importExcalidraw(json: string): ImportResult {
         type: 'relation',
         source,
         target,
-        data: label ? { kind: 'objectProperty', label } : { kind: 'subClassOf', label: '' },
+        data: { ...(label ? { kind: 'objectProperty', label } : { kind: 'subClassOf', label: '' }), style: styleOf(e), bend: bendOf(e) },
       })
       continue
     }
@@ -101,6 +111,28 @@ export function importExcalidraw(json: string): ImportResult {
       skipped,
     },
   }
+}
+
+/** A curved Excalidraw arrow (three or more points) keeps its bend: the curve passes through its middle point. */
+function bendOf(e: ExcalidrawElement): Point | undefined {
+  const points = e.points
+  if (!Array.isArray(points) || points.length < 3) return undefined
+  const [first, middle, last] = [points[0], points[Math.floor(points.length / 2)], points[points.length - 1]]
+  const bend = bendThrough({ x: first[0], y: first[1] }, { x: last[0], y: last[1] }, { x: middle[0], y: middle[1] })
+  return Math.hypot(bend.x, bend.y) < 1 ? undefined : bend
+}
+
+/** Carries over the element's colours, fill, stroke and sloppiness, keeping only values our canvas understands. */
+function styleOf(e: ExcalidrawElement): SketchStyle {
+  const style: SketchStyle = {}
+  if (typeof e.strokeColor === 'string') style.stroke = e.strokeColor
+  if (e.type !== 'arrow' && typeof e.backgroundColor === 'string') style.fill = e.backgroundColor
+  // Excalidraw's zigzag fill has no rough.js twin in our panel; hachure is the closest.
+  if (e.type !== 'arrow' && e.fillStyle) style.fillStyle = (['hachure', 'cross-hatch', 'solid'].includes(e.fillStyle) ? e.fillStyle : 'hachure') as FillStyle
+  if (typeof e.strokeWidth === 'number') style.strokeWidth = e.strokeWidth
+  if (e.strokeStyle && ['solid', 'dashed', 'dotted'].includes(e.strokeStyle)) style.strokeStyle = e.strokeStyle as StrokeStyle
+  if (typeof e.roughness === 'number') style.roughness = e.roughness
+  return style
 }
 
 export function describeImport({ classes, subClassOf, objectProperties, skipped }: ImportSummary): string {
