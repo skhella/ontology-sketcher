@@ -37,10 +37,31 @@ export type ClassAxiom = { kind: AxiomKind; expression: ClassExpression }
 export type DataProperty = { name: string; datatype: string; functional?: boolean }
 
 /**
- * A named OWL class drawn as a box on the canvas. `style` is visual only.
- * `axioms` adds to the subClassOf edges drawn on the canvas.
+ * A SHACL property shape on a class: a rule the class's instance data must follow for one property.
+ * Unlike an axiom it is not used for inference; a validator reports data that breaks it.
+ * `path` is an object property (the id of an edge drawing it) or a data property (its name, as listed on classes).
+ * `class` (a node id) applies to object properties and `datatype` (a full IRI) to data properties.
  */
-export type ClassData = EntityData & { label: string; axioms?: ClassAxiom[]; dataProperties?: DataProperty[]; style?: SketchStyle }
+export type PropertyConstraint = {
+  path: { type: 'object'; property: string } | { type: 'data'; name: string }
+  minCount?: number
+  maxCount?: number
+  class?: string
+  datatype?: string
+  message?: string
+}
+
+/**
+ * A named OWL class drawn as a box on the canvas. `style` is visual only.
+ * `axioms` adds to the subClassOf edges drawn on the canvas; `constraints` export as a SHACL node shape, see shacl.ts.
+ */
+export type ClassData = EntityData & {
+  label: string
+  axioms?: ClassAxiom[]
+  dataProperties?: DataProperty[]
+  constraints?: PropertyConstraint[]
+  style?: SketchStyle
+}
 export type ClassNode = Node<ClassData, 'owlClass'>
 
 /**
