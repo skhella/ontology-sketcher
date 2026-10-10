@@ -277,3 +277,33 @@ body,
   overflow: auto;
   font-size: 13px;
 }
+
+.class-node .react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: var(--ink);
+  border: 1.5px solid white;
+}
+
+.class-node .react-flow__handle.snapped {
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+}
+
+/* A new edge being dragged over this class will attach to its highlighted dot. */
+.class-node.snap-target::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.connection-line {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
