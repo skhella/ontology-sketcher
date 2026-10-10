@@ -46,6 +46,9 @@ add axioms and data constraints, check a few example instances, and hand the res
   snaps to the nearest dot. Name an arrow to turn it into an object property, and drag its midpoint to curve it.
 - Pages, like layers: split a large ontology into views that share the same classes, and pick which pages to
   export.
+- Your work is autosaved in the browser and comes back when you reload. **Project > Save project** (or Ctrl+S)
+  downloads everything, every page and position included, as one `.sketcher.json` file that **Open project** reads
+  back; **New project** starts over on an empty page.
 - **Import an ontology** in Turtle (`.ttl`), for example one you exported here or saved from Protégé or GraphDB.
   Classes, the subclass hierarchy, object and data properties, class axioms, annotations and SKOS concepts come
   back onto the canvas with an automatic layout, superclasses above subclasses. Classes already on the page keep

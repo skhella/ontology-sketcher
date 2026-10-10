@@ -24,14 +24,15 @@ import { placeImport } from './layout'
 import { describeOwlImport, importOwl } from './owlImport'
 import { describeShapesImport, importShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
-import { importedOntologyIri, sampleOntology, type ClassNode, type NodeKind, type RelationEdge } from './model'
+import { importedOntologyIri, type ClassNode, type NodeKind, type RelationEdge } from './model'
 import { toTurtle } from './owl'
 import { toCypherScript } from './neo4j'
 import { hasConstraints, toShaclTurtle } from './shacl'
 import { defaultEdge, isSkosEdge, NODE_KIND_NAMES, NODE_KIND_STYLES } from './skos'
 import { Inspector } from './inspector/Inspector'
 import { SampleData } from './SampleData'
-import { classesNotOn, loadCanvas, mergePages, placeClass, removePage, saveCanvas, workspaceFrom, type Workspace } from './pages'
+import { classesNotOn, loadCanvas, mergePages, placeClass, removePage, saveCanvas, type Workspace } from './pages'
+import { emptyProject, loadAutosave, projectFileName, projectFromJson, projectToJson, sampleProject, writeAutosave, PROJECT_EXTENSION, type Project } from './project'
 import { ClassNodeView } from './sketch/ClassNodeView'
 import { ConnectionLine } from './sketch/ConnectionLine'
 import { RelationEdgeView } from './sketch/RelationEdgeView'
@@ -69,14 +70,23 @@ function edgeStyle(edge: RelationEdge): SketchStyle {
   return { strokeStyle: edge.data?.kind === 'subClassOf' ? 'solid' : 'dashed', ...edge.data?.style }
 }
 
+function downloadText(name: string, type: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type }))
+  const a = Object.assign(document.createElement('a'), { href: url, download: name })
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export default function App() {
-  const [iri, setIri] = useState(sampleOntology.iri)
-  const [nodes, setNodes, onNodesChange] = useNodesState<ClassNode>(sampleOntology.nodes)
+  // The project autosaved in this browser comes back on reload; a first visit opens the pizza sample, see project.ts.
+  const [initial] = useState(() => loadAutosave() ?? sampleProject())
+  const [initialCanvas] = useState(() => loadCanvas(initial.workspace, initial.pageId))
+  const [iri, setIri] = useState(initial.iri)
+  const [nodes, setNodes, onNodesChange] = useNodesState<ClassNode>(initialCanvas.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<RelationEdge>(
-    sampleOntology.edges.map((e) => markerFor(withDefaultHandles(e))),
+    initialCanvas.edges.map((e) => markerFor(withDefaultHandles(e))),
   )
   // The canvas above is the active page; other pages wait in the workspace, see pages.ts.
-  const [initial] = useState(() => workspaceFrom('Page 1', sampleOntology.nodes, sampleOntology.edges))
   const [workspace, setWorkspace] = useState<Workspace>(initial.workspace)
   const [pageId, setPageId] = useState(initial.pageId)
   const [exportPages, setExportPages] = useState<string[] | null>(null)
@@ -94,6 +104,7 @@ export default function App() {
   const fileInput = useRef<HTMLInputElement>(null)
   const drawingInput = useRef<HTMLInputElement>(null)
   const shapesInput = useRef<HTMLInputElement>(null)
+  const projectInput = useRef<HTMLInputElement>(null)
   const [theme, toggleTheme] = useTheme()
 
   // Between classes a new edge is subClassOf; from a concept it is skos:broader, or skos:topConceptOf into a scheme.
@@ -363,11 +374,70 @@ export default function App() {
 
   const shown = exported?.[shownFile]
   const download = () => {
-    if (!shown) return
-    const url = URL.createObjectURL(new Blob([shown.text], { type: shown.type }))
-    const a = Object.assign(document.createElement('a'), { href: url, download: shown.name })
-    a.click()
-    URL.revokeObjectURL(url)
+    if (shown) downloadText(shown.name, shown.type, shown.text)
+  }
+
+  const project = (): Project => ({ iri, workspace: saved(), pageId })
+
+  // Autosave: shortly after the last change, and when the tab is closed, the whole project is kept in this browser.
+  const storageWarned = useRef(false)
+  useEffect(() => {
+    const autosave = () => {
+      if (writeAutosave({ iri, workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }) || storageWarned.current) return
+      storageWarned.current = true
+      setNotice('This browser is not keeping your work (storage is full or blocked). Use Project, Save project to keep a copy.')
+    }
+    const timer = setTimeout(autosave, 500)
+    window.addEventListener('pagehide', autosave)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('pagehide', autosave)
+    }
+  }, [iri, workspace, pageId, nodes, edges])
+
+  const saveProject = () => downloadText(projectFileName(iri), 'application/json', projectToJson(project()))
+
+  // Ctrl+S (Cmd+S on a Mac) saves the project file instead of the browser saving the web page.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        saveProject()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  const loadProject = (next: Project) => {
+    setExported(null)
+    setExportPages(null)
+    setSampleOpen(false)
+    setProblemClasses([])
+    setIri(next.iri)
+    show(next.workspace, next.pageId, true)
+  }
+
+  const hasClasses = () => Object.keys(saved().store.classes).length > 0
+  const replaceWarning = 'The project open now is replaced; use Save project first to keep a copy.'
+
+  const newProject = () => {
+    if (hasClasses() && !window.confirm(`Start a new, empty project? ${replaceWarning}`)) return
+    loadProject(emptyProject())
+  }
+
+  const openProject = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    try {
+      const next = projectFromJson(await file.text())
+      if (hasClasses() && !window.confirm(`Open ${file.name}? ${replaceWarning}`)) return
+      loadProject(next)
+      setNotice(`Opened ${file.name}.`)
+    } catch (error) {
+      setNotice(`Could not open ${file.name}: ${(error as Error).message}.`)
+    }
   }
 
   return (
@@ -377,6 +447,22 @@ export default function App() {
           <span className="brand-logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} />
           <strong>Ontology Sketcher</strong>
         </span>
+        <details className="menu" onClick={closeMenu}>
+          <summary>Project</summary>
+          <div className="menu-items">
+            <button onClick={newProject} title="Start over with one empty page">
+              New project
+            </button>
+            <button onClick={() => projectInput.current?.click()} title={`Open a project file (${PROJECT_EXTENSION}) saved earlier`}>
+              Open project…
+            </button>
+            <button onClick={saveProject} title="Download every page, class, axiom, constraint and position as one project file (Ctrl+S)">
+              Save project
+            </button>
+            <span className="menu-note">Your work is also kept in this browser as you go.</span>
+          </div>
+        </details>
+        <input ref={projectInput} type="file" accept=".json,application/json" hidden onChange={openProject} />
         <label>
           Ontology IRI{' '}
           <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />
