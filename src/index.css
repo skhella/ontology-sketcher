@@ -464,6 +464,75 @@ body,
   font-size: 13px;
 }
 
+.export-options {
+  display: flex;
+  gap: 16px;
+  padding: 8px;
+  font-size: 15px;
+}
+
+/* The SVG preview sits on a checkerboard so a transparent background shows as such. */
+.export-image {
+  flex: 1;
+  margin: 0 8px 8px;
+  overflow: auto;
+  background: repeating-conic-gradient(#e9e9e9 0 25%, white 0 50%) 0 0 / 16px 16px;
+}
+
+.export-image img {
+  display: block;
+  max-width: 100%;
+  margin: auto;
+}
+
+/* The Export button opens a short list of formats, keeping the toolbar to one button. */
+.toolbar .menu {
+  position: relative;
+}
+
+.toolbar .menu summary {
+  list-style: none;
+  font-size: 16px;
+  padding: 4px 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: 8px 3px 9px 4px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.toolbar .menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.toolbar .menu summary::after {
+  content: ' ▾';
+}
+
+.toolbar .menu summary:hover,
+.toolbar .menu[open] summary {
+  background: var(--hover);
+}
+
+.toolbar .menu-items {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 100%;
+  padding: 6px;
+  border: 1.5px solid var(--ink);
+  border-radius: 10px 4px 8px 6px;
+  background: var(--surface);
+}
+
+.toolbar .menu-items button {
+  white-space: nowrap;
+  text-align: left;
+}
+
 .class-node .react-flow__handle {
   width: 8px;
   height: 8px;

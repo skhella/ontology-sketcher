@@ -1,4 +1,33 @@
+import { getBezierPath, Position } from '@xyflow/react'
+
 export type Point = { x: number; y: number }
+
+// Which way a default bezier leaves its target handle.
+const OUTWARD: Record<Position, Point> = {
+  [Position.Top]: { x: 0, y: -1 },
+  [Position.Bottom]: { x: 0, y: 1 },
+  [Position.Left]: { x: -1, y: 0 },
+  [Position.Right]: { x: 1, y: 0 },
+}
+
+/**
+ * The line an edge draws between its two dots: React Flow's default bezier, or a bent curve once its midpoint was dragged.
+ * `mid` is where the label sits; `towards` is a point the line heads for as it leaves the target.
+ */
+export function edgeLine(
+  source: Point,
+  sourcePosition: Position,
+  target: Point,
+  targetPosition: Position,
+  bend: Point | undefined,
+): { d: string; mid: Point; towards: Point } {
+  if (bend) {
+    const bent = bentPath(source, target, bend)
+    return { d: bent.d, mid: bent.through, towards: bent.control }
+  }
+  const [d, x, y] = getBezierPath({ sourceX: source.x, sourceY: source.y, sourcePosition, targetX: target.x, targetY: target.y, targetPosition })
+  return { d, mid: { x, y }, towards: { x: target.x + OUTWARD[targetPosition].x, y: target.y + OUTWARD[targetPosition].y } }
+}
 
 /**
  * A bent edge is a quadratic curve that passes through `midpoint(source, target) + bend`.

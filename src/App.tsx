@@ -34,11 +34,15 @@ import { boxOf, snapToClass, toFlowPoint } from './sketch/snap'
 import { StylePanel } from './sketch/StylePanel'
 import { EDGE_DEFAULTS, type SketchStyle } from './sketch/style'
 import { useTheme } from './theme'
+import { toSvg } from './svgExport'
+import { excalifontCss, excalifontMeasure, handleEndpoint } from './svgBrowser'
 
 const nodeTypes = { owlClass: ClassNodeView }
 const edgeTypes = { relation: RelationEdgeView }
 
 type ExportFormat = 'owl' | 'cypher'
+// How the SVG image of the page is drawn; it follows the canvas's light colours unless dark is picked.
+type SvgLook = { dark: boolean; background: boolean }
 type ExportFile = { name: string; label: string; type: string; text: string }
 
 function markerFor(edge: RelationEdge): RelationEdge {
@@ -76,6 +80,7 @@ export default function App() {
   const [exportFormat, setExportFormat] = useState<ExportFormat>('owl')
   const [exported, setExported] = useState<ExportFile[] | null>(null)
   const [shownFile, setShownFile] = useState(0)
+  const [svgLook, setSvgLook] = useState<SvgLook | null>(null)
   // The sample data panel, and the classes whose instances in it break a constraint (outlined on the canvas).
   const [sampleOpen, setSampleOpen] = useState(false)
   const [problemClasses, setProblemClasses] = useState<string[]>([])
@@ -253,6 +258,7 @@ export default function App() {
 
   const runExport = async (format: ExportFormat, pageIds: string[]) => {
     setExportPages(null)
+    setSvgLook(null)
     const ontology = mergePages(saved(), pageIds, iri)
     const turtle = await toTurtle(ontology)
     const shapes = hasConstraints(ontology) ? await toShaclTurtle(ontology) : null
@@ -272,6 +278,24 @@ export default function App() {
     setExportFormat(format)
     if (workspace.pages.length === 1) runExport(format, [pageId])
     else setExportPages(workspace.pages.map((p) => p.id))
+  }
+
+  // The SVG image shows this page as drawn, so there are no pages to choose.
+  const exportSvg = async (look: SvgLook) => {
+    setExportPages(null)
+    setSvgLook(look)
+    const text = nodes.map((n) => n.data.label).join(' ') + edges.map((e) => e.data?.label ?? '').join(' ')
+    const [measure, fontCss] = await Promise.all([excalifontMeasure(), excalifontCss(text)])
+    const svg = toSvg(nodes, edges, {
+      measure,
+      fontCss,
+      endpoint: (node, side) => handleEndpoint(flow?.getInternalNode(node.id), node, side),
+      ...look,
+    })
+    const page = workspace.pages.find((p) => p.id === pageId)?.name ?? 'page'
+    const name = `${page.trim().replace(/[^\w.-]+/g, '-') || 'page'}.svg`
+    setShownFile(0)
+    setExported([{ name, label: name, type: 'image/svg+xml', text: svg }])
   }
 
   const toggleExportPage = (id: string) =>
@@ -320,10 +344,18 @@ export default function App() {
             ))}
           </select>
         )}
-        <button onClick={() => startExport('owl')}>Export OWL (Turtle)</button>
-        <button onClick={() => startExport('cypher')} title="A Cypher script that loads the ontology (and shapes) into Neo4j with the neosemantics (n10s) plugin">
-          Export Cypher (Neo4j)
-        </button>
+        <details className="menu" onClick={(e) => e.target instanceof HTMLButtonElement && e.currentTarget.removeAttribute('open')}>
+          <summary>Export</summary>
+          <div className="menu-items">
+            <button onClick={() => startExport('owl')}>OWL (Turtle)</button>
+            <button onClick={() => startExport('cypher')} title="A Cypher script that loads the ontology (and shapes) into Neo4j with the neosemantics (n10s) plugin">
+              Cypher (Neo4j)
+            </button>
+            <button onClick={() => exportSvg({ dark: false, background: true })} title="This page as a drawing, for papers and slides">
+              SVG image
+            </button>
+          </div>
+        </details>
         <button onClick={() => setSampleOpen(true)} title="Check example instances against the classes' SHACL constraints">
           Check sample data
         </button>
@@ -432,7 +464,25 @@ export default function App() {
               <button onClick={download}>Download {shown?.name}</button>
               <button onClick={() => setExported(null)}>Close</button>
             </div>
-            <pre>{shown?.text}</pre>
+            {svgLook && shown ? (
+              <>
+                <div className="export-options">
+                  <label>
+                    <input type="checkbox" checked={svgLook.background} onChange={(e) => exportSvg({ ...svgLook, background: e.target.checked })} />
+                    Background
+                  </label>
+                  <label>
+                    <input type="checkbox" checked={svgLook.dark} onChange={(e) => exportSvg({ ...svgLook, dark: e.target.checked })} />
+                    Dark mode
+                  </label>
+                </div>
+                <div className="export-image">
+                  <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(shown.text)}`} alt={`Preview of ${shown.name}`} />
+                </div>
+              </>
+            ) : (
+              <pre>{shown?.text}</pre>
+            )}
           </aside>
         )}
       </main>
