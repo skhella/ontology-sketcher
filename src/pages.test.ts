@@ -61,6 +61,21 @@ describe('pages', () => {
     expect(classesNotOn(ws, domain)).toEqual([])
   })
 
+  it('moves a relation end on every page, and leaves it off pages without the new class until that class is placed', () => {
+    const nodes = [cls('a', 'A'), cls('b', 'B'), cls('c', 'C', 300)]
+    const { workspace, pageId: first } = workspaceFrom('First', nodes, [sco('e', 'a', 'b')])
+    let ws: Workspace = { ...workspace, pages: [...workspace.pages, { ...workspace.pages[0], id: 'second', name: 'Second' }] }
+    ws = saveCanvas(ws, 'second', [cls('a', 'A'), cls('b', 'B')], [sco('e', 'a', 'b')])
+
+    // Drag the arrow's end from B to C on the first page.
+    ws = saveCanvas(ws, first, nodes, [{ ...sco('e', 'a', 'c'), targetHandle: 'left' }])
+
+    expect(ws.store.relations.e).toMatchObject({ source: 'a', target: 'c' })
+    expect(loadCanvas(ws, 'second').edges).toEqual([])
+    ws = placeClass(saveCanvas(ws, 'second', loadCanvas(ws, 'second').nodes, []), 'second', 'c', { x: 300, y: 0 })
+    expect(loadCanvas(ws, 'second').edges.map((e) => [e.source, e.target])).toEqual([['a', 'c']])
+  })
+
   it('exports the chosen pages merged, without relations drawn only on pages left out', async () => {
     let { ws, meta, domain } = twoPages()
     ws = saveCanvas(ws, meta, [cls('equipment', 'Equipment'), cls('pump', 'Pump')], [sco('e', 'pump', 'equipment')])

@@ -74,8 +74,11 @@ export function loadCanvas(workspace: Workspace, pageId: string): { nodes: Class
   const nodes: ClassNode[] = page.nodes
     .filter((n) => classes[n.id])
     .map((n) => ({ ...n, data: { ...classes[n.id], ...n.data } }))
+  // An edge whose end was moved, on another page, to a class this page does not show is left off here;
+  // placing that class brings it back (see placeClass).
+  const shown = new Set(nodes.map((n) => n.id))
   const edges: RelationEdge[] = page.edges
-    .filter((e) => relations[e.id])
+    .filter((e) => relations[e.id] && shown.has(relations[e.id].source) && shown.has(relations[e.id].target))
     .map((e) => {
       const { source, target, ...entity } = relations[e.id]
       return { ...e, source, target, data: { ...entity, ...e.data } }
