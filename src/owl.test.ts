@@ -98,14 +98,14 @@ describe('toTurtle with a property drawn between several class pairs', () => {
   const cls = (id: string) => ({ id, type: 'owlClass' as const, position: { x: 0, y: 0 }, data: { label: id } })
   const hasPart = (id: string, source: string, target: string) =>
     ({ id, type: 'relation' as const, source, target, data: { kind: 'objectProperty' as const, label: 'has part' } })
-  const plant: Ontology = {
+  const parts: Ontology = {
     iri: P,
-    nodes: ['Site', 'Plant', 'Section', 'Team', 'Leader', 'Scribe'].map(cls),
+    nodes: ['Building', 'Floor', 'Room', 'Band', 'Singer', 'Drummer'].map(cls),
     edges: [
-      hasPart('a', 'Site', 'Plant'),
-      hasPart('b', 'Plant', 'Section'),
-      hasPart('c', 'Team', 'Leader'),
-      hasPart('d', 'Team', 'Scribe'),
+      hasPart('a', 'Building', 'Floor'),
+      hasPart('b', 'Floor', 'Room'),
+      hasPart('c', 'Band', 'Singer'),
+      hasPart('d', 'Band', 'Drummer'),
     ],
   }
 
@@ -117,7 +117,7 @@ describe('toTurtle with a property drawn between several class pairs', () => {
   }
 
   it('declares and labels the property once, with a union as its domain and range', async () => {
-    const { objects, union } = await parse(plant)
+    const { objects, union } = await parse(parts)
     expect(objects(`${P}hasPart`, RDF + 'type')).toEqual([OWL + 'ObjectProperty'])
     expect(objects(`${P}hasPart`, RDFS + 'label')).toEqual(['has part'])
 
@@ -125,39 +125,39 @@ describe('toTurtle with a property drawn between several class pairs', () => {
     const [range] = objects(`${P}hasPart`, RDFS + 'range')
     expect(objects(`${P}hasPart`, RDFS + 'domain')).toHaveLength(1)
     expect(objects(domain, RDF + 'type')).toEqual([OWL + 'Class'])
-    expect(union(domain)).toEqual([`${P}Site`, `${P}Plant`, `${P}Team`])
-    expect(union(range)).toEqual([`${P}Plant`, `${P}Section`, `${P}Leader`, `${P}Scribe`])
+    expect(union(domain)).toEqual([`${P}Building`, `${P}Floor`, `${P}Band`])
+    expect(union(range)).toEqual([`${P}Floor`, `${P}Room`, `${P}Singer`, `${P}Drummer`])
   })
 
   it('keeps what each class can have as parts as an allValuesFrom restriction', async () => {
-    const { objects, union } = await parse(plant)
+    const { objects, union } = await parse(parts)
     const onlyValues = (source: string) => {
       const [restriction] = objects(`${P}${source}`, RDFS + 'subClassOf')
       expect(objects(restriction, RDF + 'type')).toEqual([OWL + 'Restriction'])
       expect(objects(restriction, OWL + 'onProperty')).toEqual([`${P}hasPart`])
       return objects(restriction, OWL + 'allValuesFrom')[0]
     }
-    expect(onlyValues('Site')).toBe(`${P}Plant`)
-    expect(onlyValues('Plant')).toBe(`${P}Section`)
-    expect(union(onlyValues('Team'))).toEqual([`${P}Leader`, `${P}Scribe`])
+    expect(onlyValues('Building')).toBe(`${P}Floor`)
+    expect(onlyValues('Floor')).toBe(`${P}Room`)
+    expect(union(onlyValues('Band'))).toEqual([`${P}Singer`, `${P}Drummer`])
   })
 
   it('adds no restrictions when one class uses the property with several targets', async () => {
-    const team = { ...plant, edges: plant.edges.filter((e) => e.source === 'Team') }
-    const { quads, objects, union } = await parse(team)
-    expect(objects(`${P}hasPart`, RDFS + 'domain')).toEqual([`${P}Team`])
-    expect(union(objects(`${P}hasPart`, RDFS + 'range')[0])).toEqual([`${P}Leader`, `${P}Scribe`])
+    const band = { ...parts, edges: parts.edges.filter((e) => e.source === 'Band') }
+    const { quads, objects, union } = await parse(band)
+    expect(objects(`${P}hasPart`, RDFS + 'domain')).toEqual([`${P}Band`])
+    expect(union(objects(`${P}hasPart`, RDFS + 'range')[0])).toEqual([`${P}Singer`, `${P}Drummer`])
     expect(quads.some((q) => q.object.value === OWL + 'Restriction')).toBe(false)
   })
 })
 
 describe('importedOntologyIri', () => {
   it('names a placeholder IRI after the imported file and keeps one the user set', () => {
-    expect(importedOntologyIri(sampleOntology.iri, '2026-08-12 - AIZOP_KG - import-ready.excalidraw')).toBe(
-      'http://example.org/2026-08-12-aizop-kg-import-ready#',
+    expect(importedOntologyIri(sampleOntology.iri, '2026-08-12 - City Map - import-ready.excalidraw')).toBe(
+      'http://example.org/2026-08-12-city-map-import-ready#',
     )
     expect(importedOntologyIri(sampleOntology.iri, '.excalidraw')).toBe('http://example.org/ontology#')
-    expect(importedOntologyIri('https://w3id.org/aizop#', 'other.excalidraw')).toBe('https://w3id.org/aizop#')
+    expect(importedOntologyIri('https://w3id.org/example#', 'other.excalidraw')).toBe('https://w3id.org/example#')
   })
 })
 
