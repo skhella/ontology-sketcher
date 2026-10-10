@@ -348,7 +348,7 @@ body,
 
 .export-files button.active {
   border-color: var(--accent);
-  background: #e7f5ff;
+  background: var(--hover);
   color: var(--accent);
 }
 
@@ -747,7 +747,7 @@ body,
   gap: 4px;
   margin-bottom: 8px;
   padding: 6px;
-  border: 1.5px dashed #adb5bd;
+  border: 1.5px dashed var(--line);
   border-radius: 8px 3px 9px 4px;
 }
 
@@ -781,4 +781,11 @@ body,
 
 .inspector .constraints .add {
   border-style: dashed;
+}
+
+.inspector .constraint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
 }
