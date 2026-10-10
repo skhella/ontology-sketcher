@@ -6,7 +6,7 @@ import { ClassAxioms } from './ClassAxioms'
 import { ConceptMappings, ConceptSchemes, SchemeSummary } from './ConceptDetails'
 import { Constraints } from './Constraints'
 import { DataProperties, ObjectPropertyDetails } from './PropertyDetails'
-import { ANNOTATION_PROPERTIES, compactIri, expandIri, RDFS_COMMENT, SKOS_ANNOTATION_PROPERTIES, SKOS_DEFINITION } from '../vocab'
+import { ANNOTATION_DESCRIPTIONS, ANNOTATION_PROPERTIES, compactIri, expandIri, RDFS_COMMENT, SKOS_ANNOTATION_PROPERTIES, SKOS_DEFINITION } from '../vocab'
 
 type Props = {
   base: string
@@ -279,7 +279,7 @@ function AnnotationTable({
       {annotations.map((a, i) =>
         hidden.has(i) ? null : (
           <div className="annotation" key={i}>
-            <span className="property" title={a.property}>
+            <span className="property" title={[ANNOTATION_DESCRIPTIONS[a.property], a.property].filter(Boolean).join('\n')}>
               {compactIri(a.property)}
             </span>
             <button className="remove" aria-label={`Remove ${compactIri(a.property)}`} onClick={() => onChange(annotations.filter((_, j) => j !== i))}>
@@ -297,9 +297,9 @@ function AnnotationTable({
         ),
       )}
       <div className="add-annotation">
-        <select value={adding} onChange={(e) => setAdding(e.target.value)} aria-label="Annotation property">
+        <select value={adding} title={ANNOTATION_DESCRIPTIONS[adding]} onChange={(e) => setAdding(e.target.value)} aria-label="Annotation property">
           {properties.map((p) => (
-            <option key={p} value={p}>
+            <option key={p} value={p} title={ANNOTATION_DESCRIPTIONS[p]}>
               {compactIri(p)}
             </option>
           ))}

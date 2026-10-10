@@ -57,6 +57,31 @@ export const SKOS_ANNOTATION_PROPERTIES = [
   RDFS + 'seeAlso',
 ]
 
+/**
+ * What each offered annotation property means, shown as a tooltip in the inspector.
+ * Wording follows the SKOS Reference, RDF Schema, DCMI Terms and OWL 2 specifications.
+ */
+export const ANNOTATION_DESCRIPTIONS: Record<string, string> = {
+  [SKOS_DEFINITION]: 'A complete explanation of the intended meaning.',
+  [RDFS_COMMENT]: 'A human-readable description.',
+  [RDFS + 'label']: 'A human-readable name.',
+  [SKOS + 'prefLabel']: 'The preferred name; at most one per language.',
+  [SKOS + 'altLabel']: 'An alternative name, such as a synonym, abbreviation or acronym.',
+  [SKOS + 'hiddenLabel']: 'A name for text search only, never displayed, e.g. a common misspelling.',
+  [SKOS + 'notation']: 'A code that identifies it within a scheme, e.g. a classification number.',
+  [SKOS + 'scopeNote']: 'Partial information about the intended meaning, e.g. how its use is limited.',
+  [SKOS + 'example']: 'An example of its use.',
+  [SKOS + 'note']: 'A general note, for any purpose.',
+  [SKOS + 'editorialNote']: 'A note for administrative housekeeping, e.g. editorial work still to do.',
+  [SKOS + 'changeNote']: 'Documents a fine-grained change, for administration and maintenance.',
+  [SKOS + 'historyNote']: 'Describes significant past changes to its meaning or form.',
+  [RDFS + 'seeAlso']: 'A link to a resource with more information about it.',
+  [RDFS + 'isDefinedBy']: 'A link to the resource that defines it, e.g. its source ontology.',
+  [DCTERMS + 'source']: 'A resource it is derived from, e.g. a standard or paper.',
+  [DCTERMS + 'creator']: 'The person or organisation that made it.',
+  [OWL + 'versionInfo']: 'A note about its version, e.g. a version number.',
+}
+
 /** OWL 2's built-in annotation properties; every other one must be declared owl:AnnotationProperty. */
 export const BUILT_IN_ANNOTATION_PROPERTIES = new Set([
   RDFS + 'label',
