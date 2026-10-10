@@ -1,7 +1,9 @@
 import type { Edge, Node } from '@xyflow/react'
+import type { Point } from './sketch/curve'
+import type { SketchStyle } from './sketch/style'
 
-/** A named OWL class drawn as a box on the canvas. */
-export type ClassData = { label: string }
+/** A named OWL class drawn as a box on the canvas. `style` is visual only. */
+export type ClassData = { label: string; style?: SketchStyle }
 export type ClassNode = Node<ClassData, 'owlClass'>
 
 /**
@@ -10,7 +12,8 @@ export type ClassNode = Node<ClassData, 'owlClass'>
  * - objectProperty: an owl:ObjectProperty with domain = source, range = target
  */
 export type EdgeKind = 'subClassOf' | 'objectProperty'
-export type RelationData = { kind: EdgeKind; label: string }
+/** `style` and `bend` (offset of the curve's midpoint, see sketch/curve.ts) are visual only. */
+export type RelationData = { kind: EdgeKind; label: string; style?: SketchStyle; bend?: Point }
 export type RelationEdge = Edge<RelationData, 'relation'>
 
 export type Ontology = {

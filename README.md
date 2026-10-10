@@ -15,6 +15,9 @@ Longer term it aims at Protégé-like editing of classes, properties, axioms and
 - Classes as boxes; drag between boxes for `rdfs:subClassOf`.
 - Double-click an edge and name it to turn it into an `owl:ObjectProperty` (domain = source, range = target).
 - Export the ontology as OWL 2 in Turtle.
+- Style panel for the selection, like Excalidraw's: stroke and background colours (five swatches plus a custom
+  picker), fill style, stroke width, stroke style and sloppiness. Select an edge and drag its midpoint dot to curve
+  it; double-click the dot or use "Reset curve" to undo. Styles and curves are visual only and are not exported.
 - Import an `.excalidraw` file: labelled rectangles, ellipses and diamonds become classes at the same spot;
   arrows bound to two of them become `rdfs:subClassOf` (arrow points from subclass to superclass), or an
   object property when the arrow has a label. Free text, lines, unlabelled shapes and loose arrows are skipped.
