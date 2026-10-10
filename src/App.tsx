@@ -19,6 +19,7 @@ import { useCallback, useRef, useState, type ChangeEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
 import { sampleOntology, type ClassNode, type RelationEdge } from './model'
 import { toTurtle } from './owl'
+import { Inspector } from './inspector/Inspector'
 import { ClassNodeView } from './sketch/ClassNodeView'
 import { ConnectionLine } from './sketch/ConnectionLine'
 import { RelationEdgeView } from './sketch/RelationEdgeView'
@@ -126,6 +127,12 @@ export default function App() {
     )
   }
 
+  const updateNode = (id: string, patch: Partial<ClassNode['data']>) =>
+    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
+
+  const updateEdge = (id: string, patch: Partial<NonNullable<RelationEdge['data']>>) =>
+    setEdges((es) => es.map((e) => (e.id === id && e.data ? markerFor({ ...e, data: { ...e.data, ...patch } }) : e)))
+
   const straighten = () => setEdges((es) => es.map((e) => (e.selected && e.data ? { ...e, data: { ...e.data, bend: undefined } } : e)))
 
   const exportTurtle = async () => setTurtle(await toTurtle({ iri, nodes, edges }))
@@ -150,7 +157,7 @@ export default function App() {
         <input ref={fileInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
         <button onClick={exportTurtle}>Export OWL (Turtle)</button>
         <span className="hint">
-          Drag between boxes to add subClassOf. Double-click to rename or turn an edge into a property. Select an edge and drag its dot to curve it.
+          Drag between boxes to add subClassOf. Click a class or edge to edit its IRI, definition and annotations on the right. Select an edge and drag its dot to curve it.
         </span>
       </header>
       <main className="canvas">
@@ -181,6 +188,16 @@ export default function App() {
             bentEdges={selectedEdges.filter((e) => e.data?.bend).length}
             onChange={restyle}
             onStraighten={straighten}
+          />
+        )}
+        {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
+          <Inspector
+            base={iri}
+            nodes={nodes}
+            edges={edges}
+            selection={[...selectedNodes, ...selectedEdges]}
+            onNodeChange={updateNode}
+            onEdgeChange={updateEdge}
           />
         )}
         {notice && (
