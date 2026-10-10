@@ -13,7 +13,7 @@
 }
 
 :root,
-[data-theme='dark'] .react-flow__viewport {
+[data-theme='dark'] .react-flow {
   --ink: #1e1e1e;
   --paper: #fffdf7;
   --accent: #1971c2;
@@ -45,11 +45,17 @@
 
 /*
  * Dark mode draws the canvas the way Excalidraw does: nodes and edges keep their
- * light-mode colours and the whole viewport is inverted, with the hue turned back.
+ * light-mode colours and the whole canvas is inverted, with the hue turned back.
  * The default black stroke shows as light grey, pastel fills as deep tones, and
  * the stored colours and the OWL export do not change.
+ * The filter sits on the untransformed canvas, not the zoomed viewport inside it:
+ * browsers clip a filter to its element's box, and the viewport's box covers only
+ * part of a large drawing, which cut the drawing off at a vertical line.
  */
-[data-theme='dark'] .react-flow__viewport {
+[data-theme='dark'] .react-flow {
+  /* Pure white inverts to the page's #121212, so the canvas matches the panels around it. */
+  --paper: white;
+  color-scheme: light;
   color: var(--ink);
   filter: invert(93%) hue-rotate(180deg);
 }

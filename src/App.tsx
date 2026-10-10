@@ -397,7 +397,6 @@ export default function App() {
           onInit={setFlow}
           fitView
           minZoom={0.05}
-          colorMode={theme}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} />
           <Controls />
