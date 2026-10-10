@@ -2,6 +2,7 @@ import {
   addEdge,
   Background,
   BackgroundVariant,
+  ConnectionMode,
   Controls,
   MarkerType,
   ReactFlow,
@@ -9,6 +10,7 @@ import {
   useNodesState,
   type Connection,
   type EdgeMouseHandler,
+  type OnConnectEnd,
   type NodeMouseHandler,
   type ReactFlowInstance,
 } from '@xyflow/react'
@@ -18,7 +20,9 @@ import { describeImport, importExcalidraw } from './excalidraw'
 import { sampleOntology, type ClassNode, type RelationEdge } from './model'
 import { toTurtle } from './owl'
 import { ClassNodeView } from './sketch/ClassNodeView'
+import { ConnectionLine } from './sketch/ConnectionLine'
 import { RelationEdgeView } from './sketch/RelationEdgeView'
+import { boxOf, snapToClass, toFlowPoint } from './sketch/snap'
 import { StylePanel } from './sketch/StylePanel'
 import { EDGE_DEFAULTS, type SketchStyle } from './sketch/style'
 
@@ -31,6 +35,14 @@ function markerFor(edge: RelationEdge): RelationEdge {
   return { ...edge, markerEnd: { type: closed ? MarkerType.ArrowClosed : MarkerType.Arrow, color, width: 18, height: 18 } }
 }
 
+/**
+ * Edges from the sample or an import name no dots; they keep the original look,
+ * leaving the subclass from its top dot into the superclass's bottom dot.
+ */
+function withDefaultHandles(edge: RelationEdge): RelationEdge {
+  return { ...edge, sourceHandle: edge.sourceHandle ?? 'top', targetHandle: edge.targetHandle ?? 'bottom' }
+}
+
 /** An edge's style as the panel shows it: without an explicit stroke style, the kind decides. */
 function edgeStyle(edge: RelationEdge): SketchStyle {
   return { strokeStyle: edge.data?.kind === 'subClassOf' ? 'solid' : 'dashed', ...edge.data?.style }
@@ -39,7 +51,9 @@ function edgeStyle(edge: RelationEdge): SketchStyle {
 export default function App() {
   const [iri, setIri] = useState(sampleOntology.iri)
   const [nodes, setNodes, onNodesChange] = useNodesState<ClassNode>(sampleOntology.nodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState<RelationEdge>(sampleOntology.edges.map(markerFor))
+  const [edges, setEdges, onEdgesChange] = useEdgesState<RelationEdge>(
+    sampleOntology.edges.map((e) => markerFor(withDefaultHandles(e))),
+  )
   const [turtle, setTurtle] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
@@ -52,6 +66,15 @@ export default function App() {
       ),
     [setEdges],
   )
+
+  // Dropping a new edge anywhere on a class (not just on a dot) connects it to that class's nearest dot.
+  const onConnectEnd: OnConnectEnd = (_, state) => {
+    if (state.isValid || !state.fromNode || !state.pointer || !flow) return
+    const { x, y, zoom } = flow.getViewport()
+    const snap = snapToClass(nodes.map(boxOf), toFlowPoint(state.pointer, [x, y, zoom]), state.fromNode.id)
+    if (!snap) return
+    onConnect({ source: state.fromNode.id, sourceHandle: state.fromHandle?.id ?? null, target: snap.nodeId, targetHandle: snap.side })
+  }
 
   const addClass = () => {
     const label = window.prompt('Class name', 'New Class')
@@ -84,7 +107,7 @@ export default function App() {
       const result = importExcalidraw(await file.text())
       if (nodes.length > 0 && !window.confirm(`Replace the current canvas with ${file.name}?`)) return
       setNodes(result.nodes)
-      setEdges(result.edges.map(markerFor))
+      setEdges(result.edges.map((e) => markerFor(withDefaultHandles(e))))
       setNotice(describeImport(result.summary))
       requestAnimationFrame(() => flow?.fitView({ padding: 0.2 }))
     } catch (error) {
@@ -139,6 +162,9 @@ export default function App() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onConnectEnd={onConnectEnd}
+          connectionMode={ConnectionMode.Loose}
+          connectionLineComponent={ConnectionLine}
           onNodeDoubleClick={renameClass}
           onEdgeDoubleClick={editRelation}
           zoomOnDoubleClick={false}
