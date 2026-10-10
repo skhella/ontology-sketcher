@@ -5,7 +5,7 @@
  "elements": [
   {
    "id": "food",
-   "type": "rectangle",
+   "type": "ellipse",
    "x": 380,
    "y": 0,
    "width": 200,
@@ -32,7 +32,7 @@
   },
   {
    "id": "pizza",
-   "type": "rectangle",
+   "type": "ellipse",
    "x": 160,
    "y": 200,
    "width": 200,
@@ -59,7 +59,7 @@
   },
   {
    "id": "topping",
-   "type": "rectangle",
+   "type": "ellipse",
    "x": 640,
    "y": 200,
    "width": 200,
@@ -113,7 +113,7 @@
   },
   {
    "id": "marg",
-   "type": "rectangle",
+   "type": "ellipse",
    "x": 20,
    "y": 440,
    "width": 200,
@@ -140,7 +140,7 @@
   },
   {
    "id": "veg",
-   "type": "rectangle",
+   "type": "ellipse",
    "x": 300,
    "y": 440,
    "width": 200,
@@ -167,7 +167,7 @@
   },
   {
    "id": "tomato",
-   "type": "rectangle",
+   "type": "ellipse",
    "x": 640,
    "y": 440,
    "width": 200,
@@ -194,7 +194,7 @@
   },
   {
    "id": "cheese",
-   "type": "rectangle",
+   "type": "ellipse",
    "x": 900,
    "y": 440,
    "width": 200,
