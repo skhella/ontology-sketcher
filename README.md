@@ -53,7 +53,11 @@ add axioms and data constraints, check a few example instances, and hand the res
   snaps to the nearest dot. Name an arrow to turn it into an object property, and drag its midpoint to curve it.
 - Pages, like layers: split a large ontology into views that share the same classes, and pick which pages to
   export.
-- **Import .excalidraw**: labelled shapes become classes in the same place, and arrows between them become
+- **Import an ontology** in Turtle (`.ttl`), for example one you exported here or saved from Protégé or GraphDB.
+  Classes, the subclass hierarchy, object and data properties, class axioms, annotations and SKOS concepts come
+  back onto the canvas with an automatic layout, superclasses above subclasses. Classes already on the page keep
+  their place, so re-importing an edited file only adds what is new.
+- **Import an .excalidraw drawing**: labelled shapes become classes in the same place, and arrows between them become
   `rdfs:subClassOf` (unlabelled, or labelled "SCO" / "subClassOf") or an object property named after the label.
   Colours, fill, stroke, sloppiness, ovals and curved arrows carry over.
 
@@ -147,7 +151,7 @@ npm run dev
 ```
 
 Open the address Vite prints. The editor starts with a small pizza example. To get the drawing from the screenshots,
-click **Import .excalidraw** and pick [`docs/pizza-example.excalidraw`](docs/pizza-example.excalidraw).
+click **Import** and pick [`docs/pizza-example.excalidraw`](docs/pizza-example.excalidraw).
 
 Everything runs in the browser: there is no server, and nothing leaves your machine until you download a file.
 
