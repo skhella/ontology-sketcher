@@ -36,6 +36,9 @@ import { useTheme } from './theme'
 const nodeTypes = { owlClass: ClassNodeView }
 const edgeTypes = { relation: RelationEdgeView }
 
+type ExportFormat = 'owl' | 'cypher'
+type ExportFile = { name: string; label: string; type: string; text: string }
+
 function markerFor(edge: RelationEdge): RelationEdge {
   const closed = edge.data?.kind === 'subClassOf'
   const color = edge.data?.style?.stroke ?? EDGE_DEFAULTS.stroke
@@ -66,9 +69,11 @@ export default function App() {
   const [workspace, setWorkspace] = useState<Workspace>(initial.workspace)
   const [pageId, setPageId] = useState(initial.pageId)
   const [exportPages, setExportPages] = useState<string[] | null>(null)
-  // The exported files: the OWL ontology, and the SHACL shapes when any class has constraints.
-  const [exported, setExported] = useState<{ ontology: string; shapes: string | null } | null>(null)
-  const [showShapes, setShowShapes] = useState(false)
+  // What the open export shows: the OWL ontology plus SHACL shapes when any class has constraints,
+  // or the Cypher script for Neo4j. Several files get tabs.
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('owl')
+  const [exported, setExported] = useState<ExportFile[] | null>(null)
+  const [shownFile, setShownFile] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -208,35 +213,37 @@ export default function App() {
     show(placeClass(saved(), pageId, classId, at), pageId, false)
   }
 
-  const exportTurtle = async (pageIds: string[]) => {
+  const runExport = async (format: ExportFormat, pageIds: string[]) => {
     setExportPages(null)
     const ontology = mergePages(saved(), pageIds, iri)
-    setShowShapes(false)
-    setExported({ ontology: await toTurtle(ontology), shapes: hasConstraints(ontology) ? await toShaclTurtle(ontology) : null })
+    const turtle = await toTurtle(ontology)
+    const shapes = hasConstraints(ontology) ? await toShaclTurtle(ontology) : null
+    setShownFile(0)
+    setExported(
+      format === 'cypher'
+        ? [{ name: 'ontology.cypher', label: 'ontology.cypher (Neo4j)', type: 'text/plain', text: toCypherScript({ iri: ontology.iri, ontology: turtle, shapes }) }]
+        : [
+            { name: 'ontology.ttl', label: 'ontology.ttl (OWL)', type: 'text/turtle', text: turtle },
+            ...(shapes ? [{ name: 'shapes.ttl', label: 'shapes.ttl (SHACL)', type: 'text/turtle', text: shapes }] : []),
+          ],
+    )
   }
 
   // With one page there is nothing to choose; otherwise ask which pages go into the file.
-  const startExport = () =>
-    workspace.pages.length === 1 ? exportTurtle([pageId]) : setExportPages(workspace.pages.map((p) => p.id))
+  const startExport = (format: ExportFormat) => {
+    setExportFormat(format)
+    if (workspace.pages.length === 1) runExport(format, [pageId])
+    else setExportPages(workspace.pages.map((p) => p.id))
+  }
 
   const toggleExportPage = (id: string) =>
     setExportPages((ids) => (ids?.includes(id) ? ids.filter((i) => i !== id) : [...(ids ?? []), id]))
 
-  const shown = exported && (showShapes && exported.shapes ? exported.shapes : exported.ontology)
+  const shown = exported?.[shownFile]
   const download = () => {
     if (!shown) return
-    const url = URL.createObjectURL(new Blob([shown], { type: 'text/turtle' }))
-    const a = Object.assign(document.createElement('a'), { href: url, download: showShapes ? 'shapes.ttl' : 'ontology.ttl' })
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  // The same export as a Cypher script that loads it into Neo4j through neosemantics, see neo4j.ts.
-  const downloadCypher = () => {
-    if (!exported) return
-    const script = toCypherScript({ iri, ontology: exported.ontology, shapes: exported.shapes })
-    const url = URL.createObjectURL(new Blob([script], { type: 'text/plain' }))
-    const a = Object.assign(document.createElement('a'), { href: url, download: 'ontology.cypher' })
+    const url = URL.createObjectURL(new Blob([shown.text], { type: shown.type }))
+    const a = Object.assign(document.createElement('a'), { href: url, download: shown.name })
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -271,7 +278,10 @@ export default function App() {
             ))}
           </select>
         )}
-        <button onClick={startExport}>Export OWL (Turtle)</button>
+        <button onClick={() => startExport('owl')}>Export OWL (Turtle)</button>
+        <button onClick={() => startExport('cypher')} title="A Cypher script that loads the ontology (and shapes) into Neo4j with the neosemantics (n10s) plugin">
+          Export Cypher (Neo4j)
+        </button>
         <button onClick={toggleTheme} aria-pressed={theme === 'dark'} title="Switch between light and dark mode">
           {theme === 'dark' ? '☀ Light' : '☾ Dark'}
         </button>
@@ -346,7 +356,7 @@ export default function App() {
             ))}
             <span className="hint">Classes on any chosen page are exported once. Relations drawn only on other pages are left out.</span>
             <div className="export-actions">
-              <button disabled={exportPages.length === 0} onClick={() => exportTurtle(exportPages)}>
+              <button disabled={exportPages.length === 0} onClick={() => runExport(exportFormat, exportPages)}>
                 Export
               </button>
               <button onClick={() => setExportPages(null)}>Cancel</button>
@@ -355,23 +365,20 @@ export default function App() {
         )}
         {exported && (
           <aside className="export">
-            {exported.shapes && (
+            {exported.length > 1 && (
               <div className="export-files segmented" role="tablist" aria-label="Exported files">
-                {[false, true].map((shapes) => (
-                  <button key={String(shapes)} role="tab" className={shapes === showShapes ? 'active' : undefined} aria-selected={shapes === showShapes} onClick={() => setShowShapes(shapes)}>
-                    {shapes ? 'shapes.ttl (SHACL)' : 'ontology.ttl (OWL)'}
+                {exported.map((file, i) => (
+                  <button key={file.name} role="tab" className={i === shownFile ? 'active' : undefined} aria-selected={i === shownFile} onClick={() => setShownFile(i)}>
+                    {file.label}
                   </button>
                 ))}
               </div>
             )}
             <div className="export-actions">
-              <button onClick={download}>Download {showShapes ? 'shapes.ttl' : 'ontology.ttl'}</button>
-              <button onClick={downloadCypher} title="A Cypher script that loads the ontology (and shapes) into Neo4j with the neosemantics (n10s) plugin">
-                Download for Neo4j (.cypher)
-              </button>
+              <button onClick={download}>Download {shown?.name}</button>
               <button onClick={() => setExported(null)}>Close</button>
             </div>
-            <pre>{shown}</pre>
+            <pre>{shown?.text}</pre>
           </aside>
         )}
       </main>
