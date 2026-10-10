@@ -67,9 +67,13 @@ export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeC
             <Constraints
               nodeId={node.id}
               constraints={node.data.constraints ?? []}
+              closed={!!node.data.constraintsClosed}
+              extra={node.data.extraShapes}
               nodes={classes}
               edges={edges}
               onChange={(constraints) => onNodeChange(node.id, { constraints })}
+              onClosedChange={(constraintsClosed) => onNodeChange(node.id, { constraintsClosed: constraintsClosed || undefined })}
+              onRemoveExtra={() => onNodeChange(node.id, { extraShapes: undefined })}
             />
           </>
         )}

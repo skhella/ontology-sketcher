@@ -19,13 +19,6 @@
   <img src="https://img.shields.io/badge/Neo4j-n10s%20export-018bff" alt="Neo4j export through n10s">
 </p>
 
-<p align="center">
-  <a href="#features">Features</a> ·
-  <a href="#try-it">Try it</a> ·
-  <a href="#built-with">Built with</a> ·
-  <a href="#license">License</a>
-</p>
-
 Ontology Sketcher is a browser-based ontology editor with the hand-drawn look of Excalidraw and the modelling
 depth of Protégé. Draw classes as boxes or ovals, connect them with arrows, refine them in an inspector, add
 rules for your data, and export clean Turtle that a reasoner, a SHACL validator and Neo4j can all load.

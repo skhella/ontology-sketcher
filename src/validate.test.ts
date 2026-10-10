@@ -55,6 +55,44 @@ describe('validateData', () => {
     await expect(validateData(rules, ':x a :Pizza')).rejects.toThrow()
   })
 
+  it('explains value rules and closed classes', async () => {
+    const strict: Ontology = {
+      ...sampleOntology,
+      nodes: sampleOntology.nodes.map((n) =>
+        n.id === 'pizza'
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                constraintsClosed: true,
+                constraints: [
+                  { path: { type: 'data', name: 'name' }, pattern: '^[A-Z]', minLength: 3, maxLength: 8 },
+                  { path: { type: 'data', name: 'size' }, allowed: ['S', 'M', 'L'] },
+                  { path: { type: 'data', name: 'price' }, minValue: '4', maxValue: '30' },
+                ],
+              },
+            }
+          : n,
+      ),
+    }
+    expect(await validateData(strict, ':ok a :Pizza ; :name "Lunch" ; :size "M" ; :price 9.5 .')).toEqual({ conforms: true })
+    const result = await validateData(
+      strict,
+      `:a a :Pizza ; :name "lu" ; :size "XL" ; :price 2 .
+       :b a :Pizza ; :name "Enormous one" ; :price 31 ; :colour "red" .`,
+    )
+    const rows = result.conforms ? [] : result.problems.map((p) => [shortName(p.focus), p.path && shortName(p.path), p.message]).sort()
+    expect(rows).toEqual([
+      ['a', 'name', '"lu" does not match ^[A-Z]'],
+      ['a', 'name', '"lu" is shorter than 3 characters'],
+      ['a', 'price', '"2" is below 4'],
+      ['a', 'size', '"XL" is not one of the allowed values'],
+      ['b', 'colour', "uses a property this class doesn't allow (the class is closed)"],
+      ['b', 'name', '"Enormous one" is longer than 8 characters'],
+      ['b', 'price', '"31" is above 30'],
+    ])
+  })
+
   it('has nothing to check without constraints', async () => {
     expect(await validateData(sampleOntology, ':x a :Pizza .')).toEqual({ conforms: true })
   })

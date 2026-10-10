@@ -40,7 +40,8 @@ export type DataProperty = { name: string; datatype: string; functional?: boolea
  * A SHACL property shape on a class: a rule the class's instance data must follow for one property.
  * Unlike an axiom it is not used for inference; a validator reports data that breaks it.
  * `path` is an object property (the id of an edge drawing it) or a data property (its name, as listed on classes).
- * `class` (a node id) applies to object properties and `datatype` (a full IRI) to data properties.
+ * `class` (a node id) applies to object properties; `datatype` (a full IRI) and the value rules below to data properties.
+ * `allowed`, `minValue` and `maxValue` are typed text, read as literals of `datatype`.
  */
 export type PropertyConstraint = {
   path: { type: 'object'; property: string } | { type: 'data'; name: string }
@@ -49,6 +50,16 @@ export type PropertyConstraint = {
   class?: string
   datatype?: string
   message?: string
+  /** A regular expression every value must match (sh:pattern). */
+  pattern?: string
+  /** The only values allowed (sh:in); blank entries are ignored. */
+  allowed?: string[]
+  /** Lowest and highest allowed value, both included (sh:minInclusive, sh:maxInclusive). */
+  minValue?: string
+  maxValue?: string
+  /** Shortest and longest allowed text, in characters (sh:minLength, sh:maxLength). */
+  minLength?: number
+  maxLength?: number
 }
 
 /**
@@ -65,7 +76,8 @@ export type Mapping = { kind: MappingKind; iri: string }
 
 /**
  * A named OWL class drawn as a box on the canvas, or with `kind` a SKOS concept or scheme. `style` is visual only.
- * `axioms` adds to the subClassOf edges drawn on the canvas; `constraints` export as a SHACL node shape, see shacl.ts.
+ * `axioms` adds to the subClassOf edges drawn on the canvas; `constraints` export as a SHACL node shape, see shacl.ts,
+ * which `constraintsClosed` closes: instances may then use only the constrained properties (and rdf:type).
  * `inScheme` lists scheme node ids a concept belongs to besides those its hierarchy reaches, see skos.ts.
  * `labelLang` is the language tag of a concept's or scheme's skos:prefLabel; `mappings` link a concept to outside concepts.
  */
@@ -78,6 +90,9 @@ export type ClassData = EntityData & {
   axioms?: ClassAxiom[]
   dataProperties?: DataProperty[]
   constraints?: PropertyConstraint[]
+  /** Shapes for this class imported from a shapes file that rows can't hold, as Turtle; exported unchanged. */
+  extraShapes?: string
+  constraintsClosed?: boolean
   style?: SketchStyle
 }
 export type ClassNode = Node<ClassData, 'owlClass'>
