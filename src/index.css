@@ -270,6 +270,18 @@ body,
   border-bottom: 1.5px dashed var(--ink);
 }
 
+.export-files {
+  display: flex;
+  gap: 4px;
+  padding: 8px 8px 0;
+}
+
+.export-files button.active {
+  border-color: var(--accent);
+  background: #e7f5ff;
+  color: var(--accent);
+}
+
 .export pre {
   flex: 1;
   margin: 0;
@@ -636,5 +648,64 @@ body,
 }
 
 .inspector .data-properties .add {
+  border-style: dashed;
+}
+
+.inspector .constraints {
+  /* A fieldset is at least as wide as its content by default; let the rows shrink to the panel instead. */
+  min-width: 0;
+  margin: 8px 0 0;
+  padding: 0;
+  border: none;
+}
+
+.inspector .constraints legend {
+  padding: 0 0 4px;
+}
+
+.inspector .constraints > p {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+
+.inspector .constraint {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 6px;
+  border: 1.5px dashed #adb5bd;
+  border-radius: 8px 3px 9px 4px;
+}
+
+.inspector .constraint-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inspector .constraint-line select {
+  flex: 1;
+  min-width: 0;
+}
+
+.inspector .constraint-line label {
+  white-space: nowrap;
+}
+
+.inspector .constraint .cardinality {
+  width: 44px;
+}
+
+.inspector .constraint .remove {
+  padding: 0 6px;
+  border: none;
+}
+
+.inspector .constraint .warning {
+  color: #c92a2a;
+}
+
+.inspector .constraints .add {
   border-style: dashed;
 }

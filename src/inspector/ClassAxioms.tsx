@@ -149,7 +149,7 @@ function ExpressionEditor({
   )
 }
 
-function ClassSelect({
+export function ClassSelect({
   value,
   classes,
   empty,

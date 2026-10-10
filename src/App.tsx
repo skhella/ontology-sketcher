@@ -19,6 +19,7 @@ import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
 import { importedOntologyIri, sampleOntology, type ClassNode, type RelationEdge } from './model'
 import { toTurtle } from './owl'
+import { hasConstraints, toShaclTurtle } from './shacl'
 import { Inspector } from './inspector/Inspector'
 import { classesNotOn, loadCanvas, mergePages, placeClass, removePage, saveCanvas, workspaceFrom, type Workspace } from './pages'
 import { ClassNodeView } from './sketch/ClassNodeView'
@@ -61,7 +62,9 @@ export default function App() {
   const [workspace, setWorkspace] = useState<Workspace>(initial.workspace)
   const [pageId, setPageId] = useState(initial.pageId)
   const [exportPages, setExportPages] = useState<string[] | null>(null)
-  const [turtle, setTurtle] = useState<string | null>(null)
+  // The exported files: the OWL ontology, and the SHACL shapes when any class has constraints.
+  const [exported, setExported] = useState<{ ontology: string; shapes: string | null } | null>(null)
+  const [showShapes, setShowShapes] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -195,7 +198,9 @@ export default function App() {
 
   const exportTurtle = async (pageIds: string[]) => {
     setExportPages(null)
-    setTurtle(await toTurtle(mergePages(saved(), pageIds, iri)))
+    const ontology = mergePages(saved(), pageIds, iri)
+    setShowShapes(false)
+    setExported({ ontology: await toTurtle(ontology), shapes: hasConstraints(ontology) ? await toShaclTurtle(ontology) : null })
   }
 
   // With one page there is nothing to choose; otherwise ask which pages go into the file.
@@ -205,10 +210,11 @@ export default function App() {
   const toggleExportPage = (id: string) =>
     setExportPages((ids) => (ids?.includes(id) ? ids.filter((i) => i !== id) : [...(ids ?? []), id]))
 
+  const shown = exported && (showShapes && exported.shapes ? exported.shapes : exported.ontology)
   const download = () => {
-    if (!turtle) return
-    const url = URL.createObjectURL(new Blob([turtle], { type: 'text/turtle' }))
-    const a = Object.assign(document.createElement('a'), { href: url, download: 'ontology.ttl' })
+    if (!shown) return
+    const url = URL.createObjectURL(new Blob([shown], { type: 'text/turtle' }))
+    const a = Object.assign(document.createElement('a'), { href: url, download: showShapes ? 'shapes.ttl' : 'ontology.ttl' })
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -312,13 +318,22 @@ export default function App() {
             </div>
           </div>
         )}
-        {turtle && (
+        {exported && (
           <aside className="export">
+            {exported.shapes && (
+              <div className="export-files segmented" role="tablist" aria-label="Exported files">
+                {[false, true].map((shapes) => (
+                  <button key={String(shapes)} role="tab" className={shapes === showShapes ? 'active' : undefined} aria-selected={shapes === showShapes} onClick={() => setShowShapes(shapes)}>
+                    {shapes ? 'shapes.ttl (SHACL)' : 'ontology.ttl (OWL)'}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="export-actions">
-              <button onClick={download}>Download .ttl</button>
-              <button onClick={() => setTurtle(null)}>Close</button>
+              <button onClick={download}>Download {showShapes ? 'shapes.ttl' : 'ontology.ttl'}</button>
+              <button onClick={() => setExported(null)}>Close</button>
             </div>
-            <pre>{turtle}</pre>
+            <pre>{shown}</pre>
           </aside>
         )}
       </main>
