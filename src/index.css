@@ -307,3 +307,89 @@ body,
   stroke-width: 1.5;
   stroke-dasharray: 6 4;
 }
+
+.toolbar select {
+  font: inherit;
+  font-size: 16px;
+  padding: 4px 6px;
+  border: 1.5px solid var(--ink);
+  border-radius: 8px 3px 9px 4px;
+  background: white;
+}
+
+/* Page tabs along the bottom, like draw.io; each page is a view onto the same shared classes. */
+.pages {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  padding: 0 16px;
+  border-top: 2px solid var(--ink);
+  font-size: 16px;
+  overflow-x: auto;
+}
+
+.pages button {
+  font: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 6px 4px;
+}
+
+.pages .page {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  margin-top: -2px;
+  border: 1.5px solid transparent;
+  border-top: none;
+  border-radius: 0 0 9px 4px;
+}
+
+.pages .page.active {
+  border-color: var(--ink);
+  background: white;
+}
+
+.pages .close {
+  color: #6c6c6c;
+}
+
+.pages .add {
+  color: var(--accent);
+}
+
+.export-pages {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: min(320px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 12px 4px 10px 6px;
+  background: white;
+  font-size: 16px;
+  z-index: 10;
+}
+
+.export-pages .indent {
+  padding-left: 20px;
+}
+
+.export-pages .export-actions {
+  padding: 8px 0 0;
+  border-bottom: none;
+  border-top: 1.5px dashed var(--ink);
+}
+
+.export-pages button {
+  font: inherit;
+  font-size: 16px;
+  padding: 4px 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: 8px 3px 9px 4px;
+  background: white;
+}
