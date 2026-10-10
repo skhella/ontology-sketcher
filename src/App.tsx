@@ -247,6 +247,7 @@ export default function App() {
           zoomOnDoubleClick={false}
           onInit={setFlow}
           fitView
+          minZoom={0.05}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} />
           <Controls />
