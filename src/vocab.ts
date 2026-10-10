@@ -83,3 +83,9 @@ export function expandIri(text: string, base: string): string {
   if (isAbsoluteIri(t)) return t
   return base + t
 }
+
+/** The readable end of an IRI: Topping for http://example.org/pizza#Topping, xsd:string for XSD's. */
+export function shortName(iri: string): string {
+  const compact = compactIri(iri)
+  return compact !== iri ? compact : iri.replace(/^.*[#/]/, '') || iri
+}
