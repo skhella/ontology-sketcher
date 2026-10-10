@@ -123,3 +123,8 @@ The code is under the [MIT License](LICENSE). The bundled Excalifont is under th
 
 Ontology Sketcher is an independent project. It is not affiliated with or endorsed by Excalidraw; it borrows
 the look and uses the openly licensed Excalifont.
+
+The style panel's colour swatches, its sloppiness levels (architect, artist, cartoonist) and the dark-mode
+canvas technique follow [Excalidraw](https://github.com/excalidraw/excalidraw), which is under the MIT License,
+Copyright (c) 2020 Excalidraw. The hand-drawn shapes come from [rough.js](https://roughjs.com) (MIT, Copyright (c)
+2019 Preet Shihn).
