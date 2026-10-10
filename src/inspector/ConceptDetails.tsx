@@ -1,5 +1,6 @@
-import type { ClassNode, RelationEdge } from '../model'
-import { conceptSchemes } from '../skos'
+import type { ClassNode, Mapping, MappingKind, RelationEdge } from '../model'
+import { conceptSchemes, MAPPING_KINDS } from '../skos'
+import { expandIri } from '../vocab'
 
 type Props = {
   node: ClassNode
@@ -53,6 +54,33 @@ export function SchemeSummary({ node, nodes, edges }: Omit<Props, 'onChange'>) {
       <span className="keyword">top concepts</span> {tops.length > 0 ? tops.join(', ') : 'none: draw an arrow from a concept to this scheme'}
       <br />
       <span className="keyword">concepts</span> {members}
+    </fieldset>
+  )
+}
+
+/** Links from a concept to concepts in other vocabularies, e.g. skos:exactMatch a Wikidata item. */
+export function ConceptMappings({ base, mappings, onChange }: { base: string; mappings: Mapping[]; onChange: (next: Mapping[] | undefined) => void }) {
+  const set = (next: Mapping[]) => onChange(next.length > 0 ? next : undefined)
+  const update = (at: number, patch: Partial<Mapping>) => set(mappings.map((m, i) => (i === at ? { ...m, ...patch } : m)))
+  return (
+    <fieldset className="mappings">
+      <legend>Mappings to other vocabularies</legend>
+      {mappings.map((m, i) => (
+        <div className="mapping" key={i}>
+          <select value={m.kind} onChange={(e) => update(i, { kind: e.target.value as MappingKind })} aria-label="Mapping property">
+            {MAPPING_KINDS.map((k) => (
+              <option key={k} value={k}>
+                skos:{k}
+              </option>
+            ))}
+          </select>
+          <input value={m.iri} placeholder="https://… or prefix:name" title={m.iri.trim() ? expandIri(m.iri, base) : undefined} onChange={(e) => update(i, { iri: e.target.value })} aria-label="Mapped concept IRI" />
+          <button className="remove" aria-label={`Remove skos:${m.kind}`} onClick={() => set(mappings.filter((_, j) => j !== i))}>
+            ×
+          </button>
+        </div>
+      ))}
+      <button onClick={() => set([...mappings, { kind: 'exactMatch', iri: '' }])}>+ Mapping</button>
     </fieldset>
   )
 }

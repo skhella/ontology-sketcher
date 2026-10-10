@@ -3,10 +3,10 @@ import { localName, propertyLocalName, type Annotation, type ClassNode, type Edg
 import { entityIri } from '../owl'
 import { isSkosEdge, NODE_KIND_NAMES, SKOS_EDGE_KINDS } from '../skos'
 import { ClassAxioms } from './ClassAxioms'
-import { ConceptSchemes, SchemeSummary } from './ConceptDetails'
+import { ConceptMappings, ConceptSchemes, SchemeSummary } from './ConceptDetails'
 import { Constraints } from './Constraints'
 import { DataProperties, ObjectPropertyDetails } from './PropertyDetails'
-import { ANNOTATION_PROPERTIES, compactIri, expandIri, RDFS_COMMENT, SKOS_DEFINITION } from '../vocab'
+import { ANNOTATION_PROPERTIES, compactIri, expandIri, RDFS_COMMENT, SKOS_ANNOTATION_PROPERTIES, SKOS_DEFINITION } from '../vocab'
 
 type Props = {
   base: string
@@ -42,11 +42,16 @@ export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeC
           data={node.data}
           label={node.data.label}
           labelProperty={kind ? 'skos:prefLabel' : 'rdfs:label'}
+          labelLang={kind ? (node.data.labelLang ?? '') : undefined}
+          annotationProperties={kind ? SKOS_ANNOTATION_PROPERTIES : undefined}
           derivedLocal={localName(node.data.label)}
           onChange={(patch) => onNodeChange(node.id, patch)}
         />
         {kind === 'concept' && (
-          <ConceptSchemes node={node} nodes={nodes} edges={edges} onChange={(inScheme) => onNodeChange(node.id, { inScheme })} />
+          <>
+            <ConceptSchemes node={node} nodes={nodes} edges={edges} onChange={(inScheme) => onNodeChange(node.id, { inScheme })} />
+            <ConceptMappings base={base} mappings={node.data.mappings ?? []} onChange={(mappings) => onNodeChange(node.id, { mappings })} />
+          </>
         )}
         {kind === 'scheme' && <SchemeSummary node={node} nodes={nodes} edges={edges} />}
         {!kind && (
@@ -156,12 +161,16 @@ type EntityFieldsProps = {
   label: string
   /** The property the label exports as. */
   labelProperty?: string
+  /** The label's language tag; when given, a box to edit it sits next to the label. */
+  labelLang?: string
+  /** Properties the annotation picker offers; the OWL list by default. */
+  annotationProperties?: string[]
   /** Local name the exporter derives from the label when no IRI is set. */
   derivedLocal: string
-  onChange: (patch: EntityData & { label?: string }) => void
+  onChange: (patch: EntityData & { label?: string; labelLang?: string }) => void
 }
 
-function EntityFields({ base, data, label, labelProperty = 'rdfs:label', derivedLocal, onChange }: EntityFieldsProps) {
+function EntityFields({ base, data, label, labelProperty = 'rdfs:label', labelLang, annotationProperties, derivedLocal, onChange }: EntityFieldsProps) {
   const annotations = data.annotations ?? []
   const setAnnotations = (next: Annotation[]) => onChange({ annotations: next })
 
@@ -182,7 +191,21 @@ function EntityFields({ base, data, label, labelProperty = 'rdfs:label', derived
   return (
     <>
       <Field label={`Label (${labelProperty})`}>
-        <input value={label} onChange={(e) => onChange({ label: e.target.value })} />
+        {labelLang === undefined ? (
+          <input value={label} onChange={(e) => onChange({ label: e.target.value })} />
+        ) : (
+          <span className="label-with-lang">
+            <input value={label} onChange={(e) => onChange({ label: e.target.value })} />
+            <input
+              className="lang"
+              value={labelLang}
+              placeholder="lang"
+              title="Language tag, e.g. en"
+              aria-label="Label language"
+              onChange={(e) => onChange({ labelLang: e.target.value || undefined })}
+            />
+          </span>
+        )}
       </Field>
       <Field label="IRI">
         <input value={data.iri ?? ''} placeholder={`:${derivedLocal}`} onChange={(e) => onChange({ iri: e.target.value || undefined })} />
@@ -195,7 +218,9 @@ function EntityFields({ base, data, label, labelProperty = 'rdfs:label', derived
         <textarea rows={2} value={annotations[commentAt]?.value ?? ''} onChange={(e) => setSingle(commentAt, RDFS_COMMENT, e.target.value)} />
       </Field>
       <AnnotationTable
+        key={annotationProperties ? 'skos' : 'owl'}
         base={base}
+        properties={annotationProperties}
         annotations={annotations}
         hidden={new Set([definitionAt, commentAt])}
         onChange={setAnnotations}
@@ -207,17 +232,20 @@ function EntityFields({ base, data, label, labelProperty = 'rdfs:label', derived
 /** Neo4j-style key/value rows for every other annotation, plus a row to add one. */
 function AnnotationTable({
   base,
+  properties = ANNOTATION_PROPERTIES,
   annotations,
   hidden,
   onChange,
 }: {
   base: string
+  properties?: string[]
   annotations: Annotation[]
   /** Indices shown in their own fields above. */
   hidden: Set<number>
   onChange: (next: Annotation[]) => void
 }) {
-  const [adding, setAdding] = useState(ANNOTATION_PROPERTIES[2])
+  // skos:prefLabel first for classes; the first SKOS property (altLabel) for concepts.
+  const [adding, setAdding] = useState(properties === ANNOTATION_PROPERTIES ? properties[2] : properties[0])
   const [custom, setCustom] = useState('')
   const update = (at: number, patch: Partial<Annotation>) => onChange(annotations.map((a, i) => (i === at ? { ...a, ...patch } : a)))
 
@@ -253,7 +281,7 @@ function AnnotationTable({
       )}
       <div className="add-annotation">
         <select value={adding} onChange={(e) => setAdding(e.target.value)} aria-label="Annotation property">
-          {ANNOTATION_PROPERTIES.map((p) => (
+          {properties.map((p) => (
             <option key={p} value={p}>
               {compactIri(p)}
             </option>

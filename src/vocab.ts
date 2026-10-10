@@ -42,6 +42,21 @@ export const ANNOTATION_PROPERTIES = [
   OWL + 'versionInfo',
 ]
 
+/** Annotation properties offered for SKOS concepts and schemes, most used first; definition has its own box. */
+export const SKOS_ANNOTATION_PROPERTIES = [
+  SKOS + 'altLabel',
+  SKOS + 'hiddenLabel',
+  SKOS + 'prefLabel',
+  SKOS + 'notation',
+  SKOS + 'scopeNote',
+  SKOS + 'example',
+  SKOS + 'note',
+  SKOS + 'editorialNote',
+  SKOS + 'changeNote',
+  SKOS + 'historyNote',
+  RDFS + 'seeAlso',
+]
+
 /** OWL 2's built-in annotation properties; every other one must be declared owl:AnnotationProperty. */
 export const BUILT_IN_ANNOTATION_PROPERTIES = new Set([
   RDFS + 'label',
@@ -82,4 +97,10 @@ export function expandIri(text: string, base: string): string {
   if (colon > 0 && PREFIXES[t.slice(0, colon)] !== undefined) return PREFIXES[t.slice(0, colon)] + t.slice(colon + 1)
   if (isAbsoluteIri(t)) return t
   return base + t
+}
+
+/** The readable end of an IRI: Topping for http://example.org/pizza#Topping, xsd:string for XSD's. */
+export function shortName(iri: string): string {
+  const compact = compactIri(iri)
+  return compact !== iri ? compact : iri.replace(/^.*[#/]/, '') || iri
 }

@@ -88,6 +88,51 @@ describe('SKOS export', () => {
   })
 })
 
+describe('SKOS labels and mappings', () => {
+  const labelled: Ontology = {
+    ...thesaurus,
+    nodes: thesaurus.nodes.map((n) =>
+      n.id === 'thin'
+        ? {
+            ...n,
+            data: {
+              ...n.data,
+              labelLang: 'en',
+              annotations: [
+                { property: SKOS + 'prefLabel', value: 'Dünner Boden', lang: 'de' },
+                { property: SKOS + 'altLabel', value: 'Crispy Crust', lang: 'en' },
+                { property: SKOS + 'hiddenLabel', value: 'thin-crust' },
+                { property: SKOS + 'notation', value: 'C.1' },
+              ],
+              mappings: [
+                { kind: 'exactMatch' as const, iri: 'http://www.wikidata.org/entity/Q1' },
+                { kind: 'closeMatch' as const, iri: 'skos:Example' },
+                { kind: 'broadMatch' as const, iri: '  ' },
+              ],
+            },
+          }
+        : n,
+    ),
+  }
+
+  it('tags the prefLabel and keeps other labels and the notation', async () => {
+    const quads = new Parser().parse(await toTurtle(labelled)).filter((q) => q.subject.value === P + 'ThinCrust')
+    const labels = quads.filter((q) => q.predicate.value.startsWith(SKOS) && q.object.termType === 'Literal')
+    const show = (q: (typeof labels)[number]) => `${q.predicate.value.slice(SKOS.length)} ${q.object.value}@${'language' in q.object ? q.object.language : ''}`
+    expect(labels.map(show).sort()).toEqual(
+      ['altLabel Crispy Crust@en', 'hiddenLabel thin-crust@', 'notation C.1@', 'prefLabel Dünner Boden@de', 'prefLabel Thin Crust@en'].sort(),
+    )
+  })
+
+  it('exports mappings to outside IRIs and skips empty ones', async () => {
+    const t = await triples(labelled)
+    expect(t).toContain(`${P}ThinCrust ${SKOS}exactMatch http://www.wikidata.org/entity/Q1`)
+    expect(t).toContain(`${P}ThinCrust ${SKOS}closeMatch ${SKOS}Example`)
+    expect(t).toContain(`${SKOS}exactMatch ${RDF_TYPE} ${OWL}ObjectProperty`)
+    expect(t.some((x) => x.includes('broadMatch'))).toBe(false)
+  })
+})
+
 describe('conceptSchemes', () => {
   it('spreads a top concept scheme over its hierarchy and keeps explicit choices', () => {
     const nodes = [node('a', 'A', 'scheme'), node('b', 'B', 'scheme'), node('top', 'Top', 'concept'), node('child', 'Child', 'concept'), node('lone', 'Lone', 'concept', ['b'])]
