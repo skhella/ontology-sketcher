@@ -1,6 +1,6 @@
-import { DataFactory, Writer, type Quad, type Quad_Object } from 'n3'
-import { localName, propertyLocalName, type EntityData, type Ontology } from './model'
-import { BUILT_IN_ANNOTATION_PROPERTIES, expandIri, IRI_VALUED, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS } from './vocab'
+import { DataFactory, Writer, type NamedNode, type Quad, type Quad_Object } from 'n3'
+import { localName, propertyLocalName, type ClassExpression, type EntityData, type Ontology, type Quantifier } from './model'
+import { BUILT_IN_ANNOTATION_PROPERTIES, expandIri, IRI_VALUED, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS, XSD } from './vocab'
 
 const { literal, namedNode, quad } = DataFactory
 
@@ -9,12 +9,38 @@ export function entityIri(base: string, data: EntityData, local: string): string
   return data.iri?.trim() ? expandIri(data.iri, base) : base + local
 }
 
+// The OWL vocabulary for each quantifier: [predicate without a filler, predicate with a filler class].
+const RESTRICTION: Record<Quantifier, [string, string]> = {
+  some: ['', OWL + 'someValuesFrom'],
+  only: ['', OWL + 'allValuesFrom'],
+  min: [OWL + 'minCardinality', OWL + 'minQualifiedCardinality'],
+  max: [OWL + 'maxCardinality', OWL + 'maxQualifiedCardinality'],
+  exactly: [OWL + 'cardinality', OWL + 'qualifiedCardinality'],
+}
+
+const AXIOM_PREDICATE = { subClassOf: RDFS + 'subClassOf', equivalentClass: OWL + 'equivalentClass', disjointWith: OWL + 'disjointWith' }
+
 /** Serializes the canvas model as an OWL 2 ontology in Turtle. */
 export function toTurtle(ontology: Ontology): Promise<string> {
   const base = ontology.iri
   const ontologyIri = base.replace(/[#/]$/, '')
   const quads: Quad[] = []
-  const usedAnnotationProperties = new Set<string>()
+  const entities: EntityData[] = [...ontology.nodes.map((n) => n.data), ...ontology.edges.map((e) => e.data ?? {})]
+  const usedAnnotationProperties = new Set(
+    entities.flatMap((d) =>
+      (d.annotations ?? []).filter((a) => a.property && a.value.trim()).map((a) => a.property),
+    ),
+  )
+  const usesCardinality = ontology.nodes.some((n) =>
+    n.data.axioms?.some((a) => a.expression.type === 'restriction' && !['some', 'only'].includes(a.expression.quantifier)),
+  )
+
+  const prefixes: Record<string, string> = { '': base, owl: OWL, rdf: RDF, rdfs: RDFS }
+  for (const [prefix, ns] of Object.entries(PREFIXES)) {
+    if ([...usedAnnotationProperties].some((p) => p.startsWith(ns))) prefixes[prefix] = ns
+  }
+  if (usesCardinality) prefixes.xsd = XSD
+  const writer = new Writer({ prefixes })
   const type = namedNode(RDF + 'type')
   const label = namedNode(RDFS + 'label')
 
@@ -22,7 +48,6 @@ export function toTurtle(ontology: Ontology): Promise<string> {
     for (const a of data.annotations ?? []) {
       const value = a.value.trim()
       if (!value || !a.property) continue
-      usedAnnotationProperties.add(a.property)
       const object = IRI_VALUED.has(a.property) && isAbsoluteIri(value) ? namedNode(value) : literal(value, a.lang?.trim() || undefined)
       quads.push(quad(namedNode(subject), namedNode(a.property), object))
     }
@@ -39,6 +64,42 @@ export function toTurtle(ontology: Ontology): Promise<string> {
     quads.push(quad(namedNode(iri), type, namedNode(OWL + 'Class')))
     quads.push(quad(namedNode(iri), label, literal(node.data.label)))
     annotate(iri, node.data)
+  }
+
+  const propertyIri = new Map<string, string>()
+  for (const edge of ontology.edges) {
+    if (edge.data?.kind === 'objectProperty') propertyIri.set(edge.id, entityIri(base, edge.data, propertyLocalName(edge.data.label)))
+  }
+
+  // A named class, or an inline [ a owl:Restriction … ]; undefined when it points at a deleted class or property.
+  const expression = (e: ClassExpression): Quad_Object | undefined => {
+    if (e.type === 'class') {
+      const iri = classIri.get(e.ref)
+      return iri ? namedNode(iri) : undefined
+    }
+    const property = propertyIri.get(e.property)
+    const filler = e.filler === undefined ? undefined : classIri.get(e.filler)
+    if (!property || (e.filler !== undefined && !filler)) return undefined
+    const [unqualified, qualified] = RESTRICTION[e.quantifier]
+    const parts: { predicate: NamedNode; object: Quad_Object }[] = [
+      { predicate: type, object: namedNode(OWL + 'Restriction') },
+      { predicate: namedNode(OWL + 'onProperty'), object: namedNode(property) },
+    ]
+    if (e.quantifier === 'some' || e.quantifier === 'only') {
+      parts.push({ predicate: namedNode(qualified), object: namedNode(filler ?? OWL + 'Thing') })
+    } else {
+      const n = literal(String(Math.max(0, Math.floor(e.n ?? 0))), namedNode(XSD + 'nonNegativeInteger'))
+      parts.push({ predicate: namedNode(filler ? qualified : unqualified), object: n })
+      if (filler) parts.push({ predicate: namedNode(OWL + 'onClass'), object: namedNode(filler) })
+    }
+    return writer.blank(parts) as unknown as Quad_Object
+  }
+
+  for (const node of ontology.nodes) {
+    for (const axiom of node.data.axioms ?? []) {
+      const object = expression(axiom.expression)
+      if (object) quads.push(quad(namedNode(classIri.get(node.id)!), namedNode(AXIOM_PREDICATE[axiom.kind]), object))
+    }
   }
 
   for (const edge of ontology.edges) {
@@ -72,11 +133,6 @@ export function toTurtle(ontology: Ontology): Promise<string> {
     .filter((p) => !BUILT_IN_ANNOTATION_PROPERTIES.has(p))
     .map((p) => quad(namedNode(p), type, namedNode(OWL + 'AnnotationProperty')))
 
-  const prefixes: Record<string, string> = { '': base, owl: OWL, rdf: RDF, rdfs: RDFS }
-  for (const [prefix, ns] of Object.entries(PREFIXES)) {
-    if ([...usedAnnotationProperties].some((p) => p.startsWith(ns))) prefixes[prefix] = ns
-  }
-  const writer = new Writer({ prefixes })
   writer.addQuads([quads[0], ...declarations, ...quads.slice(1)])
 
   // A property drawn between several class pairs: OWL reads repeated domain/range axioms as an

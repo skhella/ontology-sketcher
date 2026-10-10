@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { localName, propertyLocalName, type Annotation, type ClassNode, type EdgeKind, type EntityData, type RelationEdge } from '../model'
 import { entityIri } from '../owl'
+import { ClassAxioms } from './ClassAxioms'
 import { ANNOTATION_PROPERTIES, compactIri, expandIri, RDFS_COMMENT, SKOS_DEFINITION } from '../vocab'
 
 type Props = {
@@ -13,7 +14,7 @@ type Props = {
   onEdgeChange: (id: string, patch: Partial<NonNullable<RelationEdge['data']>>) => void
 }
 
-/** Protégé-style entity panel for the selected class or edge: IRI, label and annotations. */
+/** Protégé-style entity panel for the selected class or edge: IRI, label, annotations and class axioms. */
 export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeChange }: Props) {
   if (selection.length !== 1) {
     return (
@@ -35,6 +36,13 @@ export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeC
           label={node.data.label}
           derivedLocal={localName(node.data.label)}
           onChange={(patch) => onNodeChange(node.id, patch)}
+        />
+        <ClassAxioms
+          nodeId={node.id}
+          axioms={node.data.axioms ?? []}
+          nodes={nodes}
+          edges={edges}
+          onChange={(axioms) => onNodeChange(node.id, { axioms })}
         />
       </aside>
     )

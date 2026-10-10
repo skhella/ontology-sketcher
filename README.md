@@ -21,6 +21,10 @@ Longer term it aims at Protégé-like editing of classes, properties, axioms and
   annotation (SKOS, `rdfs:seeAlso`, Dublin Core or a custom property) with an optional language tag. Edges can be
   switched between subClassOf and object property there. Everything is exported; annotation properties that OWL 2
   doesn't build in are declared `owl:AnnotationProperty`.
+- Class axioms in the inspector, laid out like Protégé's class description: SubClass Of (arrows drawn on the canvas
+  are listed too), Equivalent To and Disjoint With. Each entry is a named class or a restriction on an object
+  property drawn on the canvas, written in Manchester order (`has topping some Tomato Topping`, `exactly 2 Topping`)
+  with `some`, `only`, `min`, `max` and `exactly`. Restrictions export as inline `owl:Restriction` blank nodes.
 - Style panel for the selection, like Excalidraw's: stroke and background colours (five swatches plus a custom
   picker), fill style, stroke width, stroke style and sloppiness. Select an edge and drag its midpoint dot to curve
   it; double-click the dot or use "Reset curve" to undo. Styles and curves are visual only and are not exported.
