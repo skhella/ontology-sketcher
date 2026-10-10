@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { suggestConstraints } from '../generate'
 import type { ClassNode, PropertyConstraint, RelationEdge } from '../model'
 import { compactIri, DATATYPES } from '../vocab'
 import { ClassSelect } from './ClassAxioms'
@@ -15,6 +17,8 @@ type Props = {
  * They export as a node shape targeting this class, see shacl.ts.
  */
 export function Constraints({ nodeId, constraints, nodes, edges, onChange }: Props) {
+  // The class "Suggest from ontology" last found nothing new for, to say so under the button.
+  const [nothingNewFor, setNothingNewFor] = useState<string | null>(null)
   // Edges with the same label are one property; offer each once, by its first edge.
   const properties = edges.filter(
     (e, i) => e.data?.kind === 'objectProperty' && edges.findIndex((f) => f.data?.kind === 'objectProperty' && f.data.label === e.data!.label) === i,
@@ -48,6 +52,11 @@ export function Constraints({ nodeId, constraints, nodes, edges, onChange }: Pro
     const ownData = nodes.find((n) => n.id === nodeId)?.data.dataProperties?.find((p) => p.name.trim())
     const key = own ? `o:${own.id}` : ownData ? `d:${ownData.name}` : properties[0] ? `o:${properties[0].id}` : `d:${[...dataProperties.keys()][0]}`
     onChange([...constraints, { ...fromKey(key), minCount: 1 }])
+  }
+  const suggest = () => {
+    const suggested = suggestConstraints(nodeId, nodes, edges, constraints)
+    setNothingNewFor(suggested.length === 0 ? nodeId : null)
+    if (suggested.length > 0) onChange([...constraints, ...suggested])
   }
   const update = (at: number, patch: Partial<PropertyConstraint>) => onChange(constraints.map((c, i) => (i === at ? { ...c, ...patch } : c)))
   // Picking another property starts that row over, keeping the counts and message.
@@ -137,9 +146,19 @@ export function Constraints({ nodeId, constraints, nodes, edges, onChange }: Pro
           </div>
         )
       })}
-      <button className="add" onClick={add} disabled={properties.length === 0 && dataProperties.size === 0}>
-        + Constraint
-      </button>
+      <div className="constraint-actions">
+        <button className="add" onClick={add} disabled={properties.length === 0 && dataProperties.size === 0}>
+          + Constraint
+        </button>
+        <button
+          className="add"
+          onClick={suggest}
+          title="Adds a constraint for each property this class has an arrow, restriction or data property for, from what those say about values and counts. OWL only states what is true; as constraints they become requirements your data must meet, so check each one."
+        >
+          Suggest from ontology
+        </button>
+      </div>
+      {nothingNewFor === nodeId && <small className="muted">Nothing new to suggest: every property drawn or stated on this class already has a constraint.</small>}
     </fieldset>
   )
 }
