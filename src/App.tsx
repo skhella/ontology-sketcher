@@ -17,7 +17,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
-import { sampleOntology, type ClassNode, type RelationEdge } from './model'
+import { importedOntologyIri, sampleOntology, type ClassNode, type RelationEdge } from './model'
 import { toTurtle } from './owl'
 import { Inspector } from './inspector/Inspector'
 import { classesNotOn, loadCanvas, mergePages, placeClass, removePage, saveCanvas, workspaceFrom, type Workspace } from './pages'
@@ -115,6 +115,7 @@ export default function App() {
       if (nodes.length > 0 && !window.confirm(`Replace this page with ${file.name}?`)) return
       setNodes(result.nodes)
       setEdges(result.edges.map((e) => markerFor(withDefaultHandles(e))))
+      setIri((current) => importedOntologyIri(current, file.name))
       setNotice(describeImport(result.summary))
       requestAnimationFrame(() => flow?.fitView({ padding: 0.2 }))
     } catch (error) {
