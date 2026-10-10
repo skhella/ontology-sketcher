@@ -1,7 +1,7 @@
 import { DataFactory, type Quad } from 'n3'
-import { localName, type ClassData, type ClassNode, type EdgeKind, type EntityData, type NodeKind, type Ontology, type RelationEdge, type SkosEdgeKind } from './model'
+import { localName, type ClassData, type ClassNode, type EdgeKind, type EntityData, type MappingKind, type NodeKind, type Ontology, type RelationEdge, type SkosEdgeKind } from './model'
 import type { SketchStyle } from './sketch/style'
-import { OWL, RDF, SKOS } from './vocab'
+import { expandIri, OWL, RDF, SKOS } from './vocab'
 
 /**
  * SKOS concept schemes on the canvas. Concepts and schemes are nodes with a `kind`; the SKOS relations
@@ -13,6 +13,8 @@ import { OWL, RDF, SKOS } from './vocab'
 const { literal, namedNode, quad } = DataFactory
 
 export const SKOS_EDGE_KINDS: SkosEdgeKind[] = ['broader', 'narrower', 'related', 'topConceptOf']
+
+export const MAPPING_KINDS: MappingKind[] = ['exactMatch', 'closeMatch', 'broadMatch', 'narrowMatch', 'relatedMatch']
 
 export function isSkosEdge(kind: EdgeKind | undefined): kind is SkosEdgeKind {
   return !!kind && (SKOS_EDGE_KINDS as string[]).includes(kind)
@@ -116,6 +118,16 @@ export function skosQuads(
     for (const scheme of schemes) relate(concept, SKOS + 'inScheme', scheme)
   }
 
+  // Mappings point outside the canvas, at an IRI typed in the inspector.
+  for (const n of members) {
+    for (const m of n.data.kind === 'concept' ? (n.data.mappings ?? []) : []) {
+      if (!m.iri.trim()) continue
+      usedProperties.add(SKOS + m.kind)
+      if (!relations.has(n.id)) relations.set(n.id, [])
+      relations.get(n.id)!.push(quad(node(n.id), namedNode(SKOS + m.kind), namedNode(expandIri(m.iri, ontology.iri))))
+    }
+  }
+
   for (const e of ontology.edges) {
     const kind = e.data?.kind
     if (!isSkosEdge(kind) || !iri.has(e.source) || !iri.has(e.target)) continue
@@ -129,7 +141,7 @@ export function skosQuads(
   const body = members.flatMap((n) => [
     quad(node(n.id), type, namedNode(OWL + 'NamedIndividual')),
     quad(node(n.id), type, namedNode(SKOS + (n.data.kind === 'concept' ? 'Concept' : 'ConceptScheme'))),
-    quad(node(n.id), namedNode(SKOS + 'prefLabel'), literal(n.data.label)),
+    quad(node(n.id), namedNode(SKOS + 'prefLabel'), literal(n.data.label, n.data.labelLang?.trim() || undefined)),
     ...annotate(iri.get(n.id)!, n.data),
     ...(relations.get(n.id) ?? []),
   ])

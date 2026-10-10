@@ -42,6 +42,21 @@ export const ANNOTATION_PROPERTIES = [
   OWL + 'versionInfo',
 ]
 
+/** Annotation properties offered for SKOS concepts and schemes, most used first; definition has its own box. */
+export const SKOS_ANNOTATION_PROPERTIES = [
+  SKOS + 'altLabel',
+  SKOS + 'hiddenLabel',
+  SKOS + 'prefLabel',
+  SKOS + 'notation',
+  SKOS + 'scopeNote',
+  SKOS + 'example',
+  SKOS + 'note',
+  SKOS + 'editorialNote',
+  SKOS + 'changeNote',
+  SKOS + 'historyNote',
+  RDFS + 'seeAlso',
+]
+
 /** OWL 2's built-in annotation properties; every other one must be declared owl:AnnotationProperty. */
 export const BUILT_IN_ANNOTATION_PROPERTIES = new Set([
   RDFS + 'label',

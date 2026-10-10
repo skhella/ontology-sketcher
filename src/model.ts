@@ -57,15 +57,24 @@ export type PropertyConstraint = {
  */
 export type NodeKind = 'concept' | 'scheme'
 
+/** SKOS mapping properties, linking a concept to a concept in another scheme or vocabulary. */
+export type MappingKind = 'exactMatch' | 'closeMatch' | 'broadMatch' | 'narrowMatch' | 'relatedMatch'
+
+/** A mapping to a concept outside this ontology; `iri` is a full IRI or prefix:local. */
+export type Mapping = { kind: MappingKind; iri: string }
+
 /**
  * A named OWL class drawn as a box on the canvas, or with `kind` a SKOS concept or scheme. `style` is visual only.
  * `axioms` adds to the subClassOf edges drawn on the canvas; `constraints` export as a SHACL node shape, see shacl.ts.
  * `inScheme` lists scheme node ids a concept belongs to besides those its hierarchy reaches, see skos.ts.
+ * `labelLang` is the language tag of a concept's or scheme's skos:prefLabel; `mappings` link a concept to outside concepts.
  */
 export type ClassData = EntityData & {
   label: string
   kind?: NodeKind
   inScheme?: string[]
+  labelLang?: string
+  mappings?: Mapping[]
   axioms?: ClassAxiom[]
   dataProperties?: DataProperty[]
   constraints?: PropertyConstraint[]

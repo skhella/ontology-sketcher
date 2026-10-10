@@ -827,3 +827,38 @@ body,
 .inspector .concept-schemes {
   margin-top: 8px;
 }
+
+.inspector .label-with-lang,
+.inspector .mapping {
+  display: flex;
+  gap: 4px;
+}
+
+/* Inputs have an intrinsic width; width 0 lets the text box take only the room the row has left. */
+.inspector .label-with-lang input:first-child,
+.inspector .mapping input {
+  flex: 1;
+  width: 0;
+}
+
+.inspector .label-with-lang .lang {
+  width: 56px;
+}
+
+.inspector .mapping select {
+  max-width: 45%;
+}
+
+.inspector .mappings {
+  margin: 8px 0;
+  padding: 0;
+  border: none;
+}
+
+.inspector .mappings legend {
+  padding: 0 0 4px;
+}
+
+.inspector .mapping {
+  margin-bottom: 4px;
+}
