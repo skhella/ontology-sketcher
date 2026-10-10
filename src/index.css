@@ -93,8 +93,12 @@ body,
 
 .class-node .label {
   position: relative;
-  padding: 0 8px;
+  max-width: 100%;
+  padding: 6px 8px;
   text-align: center;
+  line-height: 1.2;
+  /* Long names wrap at spaces or camelCase humps (<wbr>), and break mid-word only when a piece is still too wide. */
+  overflow-wrap: anywhere;
 }
 
 /* Selection is a dashed box around the node, so the node keeps its own colours. */

@@ -1,25 +1,30 @@
 import { Handle, useConnection, useInternalNode, type NodeProps } from '@xyflow/react'
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 import type { ClassNode } from '../model'
+import { breakPoints } from './label'
 import { roughRect, seedFor } from './rough'
 import { boxOf, CLASS_HEIGHT as HEIGHT, CLASS_WIDTH as WIDTH, SIDES, snapToClass } from './snap'
 import { dashArray, nodeStyle, roughNodeOptions } from './style'
 
 export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
   const style = data.style
-  const paths = useMemo(() => roughRect(WIDTH, HEIGHT, roughNodeOptions(style, seedFor(id))), [id, style])
+  // The width is fixed; a long label wraps and the box grows taller, so the outline follows the measured height.
+  const internal = useInternalNode<ClassNode>(id)
+  const height = Math.max(HEIGHT, internal?.measured.height ?? HEIGHT)
+  const paths = useMemo(() => roughRect(WIDTH, height, roughNodeOptions(style, seedFor(id))), [id, style, height])
   const { strokeStyle, strokeWidth } = nodeStyle(style)
 
   // While a new edge is dragged over this class, highlight the dot it will lock to.
   // `to` is the pointer in flow coordinates, or the dot React Flow itself snapped to.
-  const position = useInternalNode<ClassNode>(id)?.internals.positionAbsolute
+  const position = internal?.internals.positionAbsolute
+  const measured = internal?.measured
   const snapSide = useConnection((c) =>
-    c.inProgress && position ? (snapToClass([boxOf({ id, position })], c.to, c.fromNode.id)?.side ?? null) : null,
+    c.inProgress && position ? (snapToClass([boxOf({ id, position, measured })], c.to, c.fromNode.id)?.side ?? null) : null,
   )
 
   return (
-    <div className={`class-node${selected ? ' selected' : ''}${snapSide ? ' snap-target' : ''}`} style={{ width: WIDTH, height: HEIGHT }}>
-      <svg width={WIDTH} height={HEIGHT} className="sketch">
+    <div className={`class-node${selected ? ' selected' : ''}${snapSide ? ' snap-target' : ''}`} style={{ width: WIDTH, minHeight: HEIGHT }}>
+      <svg width={WIDTH} height={height} className="sketch">
         {paths.map((p, i) => (
           <path
             key={i}
@@ -32,7 +37,14 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
           />
         ))}
       </svg>
-      <span className="label">{data.label}</span>
+      <span className="label">
+        {breakPoints(data.label).map((piece, i) => (
+          <Fragment key={i}>
+            {i > 0 && <wbr />}
+            {piece}
+          </Fragment>
+        ))}
+      </span>
       {/* One dot per side. With ConnectionMode.Loose any dot can start or end an edge; the id is the side. */}
       {SIDES.map((side) => (
         <Handle key={side} id={side} type="source" position={side} className={side === snapSide ? 'snapped' : undefined} />
