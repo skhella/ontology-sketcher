@@ -92,7 +92,8 @@ body,
 
 .toolbar input,
 .toolbar button,
-.export button {
+.export button,
+.sample-data button {
   font: inherit;
   font-size: 16px;
   padding: 4px 10px;
@@ -103,7 +104,8 @@ body,
 }
 
 .toolbar button:hover,
-.export button:hover {
+.export button:hover,
+.sample-data button:hover:not(:disabled) {
   background: var(--hover);
 }
 
@@ -324,6 +326,76 @@ body,
 
 .edge-multiplicity:hover {
   color: var(--accent);
+}
+
+.sample-data {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: min(400px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  border: 2px solid var(--ink);
+  border-radius: 12px 4px 10px 6px;
+  background: var(--surface);
+  z-index: 10;
+}
+
+.sample-data .export-actions {
+  align-items: center;
+}
+
+.sample-data .export-actions strong {
+  flex: 1;
+}
+
+.sample-data .hint {
+  margin: 6px 8px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.sample-data textarea {
+  min-height: 140px;
+  padding: 6px;
+  border: 1.5px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  margin: 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.sample-data .sample-ok,
+.sample-data .sample-error {
+  margin: 0 8px 8px;
+}
+
+.sample-data .sample-error {
+  color: #e03131;
+}
+
+.sample-problems {
+  margin: 0;
+  padding: 0 8px 8px;
+  overflow: auto;
+  list-style: none;
+}
+
+.sample-problems button {
+  width: 100%;
+  margin-bottom: 4px;
+  font-size: 14px;
+  text-align: left;
+}
+
+.react-flow__node.has-problems {
+  outline: 3px solid #e03131;
+  outline-offset: 4px;
+  border-radius: 6px;
 }
 
 .notice {

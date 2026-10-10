@@ -85,7 +85,8 @@ describe('toShaclTurtle', () => {
   it('catches broken sample data when validated with shacl-engine', async () => {
     const parse = (turtle: string) => new Parser().parse(turtle)
     const shapes = new Store(parse(await toShaclTurtle(pizzaRules)))
-    // SHACL follows rdfs:subClassOf only in the data graph, so the ontology goes in with the data.
+    // The ontology goes in with the data so sh:class counts a TomatoTopping as a Topping.
+    // (Subclass targets, a Margherita checked as a Pizza, need it in the shapes graph too; see validate.ts.)
     const data = new Store([
       ...parse(await toTurtle(pizzaRules)),
       ...parse(`

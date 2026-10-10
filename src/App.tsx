@@ -24,6 +24,7 @@ import { toCypherScript } from './neo4j'
 import { hasConstraints, toShaclTurtle } from './shacl'
 import { defaultEdge, isSkosEdge, NODE_KIND_NAMES, NODE_KIND_STYLES } from './skos'
 import { Inspector } from './inspector/Inspector'
+import { SampleData } from './SampleData'
 import { classesNotOn, loadCanvas, mergePages, placeClass, removePage, saveCanvas, workspaceFrom, type Workspace } from './pages'
 import { ClassNodeView } from './sketch/ClassNodeView'
 import { ConnectionLine } from './sketch/ConnectionLine'
@@ -69,6 +70,9 @@ export default function App() {
   // The exported files: the OWL ontology, and the SHACL shapes when any class has constraints.
   const [exported, setExported] = useState<{ ontology: string; shapes: string | null } | null>(null)
   const [showShapes, setShowShapes] = useState(false)
+  // The sample data panel, and the classes whose instances in it break a constraint (outlined on the canvas).
+  const [sampleOpen, setSampleOpen] = useState(false)
+  const [problemClasses, setProblemClasses] = useState<string[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -139,6 +143,15 @@ export default function App() {
   }
 
   const selectedNodes = nodes.filter((n) => n.selected)
+  // Classes whose sample instances break a constraint get an outline, set only on the nodes React Flow draws so it never reaches saved pages.
+  const shownNodes = useMemo(
+    () => (problemClasses.length === 0 ? nodes : nodes.map((n) => (problemClasses.includes(n.id) ? { ...n, className: 'has-problems' } : n))),
+    [nodes, problemClasses],
+  )
+  const selectClass = (id: string) => {
+    setEdges((es) => es.map((e) => (e.selected ? { ...e, selected: false } : e)))
+    setNodes((ns) => ns.map((n) => (!!n.selected !== (n.id === id) ? { ...n, selected: n.id === id } : n)))
+  }
   const selectedEdges = edges.filter((e) => e.selected)
 
   // Applies a style change from the panel to everything selected, like Excalidraw.
@@ -272,6 +285,9 @@ export default function App() {
           </select>
         )}
         <button onClick={startExport}>Export OWL (Turtle)</button>
+        <button onClick={() => setSampleOpen(true)} title="Check example instances against the classes' SHACL constraints">
+          Check sample data
+        </button>
         <button onClick={toggleTheme} aria-pressed={theme === 'dark'} title="Switch between light and dark mode">
           {theme === 'dark' ? '☀ Light' : '☾ Dark'}
         </button>
@@ -281,7 +297,7 @@ export default function App() {
       </header>
       <main className="canvas">
         <ReactFlow
-          nodes={nodes}
+          nodes={shownNodes}
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
@@ -352,6 +368,15 @@ export default function App() {
               <button onClick={() => setExportPages(null)}>Cancel</button>
             </div>
           </div>
+        )}
+        {sampleOpen && (
+          <SampleData
+            ontology={() => mergePages(saved(), workspace.pages.map((p) => p.id), iri)}
+            nodes={nodes}
+            onProblemClasses={setProblemClasses}
+            onSelectClass={selectClass}
+            onClose={() => setSampleOpen(false)}
+          />
         )}
         {exported && (
           <aside className="export">
