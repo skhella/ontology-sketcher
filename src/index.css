@@ -109,6 +109,29 @@ body,
   pointer-events: none;
 }
 
+.notice {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  max-width: min(520px, calc(100% - 24px));
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1.5px solid var(--ink);
+  border-radius: 10px 4px 8px 5px;
+  background: #fff9db;
+  font-size: 16px;
+  z-index: 10;
+}
+
+.notice button {
+  font: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
 .export {
   position: absolute;
   top: 12px;
