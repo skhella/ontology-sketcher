@@ -21,6 +21,7 @@ Longer term it aims at Protégé-like editing of classes, properties, axioms and
 - Import an `.excalidraw` file: labelled rectangles, ellipses and diamonds become classes at the same spot;
   arrows bound to two of them become `rdfs:subClassOf` (arrow points from subclass to superclass), or an
   object property when the arrow has a label. Free text, lines, unlabelled shapes and loose arrows are skipped.
+  Colours, fill, stroke and sloppiness carry over, and curved arrows keep their bend.
 
 ## Develop
 
