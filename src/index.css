@@ -294,6 +294,23 @@ body,
   pointer-events: none;
 }
 
+.edge-multiplicity {
+  position: absolute;
+  padding: 0 3px;
+  border: none;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.edge-multiplicity:hover {
+  color: var(--accent);
+}
+
 .notice {
   position: absolute;
   top: 12px;
