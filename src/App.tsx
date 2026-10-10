@@ -20,6 +20,7 @@ import { describeImport, importExcalidraw } from './excalidraw'
 import logoSvg from '../docs/logo-light.svg?raw'
 import { importedOntologyIri, sampleOntology, type ClassNode, type RelationEdge } from './model'
 import { toTurtle } from './owl'
+import { toCypherScript } from './neo4j'
 import { hasConstraints, toShaclTurtle } from './shacl'
 import { Inspector } from './inspector/Inspector'
 import { classesNotOn, loadCanvas, mergePages, placeClass, removePage, saveCanvas, workspaceFrom, type Workspace } from './pages'
@@ -222,6 +223,16 @@ export default function App() {
     URL.revokeObjectURL(url)
   }
 
+  // The same export as a Cypher script that loads it into Neo4j through neosemantics, see neo4j.ts.
+  const downloadCypher = () => {
+    if (!exported) return
+    const script = toCypherScript({ iri, ontology: exported.ontology, shapes: exported.shapes })
+    const url = URL.createObjectURL(new Blob([script], { type: 'text/plain' }))
+    const a = Object.assign(document.createElement('a'), { href: url, download: 'ontology.cypher' })
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="app">
       <header className="toolbar">
@@ -341,6 +352,9 @@ export default function App() {
             )}
             <div className="export-actions">
               <button onClick={download}>Download {showShapes ? 'shapes.ttl' : 'ontology.ttl'}</button>
+              <button onClick={downloadCypher} title="A Cypher script that loads the ontology (and shapes) into Neo4j with the neosemantics (n10s) plugin">
+                Download for Neo4j (.cypher)
+              </button>
               <button onClick={() => setExported(null)}>Close</button>
             </div>
             <pre>{shown}</pre>
