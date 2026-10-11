@@ -102,7 +102,9 @@ describe('importOwl', () => {
 
     const byLabel = (label: string) => imported.nodes.find((n) => n.data.label === label)!
     expect(byLabel('Pizza').data.iri).toBe('PizzaDish')
-    expect(byLabel('Dish').data.iri).toBe('http://example.org/food#Dish')
+    expect(byLabel('Dish').data.namespace).toBe('http://example.org/food#')
+    expect(byLabel('Dish').data.iri).toBeUndefined()
+    expect(imported.namespaces).toEqual([{ prefix: 'food', iri: 'http://example.org/food#' }])
     expect(byLabel('Pizza').data.axioms).toHaveLength(3)
     expect(byLabel('Pizza').data.dataProperties).toEqual([
       { name: 'diameter', datatype: XSD + 'decimal', functional: true },
@@ -239,5 +241,33 @@ describe('large ontologies', () => {
     expect(drawn.size).toBe(imported.edges.length)
     // Every class is on a page, so saving the pages keeps the whole ontology.
     expect(new Set(pages.flatMap((p) => p.nodes.map((n) => n.id))).size).toBe(imported.nodes.length)
+  })
+})
+
+describe('namespaces', () => {
+  it('keeps classes and properties in other namespaces, with their prefixes', async () => {
+    const RDL = 'http://example.org/rdl/'
+    const ontology: Ontology = {
+      iri: P,
+      namespaces: [{ prefix: 'rdl', iri: RDL }],
+      nodes: [cls('pizza', 'Pizza'), cls('cheese', 'Cheese', { namespace: RDL }), cls('mozzarella', 'Mozzarella', { namespace: RDL, iri: 'Mozz' })],
+      edges: [rel('e1', 'pizza', 'cheese', { kind: 'objectProperty', label: 'has cheese', namespace: RDL })],
+    }
+    const turtle = await toTurtle(ontology)
+    expect(turtle).toContain('@prefix rdl: <http://example.org/rdl/>.')
+    expect(turtle).toContain('rdl:Cheese a owl:Class')
+    expect(turtle).toContain('rdl:Mozz a owl:Class')
+    expect(turtle).toContain('rdl:hasCheese a owl:ObjectProperty')
+
+    const imported = importOwl(turtle)
+    expect(imported.iri).toBe(P)
+    expect(imported.namespaces).toEqual([{ prefix: 'rdl', iri: RDL }])
+    const byLabel = (label: string) => imported.nodes.find((n) => n.data.label === label)!.data
+    expect(byLabel('Pizza').namespace).toBeUndefined()
+    expect(byLabel('Cheese').namespace).toBe(RDL)
+    expect(byLabel('Cheese').iri).toBeUndefined()
+    expect(byLabel('Mozzarella')).toMatchObject({ namespace: RDL, iri: 'Mozz' })
+    expect(imported.edges[0].data).toMatchObject({ namespace: RDL })
+    expect(canonical(await toTurtle(imported))).toEqual(canonical(turtle))
   })
 })

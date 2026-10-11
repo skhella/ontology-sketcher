@@ -10,9 +10,13 @@ export type Annotation = { property: string; value: string; lang?: string }
 
 /**
  * What a class or property carries besides its label.
- * `iri`, when set, replaces the IRI derived from the label: a full IRI, or a local name after the ontology IRI.
+ * `namespace`, when set, is the base IRI the entity lives in instead of the ontology IRI, e.g. a reference data library.
+ * `iri`, when set, replaces the IRI derived from the label: a full IRI, or a local name after the namespace.
  */
-export type EntityData = { iri?: string; annotations?: Annotation[] }
+export type EntityData = { iri?: string; namespace?: string; annotations?: Annotation[] }
+
+/** A namespace classes and properties can live in besides the ontology's own, written as `@prefix prefix: <iri>`. */
+export type Namespace = { prefix: string; iri: string }
 
 /** OWL restriction keywords, in Manchester syntax. Cardinalities take `n`; `filler` is optional for them. */
 export type Quantifier = 'some' | 'only' | 'min' | 'max' | 'exactly'
@@ -130,6 +134,8 @@ export type RelationEdge = Edge<RelationData, 'relation'>
 
 export type Ontology = {
   iri: string
+  /** Other namespaces of the project, see EntityData.namespace. */
+  namespaces?: Namespace[]
   nodes: ClassNode[]
   edges: RelationEdge[]
 }

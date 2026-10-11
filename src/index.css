@@ -1073,3 +1073,23 @@ body,
   stroke-width: 1.5;
   fill: none;
 }
+
+.toolbar .menu-items .namespace-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* The prefix of a class outside the ontology's own namespace, on the right of its top edge. */
+.class-node .namespace-badge {
+  position: absolute;
+  top: -9px;
+  right: 12px;
+  padding: 0 6px;
+  border: 1px dashed;
+  border-radius: 8px;
+  background: var(--paper);
+  font-size: 12px;
+  line-height: 16px;
+  pointer-events: none;
+}

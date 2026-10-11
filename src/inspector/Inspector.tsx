@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import { localName, propertyLocalName, type Annotation, type ClassNode, type EdgeKind, type EntityData, type RelationEdge } from '../model'
+import { localName, propertyLocalName, type Annotation, type Namespace, type ClassNode, type EdgeKind, type EntityData, type RelationEdge } from '../model'
+import { prefixOf } from '../namespaces'
 import { entityIri } from '../owl'
 import { isSkosEdge, NODE_KIND_NAMES, SKOS_EDGE_KINDS } from '../skos'
 import { ClassAxioms } from './ClassAxioms'
@@ -10,6 +11,8 @@ import { ANNOTATION_DESCRIPTIONS, ANNOTATION_PROPERTIES, compactIri, expandIri, 
 
 type Props = {
   base: string
+  /** The project's other namespaces, offered per class and property. */
+  namespaces: Namespace[]
   nodes: ClassNode[]
   edges: RelationEdge[]
   /** Everything selected; the inspector edits one element at a time. */
@@ -19,7 +22,7 @@ type Props = {
 }
 
 /** Protégé-style entity panel for the selected class or edge: IRI, label, annotations, class axioms and SHACL constraints. */
-export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeChange }: Props) {
+export function Inspector({ base, namespaces, nodes, edges, selection, onNodeChange, onEdgeChange }: Props) {
   if (selection.length !== 1) {
     return (
       <aside className="inspector" aria-label="Inspector">
@@ -39,6 +42,7 @@ export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeC
         <h2>{NODE_KIND_NAMES[kind ?? 'class']}</h2>
         <EntityFields
           base={base}
+          namespaces={namespaces}
           data={node.data}
           label={node.data.label}
           labelProperty={kind ? 'skos:prefLabel' : 'rdfs:label'}
@@ -130,10 +134,12 @@ export function Inspector({ base, nodes, edges, selection, onNodeChange, onEdgeC
           )}
           <EntityFields
             base={base}
+            namespaces={namespaces}
             data={data}
             label={data.label}
             derivedLocal={propertyLocalName(data.label)}
-            onChange={(patch) => onEdgeChange(edge.id, patch)}
+            // Edges with the same label are one property, so they share its namespace.
+            onChange={(patch) => ('namespace' in patch && data.kind === 'objectProperty' ? setOnProperty(patch) : onEdgeChange(edge.id, patch))}
           />
           {data.kind === 'objectProperty' && <ObjectPropertyDetails edge={edge} nodes={nodes} edges={edges} onChange={setOnProperty} />}
           {sameName > 1 && (
@@ -174,6 +180,7 @@ const EDGE_TITLES: Record<EdgeKind, string> = {
 
 type EntityFieldsProps = {
   base: string
+  namespaces: Namespace[]
   data: EntityData
   label: string
   /** The property the label exports as. */
@@ -187,7 +194,7 @@ type EntityFieldsProps = {
   onChange: (patch: EntityData & { label?: string; labelLang?: string }) => void
 }
 
-function EntityFields({ base, data, label, labelProperty = 'rdfs:label', labelLang, annotationProperties, derivedLocal, onChange }: EntityFieldsProps) {
+function EntityFields({ base, namespaces, data, label, labelProperty = 'rdfs:label', labelLang, annotationProperties, derivedLocal, onChange }: EntityFieldsProps) {
   const annotations = data.annotations ?? []
   const setAnnotations = (next: Annotation[]) => onChange({ annotations: next })
 
@@ -224,8 +231,21 @@ function EntityFields({ base, data, label, labelProperty = 'rdfs:label', labelLa
           </span>
         )}
       </Field>
+      {(namespaces.length > 0 || data.namespace) && (
+        <Field label="Namespace">
+          <select value={data.namespace ?? ''} onChange={(e) => onChange({ namespace: e.target.value || undefined })}>
+            <option value="">: (ontology, {base})</option>
+            {namespaces.map((n) => (
+              <option key={n.prefix + n.iri} value={n.iri}>
+                {n.prefix}: ({n.iri})
+              </option>
+            ))}
+            {data.namespace && !namespaces.some((n) => n.iri === data.namespace) && <option value={data.namespace}>{data.namespace}</option>}
+          </select>
+        </Field>
+      )}
       <Field label="IRI">
-        <input value={data.iri ?? ''} placeholder={`:${derivedLocal}`} onChange={(e) => onChange({ iri: e.target.value || undefined })} />
+        <input value={data.iri ?? ''} placeholder={`${prefixOf(namespaces, data.namespace) ?? ''}:${derivedLocal}`} onChange={(e) => onChange({ iri: e.target.value || undefined })} />
         <small className="muted iri">{entityIri(base, data, derivedLocal)}</small>
       </Field>
       <Field label="Definition (skos:definition)">

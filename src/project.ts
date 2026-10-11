@@ -1,13 +1,13 @@
-import { sampleOntology } from './model'
+import { sampleOntology, type Namespace } from './model'
 import { workspaceFrom, type Workspace } from './pages'
 
 /**
  * A project is everything needed to pick the work up again: the ontology IRI, every page with its
- * positions, colours and curves, and the shared store of classes and relations with their axioms,
+ * positions, colours and curves, the other namespaces classes can live in, and the shared store of classes and relations with their axioms,
  * annotations, SHACL constraints and SKOS kinds. The same shape is autosaved in the browser and
  * written to a project file.
  */
-export type Project = { iri: string; workspace: Workspace; pageId: string }
+export type Project = { iri: string; namespaces?: Namespace[]; workspace: Workspace; pageId: string }
 
 /** Marks a project file, so opening some other JSON file fails with a clear message. */
 const FORMAT = 'ontology-sketcher-project'
@@ -56,7 +56,10 @@ export function projectFromJson(text: string): Project {
   )
     throw new Error('the project file is incomplete')
   const pageId = ws.pages.some((page) => page.id === p.pageId) ? (p.pageId as string) : ws.pages[0].id
-  return { iri: p.iri, workspace: ws, pageId }
+  const namespaces = Array.isArray(p.namespaces)
+    ? p.namespaces.filter((n) => n && typeof n.prefix === 'string' && typeof n.iri === 'string')
+    : []
+  return { iri: p.iri, ...(namespaces.length > 0 && { namespaces }), workspace: ws, pageId }
 }
 
 /** The project autosaved in this browser, or null when there is none or it cannot be read. */

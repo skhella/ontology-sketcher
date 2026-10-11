@@ -20,7 +20,7 @@ describe('project', () => {
     }
     const workspace = saveCanvas(sample.workspace, sample.pageId, [edited, ...rest], canvas.edges)
     const second = { id: 'p2', name: 'Second', nodes: [], edges: [] }
-    const project = { iri: 'http://example.org/zoo#', workspace: { ...workspace, pages: [...workspace.pages, second] }, pageId: 'p2' }
+    const project = { iri: 'http://example.org/zoo#', namespaces: [{ prefix: 'rdl', iri: 'http://example.org/rdl/' }], workspace: { ...workspace, pages: [...workspace.pages, second] }, pageId: 'p2' }
 
     const opened = projectFromJson(projectToJson(project))
 

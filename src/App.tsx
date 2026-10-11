@@ -24,7 +24,10 @@ import { planImport, saveLayout } from './layout'
 import { describeOwlImport, importOwl } from './owlImport'
 import { describeShapesImport, importShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
-import { importedOntologyIri, type ClassNode, type NodeKind, type RelationEdge } from './model'
+import { importedOntologyIri, type ClassNode, type Namespace, type NodeKind, type RelationEdge } from './model'
+import { NamespacesContext } from './namespaceContext'
+import { mergeNamespaces, renameNamespace } from './namespaces'
+import { NamespacesMenu } from './NamespacesMenu'
 import { toTurtle } from './owl'
 import { toCypherScript } from './neo4j'
 import { hasConstraints, toShaclTurtle } from './shacl'
@@ -82,6 +85,7 @@ export default function App() {
   const [initial] = useState(() => loadAutosave() ?? sampleProject())
   const [initialCanvas] = useState(() => loadCanvas(initial.workspace, initial.pageId))
   const [iri, setIri] = useState(initial.iri)
+  const [namespaces, setNamespaces] = useState<Namespace[]>(initial.namespaces ?? [])
   const [nodes, setNodes, onNodesChange] = useNodesState<ClassNode>(initialCanvas.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<RelationEdge>(
     initialCanvas.edges.map((e) => markerFor(withDefaultHandles(e))),
@@ -203,6 +207,7 @@ export default function App() {
           ws = saveCanvas({ ...ws, pages: [...ws.pages, { id, name: page.name ?? `Page ${ws.pages.length + 1}`, nodes: [], edges: [] }] }, id, page.nodes, page.edges)
         }
         setIri(result.iri)
+        setNamespaces((current) => mergeNamespaces(current, result.namespaces))
         show(ws, pageId, true)
         const added = pages.length > 1 ? ` Added ${pages.length - 1} ${pages.length === 2 ? 'page' : 'pages'}.` : ''
         setNotice(describeOwlImport(result.summary) + added)
@@ -282,6 +287,17 @@ export default function App() {
   const updateEdge = (id: string, patch: Partial<NonNullable<RelationEdge['data']>>) =>
     setEdges((es) => es.map((e) => (e.id === id && e.data ? markerFor({ ...e, data: { ...e.data, ...patch } }) : e)))
 
+  // Editing a namespace's IRI moves the classes and properties in it along, on every page.
+  const changeNamespaces = (next: Namespace[], renamed?: { from: string; to: string }) => {
+    setNamespaces(next)
+    if (!renamed || renamed.from === renamed.to) return
+    const move = <T extends { data?: { namespace?: string } }>(items: T[]): T[] =>
+      items.map((i) => (i.data?.namespace === renamed.from ? { ...i, data: { ...i.data, namespace: renamed.to } } : i))
+    setWorkspace((ws) => renameNamespace(ws, renamed.from, renamed.to))
+    setNodes(move)
+    setEdges(move)
+  }
+
   const straighten = () => setEdges((es) => es.map((e) => (e.selected && e.data ? { ...e, data: { ...e.data, bend: undefined } } : e)))
 
   /** The workspace with the canvas's latest edits written back into it. */
@@ -339,14 +355,14 @@ export default function App() {
     setExportPages(null)
     setSvgLook(null)
     const ws = saved()
-    const ontology = mergePages(ws, pageIds, iri)
+    const ontology = { ...mergePages(ws, pageIds, iri), namespaces }
     // The OWL file carries the pages' layout so importing it draws them again; Neo4j gets plain OWL.
     const turtle = await toTurtle(ontology, format === 'owl' ? saveLayout(ws, pageIds, iri) : undefined)
     const shapes = hasConstraints(ontology) ? await toShaclTurtle(ontology) : null
     setShownFile(0)
     setExported(
       format === 'cypher'
-        ? [{ name: 'ontology.cypher', label: 'ontology.cypher (Neo4j)', type: 'text/plain', text: toCypherScript({ iri: ontology.iri, ontology: turtle, shapes }) }]
+        ? [{ name: 'ontology.cypher', label: 'ontology.cypher (Neo4j)', type: 'text/plain', text: toCypherScript({ iri: ontology.iri, ontology: turtle, shapes, namespaces }) }]
         : [
             { name: 'ontology.ttl', label: 'ontology.ttl (OWL)', type: 'text/turtle', text: turtle },
             ...(shapes ? [{ name: 'shapes.ttl', label: 'shapes.ttl (SHACL)', type: 'text/turtle', text: shapes }] : []),
@@ -387,13 +403,13 @@ export default function App() {
     if (shown) downloadText(shown.name, shown.type, shown.text)
   }
 
-  const project = (): Project => ({ iri, workspace: saved(), pageId })
+  const project = (): Project => ({ iri, namespaces, workspace: saved(), pageId })
 
   // Autosave: shortly after the last change, and when the tab is closed, the whole project is kept in this browser.
   const storageWarned = useRef(false)
   useEffect(() => {
     const autosave = () => {
-      if (writeAutosave({ iri, workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }) || storageWarned.current) return
+      if (writeAutosave({ iri, namespaces, workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }) || storageWarned.current) return
       storageWarned.current = true
       setNotice('This browser is not keeping your work (storage is full or blocked). Use Project, Save project to keep a copy.')
     }
@@ -403,7 +419,7 @@ export default function App() {
       clearTimeout(timer)
       window.removeEventListener('pagehide', autosave)
     }
-  }, [iri, workspace, pageId, nodes, edges])
+  }, [iri, namespaces, workspace, pageId, nodes, edges])
 
   const saveProject = () => downloadText(projectFileName(iri), 'application/json', projectToJson(project()))
 
@@ -425,6 +441,7 @@ export default function App() {
     setSampleOpen(false)
     setProblemClasses([])
     setIri(next.iri)
+    setNamespaces(next.namespaces ?? [])
     show(next.workspace, next.pageId, true)
   }
 
@@ -477,6 +494,7 @@ export default function App() {
           Ontology IRI{' '}
           <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />
         </label>
+        <NamespacesMenu namespaces={namespaces} onChange={changeNamespaces} />
         <button onClick={() => addNode()}>+ Class</button>
         <button onClick={() => addNode('concept')} title="A SKOS concept: a term in a thesaurus or code list, exported as an individual">
           + Concept
@@ -536,32 +554,34 @@ export default function App() {
         </span>
       </header>
       <main className="canvas">
-        <ReactFlow
-          nodes={shownNodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onConnectEnd={onConnectEnd}
-          onReconnect={onReconnect}
-          onReconnectStart={() => {
-            reconnecting.current = true
-          }}
-          onReconnectEnd={onReconnectEnd}
-          connectionMode={ConnectionMode.Loose}
-          connectionLineComponent={ConnectionLine}
-          onNodeDoubleClick={renameClass}
-          onEdgeDoubleClick={editRelation}
-          zoomOnDoubleClick={false}
-          onInit={setFlow}
-          fitView
-          minZoom={0.05}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={20} />
-          <Controls />
-        </ReactFlow>
+        <NamespacesContext.Provider value={namespaces}>
+          <ReactFlow
+            nodes={shownNodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onConnectEnd={onConnectEnd}
+            onReconnect={onReconnect}
+            onReconnectStart={() => {
+              reconnecting.current = true
+            }}
+            onReconnectEnd={onReconnectEnd}
+            connectionMode={ConnectionMode.Loose}
+            connectionLineComponent={ConnectionLine}
+            onNodeDoubleClick={renameClass}
+            onEdgeDoubleClick={editRelation}
+            zoomOnDoubleClick={false}
+            onInit={setFlow}
+            fitView
+            minZoom={0.05}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={20} />
+            <Controls />
+          </ReactFlow>
+        </NamespacesContext.Provider>
         {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
           <StylePanel
             current={selectedNodes.length > 0 ? (selectedNodes[0].data.style ?? {}) : edgeStyle(selectedEdges[0])}
@@ -574,6 +594,7 @@ export default function App() {
         {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
           <Inspector
             base={iri}
+            namespaces={namespaces}
             nodes={nodes}
             edges={edges}
             selection={[...selectedNodes, ...selectedEdges]}
