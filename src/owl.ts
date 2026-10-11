@@ -1,14 +1,16 @@
 import { DataFactory, Writer, type NamedNode, type Quad, type Quad_Object } from 'n3'
 import { localName, propertyLocalName, type Characteristic, type ClassExpression, type EntityData, type Ontology, type Quantifier } from './model'
+import { namespacePrefixes } from './namespaces'
 import { LAYOUT_PROPERTY, type SavedLayout } from './savedLayout'
 import { isSkosEdge, skosQuads } from './skos'
 import { BUILT_IN_ANNOTATION_PROPERTIES, expandIri, IRI_VALUED, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS, XSD } from './vocab'
 
 const { literal, namedNode, quad } = DataFactory
 
-/** The IRI of a class or property: its own `iri` when set, else `localName` after the ontology IRI. */
+/** The IRI of a class or property: its own `iri` when set, else `localName` after its namespace (the ontology IRI by default). */
 export function entityIri(base: string, data: EntityData, local: string): string {
-  return data.iri?.trim() ? expandIri(data.iri, base) : base + local
+  const namespace = data.namespace?.trim() || base
+  return data.iri?.trim() ? expandIri(data.iri, namespace) : namespace + local
 }
 
 // The OWL vocabulary for each quantifier: [predicate without a filler, predicate with a filler class].
@@ -65,7 +67,7 @@ export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<stri
       n.data.axioms?.some((a) => a.expression.type === 'restriction' && !['some', 'only'].includes(a.expression.quantifier)),
   )
 
-  const prefixes: Record<string, string> = { '': base, owl: OWL, rdf: RDF, rdfs: RDFS }
+  const prefixes: Record<string, string> = { '': base, ...namespacePrefixes(ontology.namespaces, base), owl: OWL, rdf: RDF, rdfs: RDFS }
   for (const [prefix, ns] of Object.entries(PREFIXES)) {
     if ([...usedAnnotationProperties].some((p) => p.startsWith(ns))) prefixes[prefix] = ns
   }

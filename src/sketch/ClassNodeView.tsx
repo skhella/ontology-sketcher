@@ -1,6 +1,8 @@
 import { Handle, useConnection, useInternalNode, type NodeProps } from '@xyflow/react'
-import { Fragment, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { Fragment, useContext, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { ClassNode } from '../model'
+import { NamespacesContext } from '../namespaceContext'
+import { prefixOf } from '../namespaces'
 import { breakPoints } from './label'
 import { roughEllipse, roughRect, seedFor } from './rough'
 import { boxOf, CLASS_HEIGHT as HEIGHT, CLASS_WIDTH as WIDTH, SIDES, snapToClass } from './snap'
@@ -10,6 +12,7 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
   const style = data.style
   const { strokeStyle, strokeWidth, shape, stroke, fill } = nodeStyle(style)
   const oval = shape === 'oval'
+  const prefix = prefixOf(useContext(NamespacesContext), data.namespace)
 
   // An oval only holds text inside its inscribed rectangle, which is 1/√2 of its height,
   // so it grows taller than the label (the label's side padding covers the width).
@@ -63,6 +66,11 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
       {data.kind && (
         <span className="kind-badge" style={{ color: stroke, borderColor: stroke, background: fill === 'transparent' ? undefined : fill }}>
           {data.kind}
+        </span>
+      )}
+      {data.namespace && (
+        <span className="namespace-badge" style={{ color: stroke, borderColor: stroke }} title={data.namespace}>
+          {prefix ?? 'other'}:
         </span>
       )}
       {/* One dot per side. With ConnectionMode.Loose any dot can start or end an edge; the id is the side. */}

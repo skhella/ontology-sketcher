@@ -10,13 +10,15 @@ import {
   type ClassNode,
   type DataProperty,
   type Mapping,
+  type Namespace,
   type Quantifier,
   type RelationEdge,
   type SkosEdgeKind,
 } from './model'
 import { LAYOUT_PROPERTY, parseLayout, type SavedLayout } from './savedLayout'
 import { conceptSchemes, MAPPING_KINDS, NODE_KIND_STYLES } from './skos'
-import { ANNOTATION_PROPERTIES, BUILT_IN_ANNOTATION_PROPERTIES, OWL, RDF, RDFS, SKOS, SKOS_ANNOTATION_PROPERTIES, XSD } from './vocab'
+import { suggestPrefix } from './namespaces'
+import { ANNOTATION_PROPERTIES, BUILT_IN_ANNOTATION_PROPERTIES, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS, SKOS, SKOS_ANNOTATION_PROPERTIES, XSD } from './vocab'
 
 /**
  * Reads an OWL 2 ontology in Turtle (or N-Triples) back into canvas nodes and edges: the reverse of owl.ts and skos.ts.
@@ -38,7 +40,7 @@ export type OwlImportSummary = {
 }
 
 /** `layout` is how this app drew the ontology when it exported it, see savedLayout.ts. */
-export type OwlImportResult = { iri: string; nodes: ClassNode[]; edges: RelationEdge[]; layout?: SavedLayout; summary: OwlImportSummary }
+export type OwlImportResult = { iri: string; namespaces: Namespace[]; nodes: ClassNode[]; edges: RelationEdge[]; layout?: SavedLayout; summary: OwlImportSummary }
 
 const TYPE = RDF + 'type'
 const LABEL = RDFS + 'label'
@@ -123,18 +125,32 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
 
   // The namespace: the empty prefix when the file has one, else the one most classes share, else the ontology IRI plus '#'.
   const ontologyIri = subjectsOfType(OWL + 'Ontology')[0]
-  const namespaces = new Map<string, number>()
+  const counts = new Map<string, number>()
   for (const c of [...subjectsOfType(OWL + 'Class'), ...subjectsOfType(SKOS + 'Concept')]) {
     const ns = c.replace(/[^#/]*$/, '')
-    if (ns && ns !== OWL && ns !== SKOS) namespaces.set(ns, (namespaces.get(ns) ?? 0) + 1)
+    if (ns && ns !== OWL && ns !== SKOS) counts.set(ns, (counts.get(ns) ?? 0) + 1)
   }
-  const common = [...namespaces].sort((a, b) => b[1] - a[1])[0]?.[0]
+  const common = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0]
   const iri = prefixes[''] ?? common ?? (ontologyIri ? (/[#/]$/.test(ontologyIri) ? ontologyIri : ontologyIri + '#') : 'http://example.org/ontology#')
 
-  // An entity's `iri` field: left out when the label already gives that IRI, a local name inside the namespace, else the full IRI.
+  // Classes and properties in another namespace (not a built-in vocabulary) keep it as their `namespace`,
+  // listed under the file's prefix for it, or a made-up one when the file has none.
+  const builtIn = new Set(Object.values(PREFIXES))
+  const prefixFor = new Map(Object.entries(prefixes).filter(([p, ns]) => p && !builtIn.has(ns)).map(([p, ns]) => [ns, p]))
+  const namespaces = new Map<string, string>()
+  const namespaceField = (entity: string) => {
+    const ns = entity.replace(/[^#/]*$/, '')
+    if (!ns || ns === iri || builtIn.has(ns) || !/[#/]$/.test(ns) || !isAbsoluteIri(ns)) return {}
+    if (!namespaces.has(ns)) namespaces.set(ns, prefixFor.get(ns) ?? suggestPrefix(ns, [...namespaces.values(), ...prefixFor.values()]))
+    return { namespace: ns }
+  }
+
+  // An entity's `iri` field: left out when the label already gives that IRI, a local name inside its namespace, else the full IRI.
   const iriField = (entity: string, derivedLocal: string) => {
-    if (entity === iri + derivedLocal) return {}
-    return { iri: entity.startsWith(iri) && entity.length > iri.length ? entity.slice(iri.length) : entity }
+    const field = namespaceField(entity)
+    const ns = field.namespace ?? iri
+    if (entity === ns + derivedLocal) return field
+    return { ...field, iri: entity.startsWith(ns) && entity.length > ns.length ? entity.slice(ns.length) : entity }
   }
   const labelOf = (s: string) => {
     const labels = objects(s, LABEL).filter((o) => o.termType === 'Literal')
@@ -408,6 +424,7 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
 
   return {
     iri,
+    namespaces: [...namespaces].map(([ns, prefix]) => ({ prefix, iri: ns })),
     nodes,
     edges,
     ...(layout && { layout }),

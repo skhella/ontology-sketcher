@@ -62,4 +62,9 @@ describe('toCypherScript', () => {
     expect(argumentOf(script, 'n10s.validation.shacl.import.inline')).toBe(shapes)
     expect(script.indexOf('onto.import')).toBeLessThan(script.indexOf('shacl.import'))
   })
+
+  it('adds a prefix for each of the project\'s other namespaces', () => {
+    const script = toCypherScript({ iri: 'http://example.org/pizza#', ontology: '', shapes: null, namespaces: [{ prefix: 'rdl', iri: 'http://example.org/rdl/' }] })
+    expect(script).toContain("CALL n10s.nsprefixes.add('rdl', 'http://example.org/rdl/');")
+  })
 })

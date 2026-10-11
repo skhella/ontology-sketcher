@@ -1,5 +1,6 @@
 import { DataFactory, Writer, type NamedNode, type Quad_Object } from 'n3'
 import { localName, propertyLocalName, type Ontology, type PropertyConstraint } from './model'
+import { namespacePrefixes } from './namespaces'
 import { entityIri } from './owl'
 import { parseTurtle } from './turtle'
 import { OWL, RDF, RDFS, XSD } from './vocab'
@@ -38,7 +39,7 @@ export function toShaclTurtle(ontology: Ontology): Promise<string> {
   const base = ontology.iri
   const ontologyIri = base.replace(/[#/]$/, '')
   const shapes = shapesIri(base)
-  const writer = new Writer({ prefixes: { '': base, shape: shapes + '#', sh: SH, owl: OWL, rdf: RDF, xsd: XSD } })
+  const writer = new Writer({ prefixes: { '': base, ...namespacePrefixes(ontology.namespaces, base), shape: shapes + '#', sh: SH, owl: OWL, rdf: RDF, xsd: XSD } })
   const type = namedNode(RDF + 'type')
   const sh = (name: string) => namedNode(SH + name)
   const count = (n: number) => literal(String(Math.max(0, Math.floor(n))), namedNode(XSD + 'integer'))
