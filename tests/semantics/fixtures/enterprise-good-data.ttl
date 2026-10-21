@@ -1,0 +1,12 @@
+# The same enterprise with parts the sketch allows: SHACL must accept it.
+@prefix : <https://w3id.org/plant-example#> .
+
+:acme a :Enterprise ;
+    :legalName "Acme Plants" ;
+    :hasPart :berlin , :maintenance .
+:berlin a :Site .
+:maintenance a :OrganizationalUnit .
+:pump1 a :Equipment ;
+    :hasPart :impeller ;
+    :locatedAt :berlin .
+:impeller a :Component .

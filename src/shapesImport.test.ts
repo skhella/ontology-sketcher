@@ -39,7 +39,7 @@ describe('importShapes', () => {
 
     expect([...result.classes.keys()]).toEqual(['pizza'])
     expect(result.classes.get('pizza')).toEqual({ constraints, closed: true })
-    expect(describeShapesImport(result)).toBe('Imported 3 constraints on 1 class.')
+    expect(describeShapesImport(result)).toBe('Imported 3 constraints on 1 class. Left out 3 rules the arrows and data properties on the canvas already give.')
   })
 
   it('keeps what rows cannot hold as Turtle, exports it unchanged and still checks it', async () => {

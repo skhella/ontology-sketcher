@@ -1,0 +1,51 @@
+@prefix : <https://w3id.org/plant-example#>.
+@prefix owl: <http://www.w3.org/2002/07/owl#>.
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.
+
+<https://w3id.org/plant-example> a owl:Ontology.
+:Enterprise a owl:Class;
+    rdfs:label "Enterprise".
+:OrganizationalUnit a owl:Class;
+    rdfs:label "Organizational Unit".
+:Site a owl:Class;
+    rdfs:label "Site".
+:TechnicalItem a owl:Class;
+    rdfs:label "Technical Item".
+:Equipment a owl:Class;
+    rdfs:label "Equipment".
+:Component a owl:Class;
+    rdfs:label "Component".
+:Equipment rdfs:subClassOf :TechnicalItem.
+:hasPart a owl:ObjectProperty;
+    rdfs:label "has part".
+:locatedAt a owl:ObjectProperty;
+    rdfs:label "located at".
+:hasPart rdfs:domain [
+  a owl:Class;
+  owl:unionOf (:Enterprise :TechnicalItem)
+];
+    rdfs:range [
+  a owl:Class;
+  owl:unionOf (:OrganizationalUnit :Site :Component)
+].
+:locatedAt rdfs:domain :TechnicalItem;
+    rdfs:range :Site.
+:Enterprise rdfs:subClassOf [
+  a owl:Restriction;
+  owl:onProperty :hasPart;
+  owl:allValuesFrom [
+  a owl:Class;
+  owl:unionOf (:OrganizationalUnit :Site)
+]
+].
+:TechnicalItem rdfs:subClassOf [
+  a owl:Restriction;
+  owl:onProperty :hasPart;
+  owl:allValuesFrom :Component
+].
+:legalName a owl:DatatypeProperty;
+    rdfs:label "legal name";
+    rdfs:domain :Enterprise;
+    rdfs:range xsd:string.

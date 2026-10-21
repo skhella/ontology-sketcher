@@ -43,8 +43,11 @@ describe('validateData', () => {
     expect(rows).toEqual([
       ['bare', 'margherita', 'hasTopping', 'needs at least 1 value'],
       ['bare', 'margherita', 'name', 'Give a pizza one name.'],
+      // The arrow and the listed data property are rules too, with the export's messages.
+      ['odd', 'pizza', 'hasTopping', 'Pizza hasTopping: every value must be an instance of Topping.'],
       ['odd', 'pizza', 'hasTopping', 'rock is not a Topping'],
       ['odd', 'pizza', 'name', 'Give a pizza one name.'],
+      ['odd', 'pizza', 'name', 'Pizza name: every value must be xsd:string.'],
     ])
   })
 

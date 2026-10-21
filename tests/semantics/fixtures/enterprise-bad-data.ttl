@@ -1,0 +1,7 @@
+# An enterprise with a technical item as a part: the sketch draws Enterprise --hasPart--> only to
+# Organizational Unit and Site, so SHACL must report this, and a reasoner must not re-type the pump.
+@prefix : <https://w3id.org/plant-example#> .
+
+:acme a :Enterprise ;
+    :hasPart :pump1 .
+:pump1 a :TechnicalItem .

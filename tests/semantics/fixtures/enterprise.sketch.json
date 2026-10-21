@@ -1,0 +1,129 @@
+{
+  "iri": "https://w3id.org/plant-example#",
+  "nodes": [
+    {
+      "id": "enterprise",
+      "type": "owlClass",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Enterprise",
+        "dataProperties": [
+          {
+            "name": "legal name",
+            "datatype": "http://www.w3.org/2001/XMLSchema#string"
+          }
+        ]
+      }
+    },
+    {
+      "id": "unit",
+      "type": "owlClass",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Organizational Unit"
+      }
+    },
+    {
+      "id": "site",
+      "type": "owlClass",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Site"
+      }
+    },
+    {
+      "id": "item",
+      "type": "owlClass",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Technical Item"
+      }
+    },
+    {
+      "id": "equipment",
+      "type": "owlClass",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Equipment"
+      }
+    },
+    {
+      "id": "component",
+      "type": "owlClass",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Component"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "s1",
+      "type": "relation",
+      "source": "equipment",
+      "target": "item",
+      "data": {
+        "kind": "subClassOf",
+        "label": ""
+      }
+    },
+    {
+      "id": "p1",
+      "type": "relation",
+      "source": "enterprise",
+      "target": "unit",
+      "data": {
+        "kind": "objectProperty",
+        "label": "has part"
+      }
+    },
+    {
+      "id": "p2",
+      "type": "relation",
+      "source": "enterprise",
+      "target": "site",
+      "data": {
+        "kind": "objectProperty",
+        "label": "has part"
+      }
+    },
+    {
+      "id": "p3",
+      "type": "relation",
+      "source": "item",
+      "target": "component",
+      "data": {
+        "kind": "objectProperty",
+        "label": "has part"
+      }
+    },
+    {
+      "id": "p4",
+      "type": "relation",
+      "source": "item",
+      "target": "site",
+      "data": {
+        "kind": "objectProperty",
+        "label": "located at"
+      }
+    }
+  ]
+}

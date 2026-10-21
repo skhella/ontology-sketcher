@@ -1,0 +1,36 @@
+@prefix : <https://w3id.org/pizza-example#>.
+@prefix owl: <http://www.w3.org/2002/07/owl#>.
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+
+<https://w3id.org/pizza-example> a owl:Ontology.
+:Food a owl:Class;
+    rdfs:label "Food".
+:Pizza a owl:Class;
+    rdfs:label "Pizza".
+:Topping a owl:Class;
+    rdfs:label "Topping".
+:PizzaBase a owl:Class;
+    rdfs:label "Pizza Base".
+:Margherita a owl:Class;
+    rdfs:label "Margherita".
+:Marinara a owl:Class;
+    rdfs:label "Marinara".
+:TomatoTopping a owl:Class;
+    rdfs:label "Tomato Topping".
+:CheeseTopping a owl:Class;
+    rdfs:label "Cheese Topping".
+:Pizza rdfs:subClassOf :Food.
+:Topping rdfs:subClassOf :Food.
+:hasTopping a owl:ObjectProperty;
+    rdfs:label "has topping".
+:hasBase a owl:ObjectProperty;
+    rdfs:label "has base".
+:Margherita rdfs:subClassOf :Pizza.
+:Marinara rdfs:subClassOf :Pizza.
+:TomatoTopping rdfs:subClassOf :Topping.
+:CheeseTopping rdfs:subClassOf :Topping.
+:hasTopping rdfs:domain :Pizza;
+    rdfs:range :Topping.
+:hasBase rdfs:domain :Pizza;
+    rdfs:range :PizzaBase.
