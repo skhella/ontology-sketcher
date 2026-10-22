@@ -1,6 +1,6 @@
-import type { InternalNode, Position } from '@xyflow/react'
+import type { InternalNode } from '@xyflow/react'
 import type { ClassNode } from './model'
-import { sidePoint } from './sketch/snap'
+import { boxOf, handlePosition, sidePoint, type Anchor } from './sketch/snap'
 import { needsLatinExtended } from './svgExport'
 
 // The browser side of the SVG export: measuring text and embedding the font, which toSvg leaves to its caller.
@@ -37,10 +37,13 @@ export async function excalifontCss(text: string): Promise<string> {
   return '/* Excalifont by Excalidraw, SIL Open Font License 1.1 */' + rules.join('')
 }
 
-/** Where React Flow ends an edge at a dot: the middle of the dot's outer side, as on the canvas. */
-export function handleEndpoint(internal: InternalNode<ClassNode> | undefined, node: ClassNode, side: Position) {
+/**
+ * Where React Flow ends an edge at a dot: the middle of the dot's outer side, as on the canvas.
+ * A corner dot reports itself as a top or bottom dot to React Flow, so its edge ends on that side of the dot.
+ */
+export function handleEndpoint(internal: InternalNode<ClassNode> | undefined, node: ClassNode, side: Anchor) {
   const handle = internal?.internals.handleBounds?.source?.find((h) => h.id === side)
   const at = internal?.internals.positionAbsolute ?? node.position
-  if (!handle) return sidePoint({ id: node.id, x: at.x, y: at.y, width: node.measured?.width ?? 180, height: node.measured?.height ?? 64 }, side)
-  return sidePoint({ id: node.id, x: at.x + handle.x, y: at.y + handle.y, width: handle.width, height: handle.height }, side)
+  if (!handle) return sidePoint(boxOf({ ...node, position: at }), side)
+  return sidePoint({ id: node.id, x: at.x + handle.x, y: at.y + handle.y, width: handle.width, height: handle.height }, handlePosition(side))
 }

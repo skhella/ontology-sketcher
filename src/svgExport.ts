@@ -4,7 +4,7 @@ import { edgeLine, type Point } from './sketch/curve'
 import { breakPoints } from './sketch/label'
 import { constraintOnArrow, multiplicity, nearTarget } from './sketch/multiplicity'
 import { roughEllipse, roughPath, roughRect, seedFor, type SketchPath } from './sketch/rough'
-import { boxOf, sidePoint, type Box } from './sketch/snap'
+import { boxOf, sidePoint, toAnchor, type Anchor, type Box } from './sketch/snap'
 import { dashArray, EDGE_DEFAULTS, nodeStyle, roughNodeOptions } from './sketch/style'
 
 /**
@@ -16,7 +16,7 @@ export type SvgOptions = {
   /** Width of `text` at `fontSize` px in Excalifont, used to wrap class names as the canvas does. */
   measure: (text: string, fontSize: number) => number
   /** Where an edge starts or ends on a node, by the dot's id (its side); defaults to the middle of that side. */
-  endpoint?: (node: ClassNode, side: Position) => Point
+  endpoint?: (node: ClassNode, side: Anchor) => Point
   /** @font-face rules to put in the file. */
   fontCss?: string
   /** Fill the image with the canvas colour; otherwise the background is transparent. */
@@ -66,8 +66,8 @@ export function toSvg(nodes: ClassNode[], edges: RelationEdge[], options: SvgOpt
     const sourceNode = byId.get(edge.source)
     const targetNode = byId.get(edge.target)
     if (!sourceNode || !targetNode) continue
-    const sourceSide = (edge.sourceHandle ?? Position.Top) as Position
-    const targetSide = (edge.targetHandle ?? Position.Bottom) as Position
+    const sourceSide = toAnchor(edge.sourceHandle, Position.Top)
+    const targetSide = toAnchor(edge.targetHandle, Position.Bottom)
     const source = endpoint(sourceNode, sourceSide)
     const target = endpoint(targetNode, targetSide)
     const { d, mid, towards } = edgeLine(source, sourceSide, target, targetSide, edge.data?.bend)

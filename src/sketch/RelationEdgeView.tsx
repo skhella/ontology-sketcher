@@ -4,18 +4,19 @@ import type { ClassNode, RelationEdge } from '../model'
 import { bendThrough, edgeLine } from './curve'
 import { constraintOnArrow, multiplicity, nearTarget } from './multiplicity'
 import { roughPath, seedFor } from './rough'
+import { toAnchor } from './snap'
 import { dashArray, EDGE_DEFAULTS } from './style'
 
 export function RelationEdgeView(props: EdgeProps<RelationEdge>) {
-  const { id, data, markerEnd, selected, source: sourceId, sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition } = props
+  const { id, data, markerEnd, selected, source: sourceId, sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, sourceHandleId, targetHandleId } = props
   const { getEdge, screenToFlowPosition, updateEdgeData } = useReactFlow<ClassNode, RelationEdge>()
   const store = useStoreApi<ClassNode, RelationEdge>()
   const sourceClass = useNodesData<ClassNode>(sourceId)
   const source = { x: sourceX, y: sourceY }
   const target = { x: targetX, y: targetY }
 
-  // Unbent edges keep React Flow's default bezier; dragging the midpoint handle bends them.
-  const { d, mid, towards } = edgeLine(source, sourcePosition, target, targetPosition, data?.bend)
+  // Unbent edges keep React Flow's default bezier (leaving a corner dot diagonally); dragging the midpoint handle bends them.
+  const { d, mid, towards } = edgeLine(source, toAnchor(sourceHandleId, sourcePosition), target, toAnchor(targetHandleId, targetPosition), data?.bend)
 
   // The SHACL counts the source class puts on this property, shown by the arrowhead as in UML.
   const constraint =
