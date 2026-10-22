@@ -24,12 +24,13 @@ import { planImport, saveLayout } from './layout'
 import { describeOwlImport, importOwl } from './owlImport'
 import { describeShapesImport, importShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
-import { exportOwl } from './export'
 import { importedOntologyIri, type ClassNode, type KeptProperty, type Namespace, type NodeKind, type RelationEdge } from './model'
 import { NamespacesContext } from './namespaceContext'
 import { mergeNamespaces, renameNamespace } from './namespaces'
 import { NamespacesMenu } from './NamespacesMenu'
+import { toTurtle } from './owl'
 import { toCypherScript } from './neo4j'
+import { hasConstraints, toShaclTurtle } from './shacl'
 import { defaultEdge, isSkosEdge, NODE_KIND_NAMES, NODE_KIND_STYLES } from './skos'
 import { Inspector } from './inspector/Inspector'
 import { SampleData } from './SampleData'
@@ -87,8 +88,6 @@ export default function App() {
   const [namespaces, setNamespaces] = useState<Namespace[]>(initial.namespaces ?? [])
   // Properties from imported ontologies the canvas doesn't draw; the export writes them back, see KeptProperty.
   const [kept, setKept] = useState<KeptProperty[]>(initial.kept ?? [])
-  // The sketch file last opened or imported, named in the export; until then the project file name.
-  const [sourceFile, setSourceFile] = useState<string | null>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState<ClassNode>(initialCanvas.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<RelationEdge>(
     initialCanvas.edges.map((e) => markerFor(withDefaultHandles(e))),
@@ -191,18 +190,15 @@ export default function App() {
     setEdges((es) => es.map((e) => (e.id === edge.id ? markerFor({ ...e, data: { ...e.data, ...kind } }) : e)))
   }
 
-  // Replaces the canvas with the classes and arrows found in an .excalidraw file, or in an OWL ontology in Turtle
-  // (several Turtle files, such as an exported name.ttl and name-shapes.ttl, are read as one).
+  // Replaces the canvas with the classes and arrows found in an .excalidraw file, or in an OWL ontology in Turtle.
   const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
-    // The ontology first, its -shapes.ttl after it.
-    const files = [...(event.target.files ?? [])].sort((a, b) => Number(/-shapes\.ttl$/i.test(a.name)) - Number(/-shapes\.ttl$/i.test(b.name)))
-    const file = files[0]
+    const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
     try {
       const text = await file.text()
       if (/\.(ttl|nt|owl|rdf)$/i.test(file.name) || !text.trimStart().startsWith('{')) {
-        const result = importOwl([text, ...(await Promise.all(files.slice(1).map((f) => f.text())))])
+        const result = importOwl(text)
         if (nodes.length > 0 && !window.confirm(`Replace this page with ${file.name}? Classes already on it keep their place.`)) return
         // The first planned page replaces this one; a saved layout or a large ontology adds more.
         const { pages } = planImport(result, { iri, workspace: saved(), pageId })
@@ -213,7 +209,6 @@ export default function App() {
           ws = saveCanvas({ ...ws, pages: [...ws.pages, { id, name: page.name ?? `Page ${ws.pages.length + 1}`, nodes: [], edges: [] }] }, id, page.nodes, page.edges)
         }
         setIri(result.iri)
-        setSourceFile(file.name)
         setNamespaces((current) => mergeNamespaces(current, result.namespaces))
         setKept((current) => [...current.filter((p) => !result.kept.some((k) => k.iri === p.iri)), ...result.kept])
         show(ws, pageId, true)
@@ -226,7 +221,6 @@ export default function App() {
         setNodes(result.nodes)
         setEdges(result.edges.map((e) => markerFor(withDefaultHandles(e))))
         setIri((current) => importedOntologyIri(current, file.name))
-        setSourceFile(file.name)
         setNotice(describeImport(result.summary))
       }
       requestAnimationFrame(() => flow?.fitView({ padding: 0.2 }))
@@ -364,25 +358,17 @@ export default function App() {
     setExportPages(null)
     setSvgLook(null)
     const ws = saved()
-    const ontology = { ...mergePages(ws, pageIds, iri.trim()), namespaces, kept }
+    const ontology = { ...mergePages(ws, pageIds, iri), namespaces, kept }
     // The OWL file carries the pages' layout so importing it draws them again; Neo4j gets plain OWL.
-    let files
-    try {
-      files = await exportOwl(ontology, sourceFile ?? projectFileName(iri), { layout: format === 'owl' ? saveLayout(ws, pageIds, iri.trim()) : undefined })
-    } catch (error) {
-      // Nothing is exported without a base IRI the user set.
-      setExported(null)
-      setNotice(`Nothing exported: ${(error as Error).message}`)
-      return
-    }
-    const { ontology: owl, shapes } = files
+    const turtle = await toTurtle(ontology, format === 'owl' ? saveLayout(ws, pageIds, iri) : undefined)
+    const shapes = hasConstraints(ontology) ? await toShaclTurtle(ontology) : null
     setShownFile(0)
     setExported(
       format === 'cypher'
-        ? [{ name: 'ontology.cypher', label: 'ontology.cypher (Neo4j)', type: 'text/plain', text: toCypherScript({ iri: ontology.iri, ontology: owl.text, shapes: shapes?.text ?? null, namespaces }) }]
+        ? [{ name: 'ontology.cypher', label: 'ontology.cypher (Neo4j)', type: 'text/plain', text: toCypherScript({ iri: ontology.iri, ontology: turtle, shapes, namespaces }) }]
         : [
-            { name: owl.name, label: `${owl.name} (OWL)`, type: 'text/turtle', text: owl.text },
-            ...(shapes ? [{ name: shapes.name, label: `${shapes.name} (SHACL)`, type: 'text/turtle', text: shapes.text }] : []),
+            { name: 'ontology.ttl', label: 'ontology.ttl (OWL)', type: 'text/turtle', text: turtle },
+            ...(shapes ? [{ name: 'shapes.ttl', label: 'shapes.ttl (SHACL)', type: 'text/turtle', text: shapes }] : []),
           ],
     )
   }
@@ -458,7 +444,6 @@ export default function App() {
     setSampleOpen(false)
     setProblemClasses([])
     setIri(next.iri)
-    setSourceFile(null)
     setNamespaces(next.namespaces ?? [])
     setKept(next.kept ?? [])
     show(next.workspace, next.pageId, true)
@@ -480,7 +465,6 @@ export default function App() {
       const next = projectFromJson(await file.text())
       if (hasClasses() && !window.confirm(`Open ${file.name}? ${replaceWarning}`)) return
       loadProject(next)
-      setSourceFile(file.name)
       setNotice(`Opened ${file.name}.`)
     } catch (error) {
       setNotice(`Could not open ${file.name}: ${(error as Error).message}.`)
@@ -512,13 +496,7 @@ export default function App() {
         <input ref={projectInput} type="file" accept=".json,application/json" hidden onChange={openProject} />
         <label>
           Ontology IRI{' '}
-          <input
-            value={iri}
-            onChange={(e) => setIri(e.target.value)}
-            size={32}
-            placeholder="https://w3id.org/my-ontology#"
-            title="Base IRI of the whole ontology, used by the export (which stops while it is empty or an example.org placeholder); a selected class or edge shows its own IRI in the inspector"
-          />
+          <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />
         </label>
         <NamespacesMenu namespaces={namespaces} onChange={changeNamespaces} />
         <button onClick={() => addNode()}>+ Class</button>
@@ -531,7 +509,7 @@ export default function App() {
         <details className="menu" onClick={closeMenu}>
           <summary>Import</summary>
           <div className="menu-items">
-            <button onClick={() => fileInput.current?.click()} title="Load the classes and properties of an ontology in Turtle (.ttl) onto this page; pick its -shapes.ttl too to get the arrows of a file exported here">
+            <button onClick={() => fileInput.current?.click()} title="Load the classes and properties of an ontology in Turtle (.ttl) onto this page">
               Ontology (Turtle)
             </button>
             <button onClick={() => drawingInput.current?.click()} title="Replace this page with the labelled shapes and arrows of an .excalidraw drawing">
@@ -542,7 +520,7 @@ export default function App() {
             </button>
           </div>
         </details>
-        <input ref={fileInput} type="file" accept=".ttl,.nt,.owl,text/turtle" multiple hidden onChange={importFile} />
+        <input ref={fileInput} type="file" accept=".ttl,.nt,.owl,text/turtle" hidden onChange={importFile} />
         <input ref={drawingInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
         <input ref={shapesInput} type="file" accept=".ttl,text/turtle" hidden onChange={importShapesFile} />
         {placeable.length > 0 && (
@@ -558,7 +536,7 @@ export default function App() {
         <details className="menu" onClick={closeMenu}>
           <summary>Export</summary>
           <div className="menu-items">
-            <button onClick={() => startExport('owl')} title="The ontology (name.ttl) and the rules for instance data drawn as arrows, datatypes and constraints (name-shapes.ttl)">
+            <button onClick={() => startExport('owl')} title="ontology.ttl, plus shapes.ttl when classes have SHACL constraints">
               OWL and SHACL (Turtle)
             </button>
             <button onClick={() => startExport('cypher')} title="A Cypher script that loads the ontology (and shapes) into Neo4j with the neosemantics (n10s) plugin">

@@ -33,7 +33,7 @@ add axioms and data constraints, check a few example instances, and hand the res
 
 | Sketch | Model | Validate | Ship |
 | --- | --- | --- | --- |
-| Draw classes and arrows on a hand-drawn canvas, or import a Turtle ontology or an `.excalidraw` file. | Annotations, class axioms and property characteristics in a Protégé-style inspector. | SHACL constraints per class, checked against sample data right in the app. | `<name>.ttl`, `<name>-shapes.ttl`, a Cypher script for Neo4j and an SVG image. |
+| Draw classes and arrows on a hand-drawn canvas, or import a Turtle ontology or an `.excalidraw` file. | Annotations, class axioms and property characteristics in a Protégé-style inspector. | SHACL constraints per class, checked against sample data right in the app. | `ontology.ttl`, `shapes.ttl`, a Cypher script for Neo4j and an SVG image. |
 
 ## Features
 
@@ -53,8 +53,7 @@ add axioms and data constraints, check a few example instances, and hand the res
   Classes, the subclass hierarchy, object and data properties, class axioms, annotations and SKOS concepts come
   back onto the canvas with an automatic layout, superclasses above subclasses. Classes already on the page keep
   their place, so re-importing an edited file only adds what is new. A file exported here brings back its pages,
-  positions and colours; pick its `-shapes.ttl` too, since that is where its arrows and data property datatypes are.
-  A large ontology (over 60 classes) opens as an overview page plus a page per branch.
+  positions and colours. A large ontology (over 60 classes) opens as an overview page plus a page per branch.
 - **Import an .excalidraw drawing**: labelled shapes become classes in the same place, and arrows between them become
   `rdfs:subClassOf` (unlabelled, or labelled "SCO" / "subClassOf") or an object property named after the label.
   Colours, fill, stroke, sloppiness, ovals and curved arrows carry over.
@@ -83,7 +82,7 @@ add axioms and data constraints, check a few example instances, and hand the res
 </table>
 
 - Each class gets a Constraints section: per property, how many values its instances need and of which class or
-  datatype, with an optional message. They export as a separate `<name>-shapes.ttl` with one `sh:NodeShape` per class.
+  datatype, with an optional message. They export as a separate `shapes.ttl` with one `sh:NodeShape` per class.
 - **Suggest from ontology** fills in constraints from what the drawing already says: arrow targets, `some`,
   `only`, `min`, `max` and `exactly` restrictions, functional properties and data property datatypes.
 - **Import > SHACL shapes (Turtle)** reads an existing shapes file into the constraints of the classes on the page.
@@ -103,18 +102,13 @@ add axioms and data constraints, check a few example instances, and hand the res
 
 ### Export that other tools accept
 
-- **Export > OWL and SHACL (Turtle)** writes two files named after the sketch: `<name>.ttl`, the ontology, and
-  `<name>-shapes.ttl`, the SHACL shapes. Both use the **Ontology IRI** from the toolbar as their base; the export
-  stops with a message while it is empty or still an `example.org` placeholder. The ontology header carries
-  `owl:versionInfo` (the export time) and an `rdfs:comment` naming the sketch file.
-- The ontology is an inference-safe TBox: classes, `rdfs:subClassOf` between them, property declarations, labels,
-  annotations and axioms between named classes, with no `owl:Restriction`, `rdfs:domain`, `rdfs:range` or
-  `owl:unionOf`. Under OWL's open world those would give instance data new types instead of checking it. What the
-  drawing says about instance data goes in the shapes instead: an arrow `A --p--> B` becomes `sh:class :B` on
-  `A`'s shape (`sh:or` when `p` goes from `A` to several classes), a data property its `sh:datatype`, and
-  restriction axioms their SHACL counterparts. Arrows carry no counts, so none are added. SKOS concepts and
-  schemes go in the ontology file, with the SKOS vocabulary declared so it stays in OWL 2 DL. The pages' layout
-  travels along as one annotation on the ontology, which other tools ignore.
+- **Export > OWL and SHACL (Turtle)** writes the ontology as Turtle (`ontology.ttl`), and the SHACL shapes as `shapes.ttl` when any class
+  has constraints. The OWL output has been checked with [ROBOT](https://robot.obolibrary.org) and the HermiT
+  reasoner: it stays inside OWL 2 DL. SKOS concepts and schemes go in the same file, with the SKOS vocabulary
+  declared so it stays in OWL 2 DL too. The pages' layout travels along as one annotation on the ontology, which
+  other tools ignore.
+- Properties drawn between several class pairs get a union domain and range, so reusing a property doesn't make
+  the reasoner draw conclusions you never drew.
 - `npm run test:semantics` checks the export with rdflib, pyshacl and the owlrl reasoner (see `tests/semantics`).
 - **Export > Neo4j script (Cypher)** previews and downloads `ontology.cypher`, a script that loads the ontology and the
   shapes into Neo4j through [neosemantics (n10s)](https://neo4j.com/labs/neosemantics/). Run it in Neo4j Browser
@@ -126,7 +120,7 @@ add axioms and data constraints, check a few example instances, and hand the res
 ![The Cypher (Neo4j) export preview next to the pizza drawing: a commented Cypher script that sets up n10s, adds a pizza prefix and imports the ontology inline](docs/screenshot-neo4j.png)
 
 <details>
-<summary>The SHACL shapes exported from the drawing above (<code>pizza-shapes.ttl</code>, excerpt)</summary>
+<summary>The SHACL shapes exported from the drawing above (<code>shapes.ttl</code>, excerpt)</summary>
 
 ```turtle
 @prefix : <http://example.org/pizza#>.

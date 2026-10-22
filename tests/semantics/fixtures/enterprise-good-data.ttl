@@ -1,4 +1,4 @@
-# The same enterprise with parts the sketch allows: SHACL must accept it.
+# The same enterprise with a legal name and parts the sketch draws: the shapes accept it.
 @prefix : <https://w3id.org/plant-example#> .
 
 :acme a :Enterprise ;
