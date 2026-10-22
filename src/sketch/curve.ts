@@ -1,13 +1,18 @@
 import { getBezierPath, Position } from '@xyflow/react'
+import { isCorner, type Anchor } from './snap'
 
 export type Point = { x: number; y: number }
 
-// Which way a default bezier leaves its target handle.
-const OUTWARD: Record<Position, Point> = {
+// Which way a default bezier leaves each dot.
+const OUTWARD: Record<Anchor, Point> = {
   [Position.Top]: { x: 0, y: -1 },
   [Position.Bottom]: { x: 0, y: 1 },
   [Position.Left]: { x: -1, y: 0 },
   [Position.Right]: { x: 1, y: 0 },
+  'top-right': { x: Math.SQRT1_2, y: -Math.SQRT1_2 },
+  'bottom-right': { x: Math.SQRT1_2, y: Math.SQRT1_2 },
+  'bottom-left': { x: -Math.SQRT1_2, y: Math.SQRT1_2 },
+  'top-left': { x: -Math.SQRT1_2, y: -Math.SQRT1_2 },
 }
 
 /**
@@ -16,17 +21,41 @@ const OUTWARD: Record<Position, Point> = {
  */
 export function edgeLine(
   source: Point,
-  sourcePosition: Position,
+  sourcePosition: Anchor,
   target: Point,
-  targetPosition: Position,
+  targetPosition: Anchor,
   bend: Point | undefined,
 ): { d: string; mid: Point; towards: Point } {
   if (bend) {
     const bent = bentPath(source, target, bend)
     return { d: bent.d, mid: bent.through, towards: bent.control }
   }
+  const towards = { x: target.x + OUTWARD[targetPosition].x, y: target.y + OUTWARD[targetPosition].y }
+  if (isCorner(sourcePosition) || isCorner(targetPosition)) {
+    const curve = diagonalBezier(source, OUTWARD[sourcePosition], target, OUTWARD[targetPosition])
+    return { ...curve, towards }
+  }
   const [d, x, y] = getBezierPath({ sourceX: source.x, sourceY: source.y, sourcePosition, targetX: target.x, targetY: target.y, targetPosition })
-  return { d, mid: { x, y }, towards: { x: target.x + OUTWARD[targetPosition].x, y: target.y + OUTWARD[targetPosition].y } }
+  return { d, mid: { x, y }, towards }
+}
+
+const round = (n: number) => Math.round(n * 100) / 100
+
+/**
+ * React Flow's default bezier, generalised to any outward direction so a corner dot's edge leaves diagonally.
+ * Each control point sits along its dot's direction, half the distance to the other end, or a short loop back when the other end is behind it.
+ */
+export function diagonalBezier(source: Point, sourceOut: Point, target: Point, targetOut: Point): { d: string; mid: Point } {
+  const offset = (from: Point, out: Point, to: Point) => {
+    const ahead = (to.x - from.x) * out.x + (to.y - from.y) * out.y
+    const reach = ahead >= 0 ? 0.5 * ahead : 0.25 * 25 * Math.sqrt(-ahead)
+    return { x: round(from.x + out.x * reach), y: round(from.y + out.y * reach) }
+  }
+  const c1 = offset(source, sourceOut, target)
+  const c2 = offset(target, targetOut, source)
+  // A cubic at t = 0.5 is (p0 + 3 c1 + 3 c2 + p3) / 8.
+  const mid = { x: (source.x + 3 * c1.x + 3 * c2.x + target.x) / 8, y: (source.y + 3 * c1.y + 3 * c2.y + target.y) / 8 }
+  return { d: `M${source.x},${source.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${target.x},${target.y}`, mid }
 }
 
 /**
