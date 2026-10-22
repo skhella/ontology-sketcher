@@ -152,6 +152,21 @@ describe('layout', () => {
     expect(edges.find((e) => e.id === 'e1')).toMatchObject({ sourceHandle: 'top', targetHandle: 'bottom' })
   })
 
+  it('lays out several arrows between the same two classes', () => {
+    // dagre used to fail on this ("Not possible to find intersection inside of the rectangle").
+    const nodes: ClassNode[] = ['Pizza', 'Topping', 'Base'].map((label, i) => ({ id: `c${i}`, type: 'owlClass', position: { x: 0, y: 0 }, data: { label } }))
+    const edges: RelationEdge[] = ['has topping', 'has spicy topping', 'has main topping'].map((label, i) => ({
+      id: `p${i}`,
+      type: 'relation',
+      source: 'c1',
+      target: 'c2',
+      data: { kind: 'objectProperty', label },
+    }))
+    const laid = layoutOntology(nodes, edges)
+    expect(laid.edges.map((e) => e.id)).toEqual(['p0', 'p1', 'p2'])
+    expect(laid.nodes.find((n) => n.id === 'c1')!.position.y).toBeLessThan(laid.nodes.find((n) => n.id === 'c2')!.position.y)
+  })
+
   it('keeps classes already on the page where they are, with their ids and look', async () => {
     const nodes = sampleOntology.nodes.map((n) => (n.id === 'pizza' ? { ...n, data: { ...n.data, style: { fill: '#ffec99' } } } : n))
     const { workspace, pageId } = workspaceFrom('Page 1', nodes, sampleOntology.edges)
