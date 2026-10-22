@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ClassNode, RelationEdge } from './model'
-import { arrowhead, needsLatinExtended, toSvg, wrap } from './svgExport'
+import { Position } from '@xyflow/react'
+import { arrowhead, dotEndpoint, needsLatinExtended, sized, toSvg, wrap } from './svgExport'
 
 // Every character half the font size wide.
 const measure = (text: string, fontSize: number) => (text.length * fontSize) / 2
@@ -92,5 +93,25 @@ describe('needsLatinExtended', () => {
   it('spots letters beyond Latin-1', () => {
     expect(needsLatinExtended('Café')).toBe(false)
     expect(needsLatinExtended('Łódź')).toBe(true)
+  })
+})
+
+describe('pages not on screen', () => {
+  const unmeasured = (label: string, data: Partial<ClassNode['data']> = {}): ClassNode => ({ id: label, type: 'owlClass', position: { x: 0, y: 0 }, data: { label, ...data } })
+
+  it('keeps a measured size and estimates a missing one from the wrapped label', () => {
+    const measured = node('a', 'A', 0, 0)
+    expect(sized(measured, measure)).toBe(measured)
+    expect(sized(unmeasured('Pump'), measure).measured).toEqual({ width: 180, height: 64 })
+    // 10px a character: 'Measurement' and 'Device' on two lines, 'Instrumentation' on a third.
+    expect(sized(unmeasured('MeasurementDevice Instrumentation'), measure).measured).toEqual({ width: 180, height: 84 })
+    expect(sized(unmeasured('Pump', { style: { shape: 'oval' } }), measure).measured).toEqual({ width: 180, height: 64 })
+  })
+
+  it('ends edges on the outer side of the dot, as the canvas does', () => {
+    expect(dotEndpoint(node('a', 'A', 0, 0), Position.Top)).toEqual({ x: 90, y: -4 })
+    expect(dotEndpoint(node('a', 'A', 0, 0), Position.Right)).toEqual({ x: 184, y: 32 })
+    // A corner dot ends its edge on the dot's top or bottom side, as React Flow does.
+    expect(dotEndpoint(node('a', 'A', 0, 0), 'bottom-left')).toEqual({ x: 0, y: 68 })
   })
 })
