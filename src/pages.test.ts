@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { sampleOntology, type ClassNode, type RelationEdge } from './model'
 import { toTurtle } from './owl'
-import { classesNotOn, loadCanvas, mergePages, placeClass, saveCanvas, workspaceFrom, type Workspace } from './pages'
+import { addDetailPage, classesNotOn, detailPageOf, linkPage, loadCanvas, mergePages, placeClass, saveCanvas, workspaceFrom, type Workspace } from './pages'
 
 const cls = (id: string, label: string, x = 0): ClassNode => ({ id, type: 'owlClass', position: { x, y: 0 }, data: { label } })
 const sco = (id: string, source: string, target: string): RelationEdge => ({
@@ -94,5 +94,21 @@ describe('pages', () => {
   it('exports a single page the same as the canvas it came from', async () => {
     const { workspace, pageId } = workspaceFrom('P', sampleOntology.nodes, sampleOntology.edges)
     expect(await toTurtle(mergePages(workspace, [pageId], sampleOntology.iri))).toBe(await toTurtle(sampleOntology))
+  })
+
+  it('adds a detail page named after a class, linked to it and showing it', () => {
+    const { ws } = twoPages()
+    const withDetail = addDetailPage(ws, 'equipment', 'detail')
+    const page = withDetail.pages.find((p) => p.id === 'detail')!
+    expect(page).toMatchObject({ name: 'Equipment', classId: 'equipment' })
+    expect(page.nodes.map((n) => n.id)).toEqual(['equipment'])
+    expect(detailPageOf(withDetail, 'equipment')?.id).toBe('detail')
+  })
+
+  it('gives a class one detail page, and unlinks it', () => {
+    const { ws, meta, domain } = twoPages()
+    const linked = linkPage(linkPage(ws, meta, 'equipment'), domain, 'equipment')
+    expect(linked.pages.map((p) => p.classId)).toEqual([undefined, 'equipment'])
+    expect(detailPageOf(linkPage(linked, domain, undefined), 'equipment')).toBeUndefined()
   })
 })

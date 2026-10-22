@@ -19,10 +19,12 @@ type Props = {
   selection: (ClassNode | RelationEdge)[]
   onNodeChange: (id: string, patch: Partial<ClassNode['data']>) => void
   onEdgeChange: (id: string, patch: Partial<NonNullable<RelationEdge['data']>>) => void
+  /** The selected class's detail page and the pages showing it, see ClassPages. */
+  classPages?: ReactNode
 }
 
 /** Protégé-style entity panel for the selected class or edge: IRI, label, annotations, class axioms and SHACL constraints. */
-export function Inspector({ base, namespaces, nodes, edges, selection, onNodeChange, onEdgeChange }: Props) {
+export function Inspector({ base, namespaces, nodes, edges, selection, onNodeChange, onEdgeChange, classPages }: Props) {
   if (selection.length !== 1) {
     return (
       <aside className="inspector" aria-label="Inspector">
@@ -81,6 +83,7 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
             />
           </>
         )}
+        {classPages}
       </aside>
     )
   }

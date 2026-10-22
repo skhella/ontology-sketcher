@@ -1093,3 +1093,28 @@ body,
   line-height: 16px;
   pointer-events: none;
 }
+
+/* Opens the class's detail page; sits left of the bottom dot, like the kind tab on the top edge. */
+.class-node .page-link {
+  position: absolute;
+  bottom: -9px;
+  left: 12px;
+  padding: 0 6px;
+  border: 1px solid;
+  border-radius: 8px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.pages .page.linked > button:first-child {
+  text-decoration: underline dotted;
+}
+
+.class-pages .page-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}

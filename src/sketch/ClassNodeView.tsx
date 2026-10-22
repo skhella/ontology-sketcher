@@ -2,6 +2,7 @@ import { Handle, useConnection, useInternalNode, type NodeProps } from '@xyflow/
 import { Fragment, useContext, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { ClassNode } from '../model'
 import { NamespacesContext } from '../namespaceContext'
+import { PageLinksContext } from '../pageLinksContext'
 import { prefixOf } from '../namespaces'
 import { breakPoints } from './label'
 import { roughEllipse, roughRect, seedFor } from './rough'
@@ -13,6 +14,8 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
   const { strokeStyle, strokeWidth, shape, stroke, fill } = nodeStyle(style)
   const oval = shape === 'oval'
   const prefix = prefixOf(useContext(NamespacesContext), data.namespace)
+  const links = useContext(PageLinksContext)
+  const detail = links.detail.get(id)
 
   // An oval only holds text inside its inscribed rectangle, which is 1/√2 of its height,
   // so it grows taller than the label (the label's side padding covers the width).
@@ -72,6 +75,20 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
         <span className="namespace-badge" style={{ color: stroke, borderColor: stroke }} title={data.namespace}>
           {prefix ?? 'other'}:
         </span>
+      )}
+      {/* A class with a detail page gets a tab on its bottom edge that opens it. */}
+      {detail && (
+        <button
+          className="page-link nodrag"
+          style={{ color: stroke, borderColor: stroke }}
+          title={`Open page "${detail.name}"`}
+          onClick={(event) => {
+            event.stopPropagation()
+            links.open(detail.id)
+          }}
+        >
+          page ↗
+        </button>
       )}
       {/* One dot per side. With ConnectionMode.Loose any dot can start or end an edge; the id is the side. */}
       {SIDES.map((side) => (

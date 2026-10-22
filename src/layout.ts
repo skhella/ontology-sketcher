@@ -174,6 +174,7 @@ export function saveLayout(workspace: Workspace, pageIds: string[], base: string
       const canvas = loadCanvas(workspace, page.id)
       return {
         name: page.name,
+        ...(page.classId && iriOf.has(page.classId) && { class: iriOf.get(page.classId) }),
         nodes: canvas.nodes.map((n) => ({ iri: iriOf.get(n.id)!, x: Math.round(n.position.x), y: Math.round(n.position.y), ...(n.data.style && { style: n.data.style }) })),
         edges: canvas.edges
           .filter((e) => e.data && iriOf.has(e.source) && iriOf.has(e.target))
@@ -193,9 +194,9 @@ export function saveLayout(workspace: Workspace, pageIds: string[], base: string
 }
 
 /** A page an import fills: the first replaces the current page, the rest are added. */
-export type PlannedPage = { name?: string; nodes: ClassNode[]; edges: RelationEdge[] }
+export type PlannedPage = { name?: string; classId?: string; nodes: ClassNode[]; edges: RelationEdge[] }
 
-type Group = { name?: string; ids: string[]; positions: Map<string, { x: number; y: number }>; looks?: Map<string, SavedEdge>; current?: boolean }
+type Group = { name?: string; classId?: string; ids: string[]; positions: Map<string, { x: number; y: number }>; looks?: Map<string, SavedEdge>; current?: boolean }
 
 /**
  * Lays an imported ontology out on pages.
@@ -222,6 +223,7 @@ export function planImport(
   if (imported.layout && imported.layout.pages.length > 0) {
     groups = imported.layout.pages.map((p) => ({
       name: p.name,
+      classId: p.class ? idOf.get(p.class) : undefined,
       ids: p.nodes.map((n) => idOf.get(n.iri)).filter((id): id is string => !!id),
       positions: new Map(p.nodes.filter((n) => idOf.has(n.iri)).map((n) => [idOf.get(n.iri)!, { x: n.x, y: n.y }])),
       looks: new Map(p.edges.map((e) => [edgeKey(e.source, e.kind, e.label, e.target), e])),
@@ -272,7 +274,7 @@ export function planImport(
           data: { ...e.data!, ...(look.style && { style: look.style }), ...(look.bend && { bend: look.bend }) },
         }
       })
-    return { ...(g.name && { name: g.name }), ...layoutOntology(groupNodes, groupEdges, g.positions) }
+    return { ...(g.name && { name: g.name }), ...(g.classId && { classId: g.classId }), ...layoutOntology(groupNodes, groupEdges, g.positions) }
   })
   return { pages, kept }
 }

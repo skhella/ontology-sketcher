@@ -1,7 +1,7 @@
 import { Parser, type Quad, type Term } from 'n3'
 import { describe, expect, it } from 'vitest'
 import { layoutOntology, planImport, saveLayout } from './layout'
-import { loadCanvas, saveCanvas, workspaceFrom } from './pages'
+import { linkPage, loadCanvas, saveCanvas, workspaceFrom } from './pages'
 import { sampleOntology, type ClassNode, type Ontology, type RelationEdge } from './model'
 import { toTurtle } from './owl'
 import { describeOwlImport, importOwl } from './owlImport'
@@ -205,6 +205,15 @@ describe('layout saved in the export', () => {
     }
     const property = pages[0].edges[0]
     expect(property).toMatchObject({ sourceHandle: 'right', targetHandle: 'left', data: { label: 'has topping', bend: { x: 0, y: -40 } } })
+  })
+
+  it('brings back which class a page is the detail page of', async () => {
+    const linked = linkPage(workspace, secondId, 'topping')
+    const turtle = await toTurtle({ iri: P, nodes: styled, edges: curved }, saveLayout(linked, pageIds, P))
+    const fresh = workspaceFrom('Page 1', [], [])
+    const { pages } = planImport(importOwl(turtle), { iri: P, workspace: fresh.workspace, pageId: fresh.pageId })
+    expect(pages[0].classId).toBeUndefined()
+    expect(pages[1].nodes.find((n) => n.id === pages[1].classId)?.data.label).toBe('Topping')
   })
 
   it('places classes the layout does not know on its first page', async () => {
