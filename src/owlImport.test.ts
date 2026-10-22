@@ -318,13 +318,20 @@ describe('importOwl keeps what the canvas does not draw', () => {
     ])
   })
 
-  it('keeps properties it cannot draw as arrows, and says so', () => {
-    const { kept, summary } = importOwl(source)
-    expect(kept.map((p) => p.iri.replace(EX, ''))).toEqual(['status', 'runsOn', 'dependsOn', 'blockedBy', 'ordinal'])
-    expect(kept.find((p) => p.iri === EX + 'runsOn')!.ranges).toEqual(['http://example.org/other#Machine', 'http://example.org/other#Robot'])
+  it('draws arrows to outside classes, and keeps the properties it still cannot draw', () => {
+    const { nodes, edges, kept, summary } = importOwl(source)
+    // A range in another ontology, or skos:Concept, gets a dashed box with no label of its own.
+    const outside = nodes.filter((n) => n.data.outside)
+    expect(outside.map((n) => n.data.label)).toEqual(['skos:Concept', 'Machine', 'Robot'])
+    expect(outside.find((n) => n.data.label === 'Machine')!.data).toMatchObject({ namespace: 'http://example.org/other#', style: { strokeStyle: 'dashed' } })
+    const label = (id: string) => nodes.find((n) => n.id === id)!.data.label
+    const arrows = edges.filter((e) => e.data?.kind === 'objectProperty').map((e) => `${label(e.source)} ${e.data!.label} ${label(e.target)}`)
+    expect(arrows).toEqual(['Task status skos:Concept', 'Task runsOn Machine', 'Task runsOn Robot'])
+
+    expect(kept.map((p) => p.iri.replace(EX, ''))).toEqual(['dependsOn', 'blockedBy', 'ordinal'])
     expect(kept.find((p) => p.iri === EX + 'ordinal')).toMatchObject({ kind: 'data', ranges: [XSD + 'integer'], characteristics: ['functional'] })
     expect(summary.skipped).toEqual([
-      '4 object properties that cannot be drawn as arrows (kept for the export)',
+      '2 object properties that cannot be drawn as arrows (kept for the export)',
       '1 data properties without a domain class (kept for the export)',
     ])
   })

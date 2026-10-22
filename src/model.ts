@@ -113,6 +113,12 @@ export type ClassData = EntityData & {
   inScheme?: string[]
   mappings?: Mapping[]
   values?: PropertyValue[]
+  /**
+   * A class the imported file only refers to, e.g. the range of a property in another ontology: drawn dashed so
+   * arrows to it can be shown. Its label is just a name for the canvas; the export declares it and writes its
+   * annotations (labels from the file included), never a label of its own.
+   */
+  outside?: boolean
   axioms?: ClassAxiom[]
   dataProperties?: DataProperty[]
   constraints?: PropertyConstraint[]

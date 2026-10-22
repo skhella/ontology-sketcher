@@ -68,6 +68,12 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
           {data.kind}
         </span>
       )}
+      {/* A class from another ontology, shown so arrows to it can be drawn; see ClassData.outside. */}
+      {data.outside && (
+        <span className="kind-badge" style={{ color: stroke, borderColor: stroke }} title="Declared in another ontology; the export writes no label for it">
+          outside
+        </span>
+      )}
       {data.namespace && (
         <span className="namespace-badge" style={{ color: stroke, borderColor: stroke }} title={data.namespace}>
           {prefix ?? 'other'}:

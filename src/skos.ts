@@ -156,8 +156,10 @@ export function skosQuads(
     ...(relations.get(n.id) ?? []),
   ])
 
-  declarations.push(quad(namedNode(SKOS + 'Concept'), type, namedNode(OWL + 'Class')))
-  if (members.some((n) => n.data.kind === 'scheme')) declarations.push(quad(namedNode(SKOS + 'ConceptScheme'), type, namedNode(OWL + 'Class')))
+  // Declared once, also when a box on the canvas stands for skos:Concept (see ClassData.outside).
+  const drawn = new Set(ontology.nodes.filter((n) => !n.data.kind).map((n) => iriOf(n.data, localName(n.data.label))))
+  if (!drawn.has(SKOS + 'Concept')) declarations.push(quad(namedNode(SKOS + 'Concept'), type, namedNode(OWL + 'Class')))
+  if (members.some((n) => n.data.kind === 'scheme') && !drawn.has(SKOS + 'ConceptScheme')) declarations.push(quad(namedNode(SKOS + 'ConceptScheme'), type, namedNode(OWL + 'Class')))
   for (const p of usedProperties) declarations.push(quad(namedNode(p), type, namedNode(OWL + 'ObjectProperty')))
 
   return { quads: [...declarations, ...body], annotationProperties: [SKOS + 'prefLabel'] }

@@ -107,7 +107,8 @@ export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<stri
     const iri = entityIri(base, node.data, localName(node.data.label))
     classIri.set(node.id, iri)
     quads.push(quad(namedNode(iri), type, namedNode(OWL + 'Class')))
-    quads.push(quad(namedNode(iri), label, labelLiteral(node.data.label, node.data)))
+    // An outside class is only declared: its name on the canvas is not a label (see ClassData.outside).
+    if (!node.data.outside) quads.push(quad(namedNode(iri), label, labelLiteral(node.data.label, node.data)))
     annotate(iri, node.data)
   }
 
