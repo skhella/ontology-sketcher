@@ -3,8 +3,10 @@ import {
   Background,
   BackgroundVariant,
   ConnectionMode,
+  ControlButton,
   Controls,
   MarkerType,
+  Panel,
   ReactFlow,
   useEdgesState,
   useNodesState,
@@ -755,27 +757,29 @@ export default function App() {
               minZoom={0.05}
             >
               <Background variant={BackgroundVariant.Dots} gap={20} />
-              <Controls />
+              {/* The select and hand tools sit just above the zoom buttons, in the same size and style. */}
+              <Panel position="bottom-left" className="canvas-corner">
+                <div className="react-flow__controls tools" role="toolbar" aria-label="Canvas tools">
+                  {TOOLS.map((t) => (
+                    <ControlButton
+                      key={t.tool}
+                      className={tool === t.tool ? 'active' : undefined}
+                      aria-pressed={tool === t.tool}
+                      aria-label={t.label}
+                      title={`${t.label} (${t.key.toUpperCase()})`}
+                      onClick={() => setTool(t.tool)}
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d={t.icon} />
+                      </svg>
+                    </ControlButton>
+                  ))}
+                </div>
+                <Controls style={{ position: 'static', margin: 0 }} />
+              </Panel>
             </ReactFlow>
           </PageLinksContext.Provider>
         </NamespacesContext.Provider>
-        <div className="tools" role="toolbar" aria-label="Canvas tools">
-          {TOOLS.map((t) => (
-            <button
-              key={t.tool}
-              className={tool === t.tool ? 'active' : undefined}
-              aria-pressed={tool === t.tool}
-              aria-label={t.label}
-              title={`${t.label} (${t.key.toUpperCase()})`}
-              onClick={() => setTool(t.tool)}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d={t.icon} />
-              </svg>
-              <span className="key">{t.key.toUpperCase()}</span>
-            </button>
-          ))}
-        </div>
         {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
           <StylePanel
             current={selectedNodes.length > 0 ? (selectedNodes[0].data.style ?? {}) : edgeStyle(selectedEdges[0])}
