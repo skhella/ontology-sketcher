@@ -44,16 +44,21 @@ export function layoutOntology(nodes: ClassNode[], edges: RelationEdge[], keep =
     g.setEdge(parent, `block:${parent}`, { weight: 4, minlen: 1 }, `block:${parent}`)
   }
   const inHierarchy = new Set(edges.filter((e) => HIERARCHY.has(e.data?.kind ?? '')).flatMap((e) => [e.source, e.target]))
+  // Arrows between the same two classes rank them once: dagre can fail to route parallel edges
+  // ("Not possible to find intersection inside of the rectangle"), and the canvas routes them itself.
+  const link = (source: string, target: string, weight: number) => {
+    if ((g.edge(source, target, 'link')?.weight ?? 0) < weight) g.setEdge(source, target, { weight, minlen: 1 }, 'link')
+  }
   for (const e of edges) {
     if (blockOf.has(e.source) && parentOf(e)?.[1] === e.source) continue // drawn by the block's own edge
     const kind = e.data?.kind
     const [source, target] = [at(e.source), at(e.target)]
     if (source === target) continue
     // The general end goes on top: dagre ranks an edge's source above its target.
-    if (kind === 'subClassOf' || kind === 'broader' || kind === 'topConceptOf') g.setEdge(target, source, { weight: 4, minlen: 1 }, e.id)
-    else if (kind === 'narrower') g.setEdge(source, target, { weight: 4, minlen: 1 }, e.id)
+    if (kind === 'subClassOf' || kind === 'broader' || kind === 'topConceptOf') link(target, source, 4)
+    else if (kind === 'narrower') link(source, target, 4)
     // Other arrows only rank a class that sits in no hierarchy, so properties between trees don't bend them.
-    else if (!inHierarchy.has(e.source) || !inHierarchy.has(e.target)) g.setEdge(source, target, { weight: 1, minlen: 1 }, e.id)
+    else if (!inHierarchy.has(e.source) || !inHierarchy.has(e.target)) link(source, target, 1)
   }
   dagre.layout(g)
 

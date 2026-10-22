@@ -20,7 +20,7 @@ import {
 import { LAYOUT_PROPERTY, parseLayout, type SavedLayout } from './savedLayout'
 import { conceptSchemes, MAPPING_KINDS, NODE_KIND_STYLES } from './skos'
 import { suggestPrefix } from './namespaces'
-import { ANNOTATION_PROPERTIES, BUILT_IN_ANNOTATION_PROPERTIES, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS, SKOS, SKOS_ANNOTATION_PROPERTIES, XSD } from './vocab'
+import { ANNOTATION_PROPERTIES, BUILT_IN_ANNOTATION_PROPERTIES, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS, shortName, SKOS, SKOS_ANNOTATION_PROPERTIES, XSD } from './vocab'
 
 /**
  * Reads an OWL 2 ontology in Turtle (or N-Triples) back into canvas nodes and edges: the reverse of owl.ts and skos.ts.
@@ -85,6 +85,12 @@ const AXIOM_KINDS = [
   [OWL + 'equivalentClass', 'equivalentClass'],
   [OWL + 'disjointWith', 'disjointWith'],
 ] as const
+
+/** How a class the file only refers to looks, see ClassData.outside. */
+const OUTSIDE_STYLE = { stroke: '#868e96', strokeStyle: 'dashed' } as const
+
+/** No predicate: annotationsOf then leaves no label out. */
+const NO_LABEL = ''
 
 const SKOS_EDGES: [string, SkosEdgeKind][] = [
   [SKOS + 'broader', 'broader'],
@@ -185,11 +191,30 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     ...SKOS_ANNOTATION_PROPERTIES,
   ])
 
+  // Members of an owl:unionOf list, or the class itself when named.
+  const unionMembers = (term: Term | undefined): string[] => {
+    if (!term) return []
+    if (term.termType === 'NamedNode') return [term.value]
+    const list = object(term, OWL + 'unionOf')
+    return list ? listItems(list).filter((t) => t.termType === 'NamedNode').map((t) => t.value) : []
+  }
+  const listItems = (head: Term): Term[] => {
+    const items: Term[] = []
+    let node: Term | undefined = head
+    while (node && node.value !== RDF + 'nil' && items.length < 10_000) {
+      const first = object(node, RDF + 'first')
+      if (first) items.push(first)
+      node = object(node, RDF + 'rest')
+    }
+    return items
+  }
+
   // --- Nodes ---------------------------------------------------------------------------------------------
   const concepts = new Set(subjectsOfType(SKOS + 'Concept'))
   const schemes = new Set(subjectsOfType(SKOS + 'ConceptScheme'))
   const skipClasses = new Set([OWL + 'Thing', OWL + 'Nothing', SKOS + 'Concept', SKOS + 'ConceptScheme'])
-  const classIris = [...new Set([...subjectsOfType(OWL + 'Class'), ...subjectsOfType(RDFS + 'Class')])].filter((c) => !skipClasses.has(c))
+  const declaredClasses = new Set([...subjectsOfType(OWL + 'Class'), ...subjectsOfType(RDFS + 'Class')])
+  const classIris = [...declaredClasses].filter((c) => !skipClasses.has(c))
   // Named superclasses that are never declared still get a box, so the hierarchy stays whole.
   for (const q of store.getQuads(null, SUB_CLASS_OF, null, null)) {
     if (q.subject.termType === 'NamedNode' && q.object.termType === 'NamedNode' && !skipClasses.has(q.object.value) && !concepts.has(q.object.value)) {
@@ -208,8 +233,24 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     nodes.push({ id, type: 'owlClass', position: { x: 0, y: 0 }, data })
   }
 
+  // Classes an object property goes from or to, when its other end is drawn, get a box too: an outside one when
+  // the file doesn't declare them, e.g. skos:Concept or a class of another ontology. owl:Thing stays out.
+  for (const p of subjectsOfType(OWL + 'ObjectProperty').filter((p) => !p.startsWith(SKOS))) {
+    const ends = [object(p, RDFS + 'domain'), object(p, RDFS + 'range')].map((t) => unionMembers(t).filter((c) => c !== OWL + 'Thing' && c !== OWL + 'Nothing'))
+    if (ends.some((e) => e.length === 0) || !ends.flat().some((c) => classIris.includes(c))) continue
+    for (const c of ends.flat()) if (!classIris.includes(c) && !concepts.has(c) && !schemes.has(c)) classIris.push(c)
+  }
+
   for (const c of classIris) {
     if (concepts.has(c) || schemes.has(c)) continue
+    // Not declared in the file, or declared without a label in another namespace, as this app exports an outside class.
+    if (!declaredClasses.has(c) || (!labelTerm(c) && !c.startsWith(iri))) {
+      // Named the way the file would write it, e.g. skos:Concept; a namespace with a tag on the box needs only the local name.
+      const local = c.replace(/^.*[#/]/, '') || c
+      const field = iriField(c, localName(local))
+      addNode(c, { label: field.namespace ? local : shortName(c), outside: true, ...field, style: OUTSIDE_STYLE })
+      continue
+    }
     const label = labelOf(c)
     addNode(c, { label, ...labelLangOf(c), ...iriField(c, localName(label)) })
   }
@@ -229,23 +270,6 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     return edge
   }
 
-  // Members of an owl:unionOf list, or the class itself when named.
-  const unionMembers = (term: Term | undefined): string[] => {
-    if (!term) return []
-    if (term.termType === 'NamedNode') return [term.value]
-    const list = object(term, OWL + 'unionOf')
-    return list ? listItems(list).filter((t) => t.termType === 'NamedNode').map((t) => t.value) : []
-  }
-  const listItems = (head: Term): Term[] => {
-    const items: Term[] = []
-    let node: Term | undefined = head
-    while (node && node.value !== RDF + 'nil' && items.length < 10_000) {
-      const first = object(node, RDF + 'first')
-      if (first) items.push(first)
-      node = object(node, RDF + 'rest')
-    }
-    return items
-  }
 
   // A property kept as it is, see KeptProperty.
   const kept: KeptProperty[] = []
@@ -467,7 +491,8 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
       if (values.length > 0) data.values = values
     }
 
-    Object.assign(data, annotationsOf(entity, data.kind && labelTerm(entity, SKOS + 'prefLabel') ? SKOS + 'prefLabel' : LABEL))
+    // An outside class has no label of its own, so every label it has in the file is an annotation.
+    Object.assign(data, annotationsOf(entity, data.outside ? NO_LABEL : data.kind && labelTerm(entity, SKOS + 'prefLabel') ? SKOS + 'prefLabel' : LABEL))
   }
 
   // Concepts keep in `inScheme` only the schemes their hierarchy does not already give them (see skos.ts).
