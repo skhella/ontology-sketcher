@@ -1,4 +1,4 @@
-import { sampleOntology, type Namespace } from './model'
+import { sampleOntology, type KeptProperty, type Namespace } from './model'
 import { workspaceFrom, type Workspace } from './pages'
 
 /**
@@ -7,7 +7,7 @@ import { workspaceFrom, type Workspace } from './pages'
  * annotations, SHACL constraints and SKOS kinds. The same shape is autosaved in the browser and
  * written to a project file.
  */
-export type Project = { iri: string; namespaces?: Namespace[]; workspace: Workspace; pageId: string }
+export type Project = { iri: string; namespaces?: Namespace[]; kept?: KeptProperty[]; workspace: Workspace; pageId: string }
 
 /** Marks a project file, so opening some other JSON file fails with a clear message. */
 const FORMAT = 'ontology-sketcher-project'
@@ -59,7 +59,8 @@ export function projectFromJson(text: string): Project {
   const namespaces = Array.isArray(p.namespaces)
     ? p.namespaces.filter((n) => n && typeof n.prefix === 'string' && typeof n.iri === 'string')
     : []
-  return { iri: p.iri, ...(namespaces.length > 0 && { namespaces }), workspace: ws, pageId }
+  const kept = Array.isArray(p.kept) ? p.kept.filter((k) => k && typeof k.iri === 'string' && (k.kind === 'object' || k.kind === 'data')) : []
+  return { iri: p.iri, ...(namespaces.length > 0 && { namespaces }), ...(kept.length > 0 && { kept }), workspace: ws, pageId }
 }
 
 /** The project autosaved in this browser, or null when there is none or it cannot be read. */

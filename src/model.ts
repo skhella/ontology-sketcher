@@ -12,8 +12,9 @@ export type Annotation = { property: string; value: string; lang?: string }
  * What a class or property carries besides its label.
  * `namespace`, when set, is the base IRI the entity lives in instead of the ontology IRI, e.g. a reference data library.
  * `iri`, when set, replaces the IRI derived from the label: a full IRI, or a local name after the namespace.
+ * `labelLang` is the language tag of the label (rdfs:label, or skos:prefLabel on a concept or scheme).
  */
-export type EntityData = { iri?: string; namespace?: string; annotations?: Annotation[] }
+export type EntityData = { iri?: string; namespace?: string; labelLang?: string; annotations?: Annotation[] }
 
 /** A namespace classes and properties can live in besides the ontology's own, written as `@prefix prefix: <iri>`. */
 export type Namespace = { prefix: string; iri: string }
@@ -37,8 +38,29 @@ export type ClassAxiom = { kind: AxiomKind; expression: ClassExpression }
 /**
  * An owl:DatatypeProperty listed on a class, like a property key on a Neo4j node.
  * The class is its domain; `datatype` is a full IRI such as xsd:string. Classes listing the same name share one property.
+ * Its IRI is derived from `name` unless `iri` says otherwise, as for classes (see EntityData).
  */
-export type DataProperty = { name: string; datatype: string; functional?: boolean }
+export type DataProperty = EntityData & { name: string; datatype: string; functional?: boolean }
+
+/**
+ * An object or data property the canvas does not draw, kept from an imported ontology so the export writes it back,
+ * e.g. one whose range is skos:Concept or a class from another ontology, or one without a domain.
+ * `iri` is a full IRI; `domains` and `ranges` are full IRIs of classes or datatypes, several being alternatives
+ * (an owl:unionOf); `subPropertyOf` and `inverseOf` are full IRIs of other properties. All export as they came in.
+ */
+export type KeptProperty = Omit<EntityData, 'iri' | 'namespace'> & {
+  kind: 'object' | 'data'
+  iri: string
+  label: string
+  domains?: string[]
+  ranges?: string[]
+  characteristics?: Characteristic[]
+  subPropertyOf?: string[]
+  inverseOf?: string[]
+}
+
+/** A property value on a concept or scheme, e.g. :freq-3 :ordinal 2; `property` and an IRI `value` are full IRIs. */
+export type PropertyValue = { property: string; value: string; kind: 'iri' | 'literal'; datatype?: string; lang?: string }
 
 /**
  * A SHACL property shape on a class: a rule the class's instance data must follow for one property.
@@ -83,14 +105,14 @@ export type Mapping = { kind: MappingKind; iri: string }
  * `axioms` adds to the subClassOf edges drawn on the canvas; `constraints` export as a SHACL node shape, see shacl.ts,
  * which `constraintsClosed` closes: instances may then use only the constrained properties (and rdf:type).
  * `inScheme` lists scheme node ids a concept belongs to besides those its hierarchy reaches, see skos.ts.
- * `labelLang` is the language tag of a concept's or scheme's skos:prefLabel; `mappings` link a concept to outside concepts.
+ * `mappings` link a concept to outside concepts; `values` are other property values on a concept or scheme.
  */
 export type ClassData = EntityData & {
   label: string
   kind?: NodeKind
   inScheme?: string[]
-  labelLang?: string
   mappings?: Mapping[]
+  values?: PropertyValue[]
   axioms?: ClassAxiom[]
   dataProperties?: DataProperty[]
   constraints?: PropertyConstraint[]
@@ -138,6 +160,8 @@ export type Ontology = {
   namespaces?: Namespace[]
   nodes: ClassNode[]
   edges: RelationEdge[]
+  /** Properties from an import the canvas does not draw. */
+  kept?: KeptProperty[]
 }
 
 /** Turns a free-text label into a local name usable after the ontology IRI. */

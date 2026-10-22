@@ -1,7 +1,7 @@
 import { DataFactory, Writer, type NamedNode, type Quad_Object } from 'n3'
 import { localName, propertyLocalName, type Ontology, type PropertyConstraint } from './model'
 import { namespacePrefixes } from './namespaces'
-import { entityIri } from './owl'
+import { dataPropertyIri, entityIri } from './owl'
 import { parseTurtle } from './turtle'
 import { OWL, RDF, RDFS, XSD } from './vocab'
 
@@ -51,8 +51,10 @@ export function toShaclTurtle(ontology: Ontology): Promise<string> {
   const edges = new Map(ontology.edges.map((e) => [e.id, e.data]))
 
   // The property a constraint is about; undefined when it points at a deleted edge.
+  const dataIri = new Map<string, string>()
+  for (const n of ontology.nodes) for (const p of n.data.dataProperties ?? []) if (p.name.trim() && !dataIri.has(p.name)) dataIri.set(p.name, dataPropertyIri(base, p))
   const pathIri = (path: PropertyConstraint['path']): string | undefined => {
-    if (path.type === 'data') return path.name.trim() ? base + propertyLocalName(path.name) : undefined
+    if (path.type === 'data') return path.name.trim() ? (dataIri.get(path.name) ?? base + propertyLocalName(path.name)) : undefined
     const data = edges.get(path.property)
     return data?.kind === 'objectProperty' ? entityIri(base, data, propertyLocalName(data.label)) : undefined
   }

@@ -128,6 +128,16 @@ export function skosQuads(
     }
   }
 
+  // Other property values, e.g. :freq-3 :ordinal 2; the properties are declared where they are defined, not here.
+  for (const n of members) {
+    for (const v of n.data.values ?? []) {
+      if (!v.property.trim() || !v.value.trim()) continue
+      const value = v.kind === 'iri' ? namedNode(v.value) : literal(v.value, v.lang?.trim() || (v.datatype ? namedNode(v.datatype) : undefined))
+      if (!relations.has(n.id)) relations.set(n.id, [])
+      relations.get(n.id)!.push(quad(node(n.id), namedNode(v.property), value))
+    }
+  }
+
   for (const e of ontology.edges) {
     const kind = e.data?.kind
     if (!isSkosEdge(kind) || !iri.has(e.source) || !iri.has(e.target)) continue

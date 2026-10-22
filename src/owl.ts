@@ -1,5 +1,5 @@
 import { DataFactory, Writer, type NamedNode, type Quad, type Quad_Object } from 'n3'
-import { localName, propertyLocalName, type Characteristic, type ClassExpression, type EntityData, type Ontology, type Quantifier } from './model'
+import { localName, propertyLocalName, type Characteristic, type ClassExpression, type DataProperty, type EntityData, type Ontology, type Quantifier } from './model'
 import { namespacePrefixes } from './namespaces'
 import { LAYOUT_PROPERTY, type SavedLayout } from './savedLayout'
 import { isSkosEdge, skosQuads } from './skos'
@@ -12,6 +12,14 @@ export function entityIri(base: string, data: EntityData, local: string): string
   const namespace = data.namespace?.trim() || base
   return data.iri?.trim() ? expandIri(data.iri, namespace) : namespace + local
 }
+
+/** The IRI of a data property listed on a class, see DataProperty. */
+export function dataPropertyIri(base: string, property: DataProperty): string {
+  return entityIri(base, property, propertyLocalName(property.name))
+}
+
+/** A label as a literal, with its language tag when it has one. */
+const labelLiteral = (text: string, data: EntityData) => literal(text, data.labelLang?.trim() || undefined)
 
 // The OWL vocabulary for each quantifier: [predicate without a filler, predicate with a filler class].
 const RESTRICTION: Record<Quantifier, [string, string]> = {
@@ -52,7 +60,12 @@ export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<stri
   const base = ontology.iri
   const ontologyIri = base.replace(/[#/]$/, '')
   const quads: Quad[] = []
-  const entities: EntityData[] = [...ontology.nodes.map((n) => n.data), ...ontology.edges.map((e) => e.data ?? {})]
+  const entities: EntityData[] = [
+    ...ontology.nodes.map((n) => n.data),
+    ...ontology.edges.map((e) => e.data ?? {}),
+    ...ontology.nodes.flatMap((n) => n.data.dataProperties ?? []),
+    ...(ontology.kept ?? []),
+  ]
   const usedAnnotationProperties = new Set(
     entities.flatMap((d) =>
       (d.annotations ?? []).filter((a) => a.property && a.value.trim()).map((a) => a.property),
@@ -64,6 +77,7 @@ export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<stri
   const usesXsd = ontology.nodes.some(
     (n) =>
       !!n.data.dataProperties?.length ||
+      !!ontology.kept?.some((p) => p.kind === 'data') ||
       n.data.axioms?.some((a) => a.expression.type === 'restriction' && !['some', 'only'].includes(a.expression.quantifier)),
   )
 
@@ -93,7 +107,7 @@ export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<stri
     const iri = entityIri(base, node.data, localName(node.data.label))
     classIri.set(node.id, iri)
     quads.push(quad(namedNode(iri), type, namedNode(OWL + 'Class')))
-    quads.push(quad(namedNode(iri), label, literal(node.data.label)))
+    quads.push(quad(namedNode(iri), label, labelLiteral(node.data.label, node.data)))
     annotate(iri, node.data)
   }
 
@@ -146,7 +160,7 @@ export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<stri
       if (!annotationProperties.has(iri)) {
         annotationProperties.add(iri)
         quads.push(quad(namedNode(iri), type, namedNode(OWL + 'AnnotationProperty')))
-        quads.push(quad(namedNode(iri), label, literal(edge.data.label)))
+        quads.push(quad(namedNode(iri), label, labelLiteral(edge.data.label, edge.data)))
       }
       quads.push(quad(namedNode(source), namedNode(iri), namedNode(target)))
       annotate(iri, edge.data)
@@ -161,7 +175,7 @@ export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<stri
       // Declared and labelled once, however many arrows carry the property.
       if (!property.labels.has(edge.data.label)) {
         property.labels.add(edge.data.label)
-        quads.push(quad(namedNode(iri), label, literal(edge.data.label)))
+        quads.push(quad(namedNode(iri), label, labelLiteral(edge.data.label, edge.data)))
       }
       if (!property.uses.has(source)) property.uses.set(source, new Set())
       property.uses.get(source)!.add(target)
@@ -185,12 +199,12 @@ export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<stri
   }
 
   // Data properties listed on classes; classes sharing a name share the property.
-  const dataProperties = new Map<string, { label: string; domains: Set<string>; datatypes: Set<string>; functional: boolean }>()
+  const dataProperties = new Map<string, { property: DataProperty; domains: Set<string>; datatypes: Set<string>; functional: boolean }>()
   for (const node of ontology.nodes) {
     for (const p of node.data.dataProperties ?? []) {
       if (!p.name.trim()) continue
-      const iri = base + propertyLocalName(p.name)
-      const entry = dataProperties.get(iri) ?? { label: p.name.trim(), domains: new Set(), datatypes: new Set(), functional: false }
+      const iri = dataPropertyIri(base, p)
+      const entry = dataProperties.get(iri) ?? { property: p, domains: new Set(), datatypes: new Set(), functional: false }
       entry.domains.add(classIri.get(node.id)!)
       if (p.datatype) entry.datatypes.add(p.datatype)
       entry.functional ||= !!p.functional
@@ -236,12 +250,30 @@ export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<stri
     )
   }
 
-  for (const [iri, { label: name, domains, datatypes, functional }] of dataProperties) {
+  for (const [iri, { property, domains, datatypes, functional }] of dataProperties) {
     writer.addQuad(namedNode(iri), type, namedNode(OWL + 'DatatypeProperty'))
     if (functional) writer.addQuad(namedNode(iri), type, namedNode(OWL + 'FunctionalProperty'))
-    writer.addQuad(namedNode(iri), label, literal(name))
+    writer.addQuad(namedNode(iri), label, labelLiteral(property.name.trim(), property))
+    writer.addQuads(annotationQuads(iri, property))
     writer.addQuad(namedNode(iri), namedNode(RDFS + 'domain'), union(domains))
     if (datatypes.size > 0) writer.addQuad(namedNode(iri), namedNode(RDFS + 'range'), union(datatypes, RDFS + 'Datatype'))
+  }
+
+  // Properties kept from an import that the canvas doesn't draw, as they came in (see KeptProperty).
+  // One the canvas now draws or lists under the same IRI is written from there.
+  const declared = new Set([...properties.keys(), ...annotationProperties, ...dataProperties.keys()])
+  for (const p of ontology.kept ?? []) {
+    if (declared.has(p.iri)) continue
+    declared.add(p.iri)
+    const subject = namedNode(p.iri)
+    writer.addQuad(subject, type, namedNode(OWL + (p.kind === 'object' ? 'ObjectProperty' : 'DatatypeProperty')))
+    for (const c of p.characteristics ?? []) writer.addQuad(subject, type, namedNode(CHARACTERISTIC[c]))
+    if (p.label.trim()) writer.addQuad(subject, label, labelLiteral(p.label, p))
+    for (const other of p.subPropertyOf ?? []) writer.addQuad(subject, namedNode(RDFS + 'subPropertyOf'), namedNode(other))
+    for (const other of p.inverseOf ?? []) writer.addQuad(subject, namedNode(OWL + 'inverseOf'), namedNode(other))
+    if (p.domains?.length) writer.addQuad(subject, namedNode(RDFS + 'domain'), union(p.domains))
+    if (p.ranges?.length) writer.addQuad(subject, namedNode(RDFS + 'range'), union(p.ranges, p.kind === 'object' ? OWL + 'Class' : RDFS + 'Datatype'))
+    writer.addQuads(annotationQuads(p.iri, p))
   }
 
   return new Promise((resolve, reject) => {

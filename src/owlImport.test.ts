@@ -271,3 +271,72 @@ describe('namespaces', () => {
     expect(canonical(await toTurtle(imported))).toEqual(canonical(turtle))
   })
 })
+
+describe('importOwl keeps what the canvas does not draw', () => {
+  const EX = 'http://example.org/lab#'
+  const source = `
+    @prefix owl: <http://www.w3.org/2002/07/owl#> .
+    @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+    @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+    @prefix ext: <http://example.org/other#> .
+    @prefix : <${EX}> .
+    <http://example.org/lab> a owl:Ontology .
+    :Sample a owl:Class ; rdfs:label "Sample"@en , "Probe"@de ; rdfs:comment "Something measured."@en .
+    :Task a owl:Class ; rdfs:label "Task"@en .
+    :casNo a owl:DatatypeProperty ; rdfs:domain :Sample ; rdfs:range xsd:string ;
+      rdfs:label "CAS number"@en ; rdfs:comment "As printed on the label."@en .
+    :ordinal a owl:DatatypeProperty , owl:FunctionalProperty ; rdfs:range xsd:integer ; rdfs:label "ordinal"@en .
+    :status a owl:ObjectProperty ; rdfs:domain :Task ; rdfs:range skos:Concept ; rdfs:label "status"@en ; rdfs:comment "Where the task is."@en .
+    :runsOn a owl:ObjectProperty ; rdfs:domain :Task ; rdfs:range [ a owl:Class ; owl:unionOf ( ext:Machine ext:Robot ) ] .
+    :dependsOn a owl:ObjectProperty , owl:TransitiveProperty ; rdfs:label "depends on"@en .
+    :blockedBy a owl:ObjectProperty ; rdfs:subPropertyOf :dependsOn ; rdfs:label "blocked by"@en .
+    :Statuses a skos:ConceptScheme ; skos:prefLabel "Statuses"@en .
+    :open a skos:Concept ; skos:prefLabel "open"@en , "offen"@de ; skos:inScheme :Statuses ; :ordinal 1 ; :dependsOn :done .
+    :done a skos:Concept ; skos:prefLabel "done"@en ; skos:inScheme :Statuses ; :ordinal 2 .
+  `
+
+  it('keeps data property IRIs, labels with their language and other annotations', () => {
+    const { nodes } = importOwl(source)
+    const sample = nodes.find((n) => n.data.label === 'Sample')!.data
+    expect(sample.labelLang).toBe('en')
+    expect(sample.annotations).toContainEqual({ property: RDFS + 'label', value: 'Probe', lang: 'de' })
+    expect(sample.dataProperties).toEqual([
+      {
+        name: 'CAS number',
+        datatype: XSD + 'string',
+        labelLang: 'en',
+        iri: 'casNo',
+        annotations: [{ property: RDFS + 'comment', value: 'As printed on the label.', lang: 'en' }],
+      },
+    ])
+    const open = nodes.find((n) => n.data.label === 'open')!.data
+    expect(open.annotations).toContainEqual({ property: SKOS + 'prefLabel', value: 'offen', lang: 'de' })
+    expect(open.values).toEqual([
+      { property: EX + 'ordinal', value: '1', kind: 'literal', datatype: XSD + 'integer' },
+      { property: EX + 'dependsOn', value: EX + 'done', kind: 'iri' },
+    ])
+  })
+
+  it('keeps properties it cannot draw as arrows, and says so', () => {
+    const { kept, summary } = importOwl(source)
+    expect(kept.map((p) => p.iri.replace(EX, ''))).toEqual(['status', 'runsOn', 'dependsOn', 'blockedBy', 'ordinal'])
+    expect(kept.find((p) => p.iri === EX + 'runsOn')!.ranges).toEqual(['http://example.org/other#Machine', 'http://example.org/other#Robot'])
+    expect(kept.find((p) => p.iri === EX + 'ordinal')).toMatchObject({ kind: 'data', ranges: [XSD + 'integer'], characteristics: ['functional'] })
+    expect(summary.skipped).toEqual([
+      '4 object properties that cannot be drawn as arrows (kept for the export)',
+      '1 data properties without a domain class (kept for the export)',
+    ])
+  })
+
+  it('writes all of it back', async () => {
+    const imported = importOwl(source)
+    const turtle = await toTurtle({ iri: imported.iri, nodes: imported.nodes, edges: imported.edges, kept: imported.kept })
+    const back = canonical(turtle)
+    const missing = canonical(source).filter((line) => !back.includes(line) && !line.startsWith('http://example.org/lab '))
+    expect(missing).toEqual([])
+    // Importing the export again changes nothing.
+    const again = importOwl(turtle)
+    expect(canonical(await toTurtle({ iri: again.iri, nodes: again.nodes, edges: again.edges, kept: again.kept }))).toEqual(back)
+  })
+})

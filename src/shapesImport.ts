@@ -1,6 +1,6 @@
 import { DataFactory, Store, type Quad, type Term } from 'n3'
 import { localName, propertyLocalName, type ClassNode, type PropertyConstraint, type RelationEdge } from './model'
-import { entityIri } from './owl'
+import { dataPropertyIri, entityIri } from './owl'
 import { constraintValue, SH } from './shacl'
 import { describe, parseTurtle, writeTurtle } from './turtle'
 import { RDF, shortName } from './vocab'
@@ -43,7 +43,7 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
   const objectProperties = edges.filter((e) => e.data?.kind === 'objectProperty')
   const propertyIri = (e: RelationEdge) => entityIri(base, e.data!, propertyLocalName(e.data!.label))
   const dataProperties = new Map<string, string>()
-  for (const n of classes) for (const p of n.data.dataProperties ?? []) if (p.name.trim()) dataProperties.set(base + propertyLocalName(p.name), p.name)
+  for (const n of classes) for (const p of n.data.dataProperties ?? []) if (p.name.trim()) dataProperties.set(dataPropertyIri(base, p), p.name)
 
   const one = (subject: Term, predicate: string) => {
     const objects = store.getObjects(subject, namedNode(predicate), null)
