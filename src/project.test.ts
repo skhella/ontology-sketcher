@@ -25,6 +25,7 @@ describe('project', () => {
       iri: 'http://example.org/zoo#',
       namespaces: [{ prefix: 'rdl', iri: 'http://example.org/rdl/' }],
       kept,
+      keptStatements: [{ ntriples: '<http://example.org/zoo#tom> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/zoo#Cat> .\n' }],
       workspace: { ...workspace, pages: [...workspace.pages, second] },
       pageId: 'p2',
     }

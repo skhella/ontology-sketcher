@@ -171,9 +171,11 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     return labels.find((l) => !('language' in l) || !l.language || l.language === 'en') ?? labels[0]
   }
   const labelOf = (s: string) => labelTerm(s)?.value ?? s.replace(/^.*[#/]/, '')
+  // The label's language, or that there is no label at all (see EntityData.unlabelled).
   const labelLangOf = (s: string, predicate = LABEL) => {
     const term = labelTerm(s, predicate)
-    return term && 'language' in term && term.language ? { labelLang: term.language } : {}
+    if (!term) return { unlabelled: true }
+    return 'language' in term && term.language ? { labelLang: term.language } : {}
   }
 
   const declaredAnnotationProperties = new Set([
@@ -353,7 +355,7 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     for (const q of store.getQuads(null, ap, null, null)) {
       if (q.object.termType !== 'NamedNode' || !nodeId.has(q.subject.value) || !nodeId.has(q.object.value)) continue
       const label = labelOf(ap)
-      addEdge(nodeId.get(q.subject.value)!, nodeId.get(q.object.value)!, { kind: 'annotationProperty', label, ...iriField(ap, propertyLocalName(label)) })
+      addEdge(nodeId.get(q.subject.value)!, nodeId.get(q.object.value)!, { kind: 'annotationProperty', label, ...labelLangOf(ap), ...iriField(ap, propertyLocalName(label)) })
     }
   }
 
