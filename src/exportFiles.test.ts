@@ -53,8 +53,27 @@ describe('exportFilesPerPage', () => {
   })
 
   it('leaves out pages not chosen', async () => {
-    const files = await exportFilesPerPage('cypher', twoPages(), ['valves'], context)
-    expect(files.map((f) => f.name)).toEqual(['Valves.cypher'])
+    const files = await exportFilesPerPage('owl', twoPages(), ['valves'], context)
+    expect(files.map((f) => f.name)).toEqual(['Valves.ttl'])
+  })
+
+  it('sets n10s up once in setup.cypher, so page scripts can be loaded one after another', async () => {
+    const ws = twoPages()
+    ws.pages[1].name = 'Setup'
+    const files = await exportFilesPerPage('cypher', ws, ['pumps', 'valves'], context)
+    expect(files.map((f) => f.name)).toEqual(['setup.cypher', 'Pumps.cypher', 'Setup-2.cypher'])
+    const [setup, ...pages] = files
+    expect(setup.text).toContain('CALL n10s.graphconfig.init(')
+    expect(setup.text).toContain("CALL n10s.nsprefixes.add('plant', 'http://example.org/plant#');")
+    expect(setup.text).toContain('//   Setup-2.cypher')
+    expect(setup.text).not.toContain('n10s.onto.import')
+    for (const page of pages) {
+      expect(page.text).not.toContain('graphconfig')
+      expect(page.text).not.toContain('nsprefixes')
+      expect(page.text).toContain('Run setup.cypher once first')
+      expect(page.text).toContain('CALL n10s.onto.import.inline(')
+    }
+    expect(pages[1].text).toContain(':Valve')
   })
 })
 
