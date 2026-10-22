@@ -129,7 +129,8 @@ add axioms and data constraints, check a few example instances, and hand the res
 - With several pages, the export asks which pages to include. Tick **One file per page** to get a separate
   `.ttl` (and `.shapes.ttl`) or `.cypher` file for each chosen page, named after it, each exactly what exporting
   that page alone would give; **Images of several pages (SVG)** does the same for drawings. **Download all (.zip)**
-  saves every file in one go. A class on several pages is written to each of their files, and a property drawn on
+  saves every file in one go. Per-page Cypher scripts come with a `setup.cypher` to run once first, because n10s
+  only accepts its configuration on an empty database. A class on several pages is written to each of their files, and a property drawn on
   several pages gets only that page's domain and range in each file, so load the merged export, not the page files
   together, when you want the whole ontology.
 
