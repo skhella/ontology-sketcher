@@ -178,6 +178,16 @@ body,
   cursor: grab;
 }
 
+/* React Flow shows a pointing hand over the pane while box selection is on; the select tool keeps the arrow instead.
+   Space+drag and the middle button still show the open and closed hand while they pan. */
+.canvas .react-flow__pane.selection {
+  cursor: default;
+}
+
+.canvas .react-flow__pane.dragging {
+  cursor: grabbing;
+}
+
 .class-node {
   position: relative;
   display: grid;
