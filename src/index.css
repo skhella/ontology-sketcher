@@ -109,10 +109,15 @@ body,
   color: var(--ink);
 }
 
-.toolbar button:hover,
+.toolbar button:hover:not(:disabled),
 .export button:hover,
 .sample-data button:hover:not(:disabled) {
   background: var(--hover);
+}
+
+/* Undo and Redo fade out when there is nothing to undo or redo. */
+.toolbar button:disabled {
+  opacity: 0.4;
 }
 
 /* The logo is drawn in --ink so it follows the theme toggle, not just the system setting. */
