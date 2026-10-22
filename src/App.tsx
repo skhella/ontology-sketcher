@@ -52,6 +52,8 @@ import { excalifontCss, excalifontMeasure, handleEndpoint } from './svgBrowser'
 
 const nodeTypes = { owlClass: ClassNodeView }
 const edgeTypes = { relation: RelationEdgeView }
+// Shift-click adds a class or arrow to the selection, or takes it out again; Ctrl and Cmd do the same.
+const MULTI_SELECT_KEYS = ['Shift', 'Meta', 'Control']
 
 type ExportFormat = 'owl' | 'cypher'
 // How the SVG image of the page is drawn; it follows the canvas's light colours unless dark is picked.
@@ -286,6 +288,12 @@ export default function App() {
     setNodes((ns) => ns.map((n) => (!!n.selected !== (n.id === id) ? { ...n, selected: n.id === id } : n)))
   }
   const selectedEdges = edges.filter((e) => e.selected)
+
+  // A selection box takes every arrow touching a class inside it; like Excalidraw, keep only the arrows with both ends inside.
+  const keepEdgesInsideSelection = () => {
+    const inside = new Set((flow?.getNodes() ?? nodes).filter((n) => n.selected).map((n) => n.id))
+    setEdges((es) => es.map((e) => (e.selected && !(inside.has(e.source) && inside.has(e.target)) ? { ...e, selected: false } : e)))
+  }
 
   // Applies a style change from the panel to everything selected, like Excalidraw.
   const restyle = (patch: SketchStyle) => {
@@ -660,7 +668,7 @@ export default function App() {
           {theme === 'dark' ? '☀ Light' : '☾ Dark'}
         </button>
         <span className="hint">
-          Drag between boxes to add subClassOf, or broader between concepts. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its middle dot to curve it, or drag either end onto another class to move it.
+          Drag between boxes to add subClassOf, or broader between concepts. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its middle dot to curve it, or drag either end onto another class to move it. Drag on empty canvas to select several things and move them together; Shift-click adds to the selection. Pan with Space+drag or the middle mouse button.
         </span>
       </header>
       <main className="canvas">
@@ -685,6 +693,13 @@ export default function App() {
               onNodeDoubleClick={renameClass}
               onEdgeDoubleClick={editRelation}
               zoomOnDoubleClick={false}
+              // Dragging on empty canvas draws a selection box; the whole selection then moves together.
+              // Panning moves to the middle mouse button, or Space held while dragging.
+              selectionOnDrag
+              panOnDrag={[1]}
+              selectionKeyCode={null}
+              multiSelectionKeyCode={MULTI_SELECT_KEYS}
+              onSelectionEnd={keepEdgesInsideSelection}
               onInit={setFlow}
               fitView
               minZoom={0.05}
