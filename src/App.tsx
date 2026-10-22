@@ -54,6 +54,13 @@ const edgeTypes = { relation: RelationEdgeView }
 // Shift-click adds a class or arrow to the selection, or takes it out again; Ctrl and Cmd do the same.
 const MULTI_SELECT_KEYS = ['Shift', 'Meta', 'Control']
 
+// Like Excalidraw: the select tool drags out a selection box, the hand tool pans with the left button.
+type Tool = 'select' | 'hand'
+const TOOLS: { tool: Tool; key: string; label: string; icon: string }[] = [
+  { tool: 'select', key: 'v', label: 'Select', icon: 'M5 3l14 8-6 1.5L10 19z' },
+  { tool: 'hand', key: 'h', label: 'Hand (pan)', icon: 'M8 13V5.5a1.5 1.5 0 0 1 3 0V12m0-6.5v-1a1.5 1.5 0 0 1 3 0V12m0-6a1.5 1.5 0 0 1 3 0V12m0-3.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-5-2.7L4.6 14a1.6 1.6 0 0 1 2.6-1.8L8 13' },
+]
+
 // How the SVG image of the page is drawn; it follows the canvas's light colours unless dark is picked.
 type SvgLook = { dark: boolean; background: boolean }
 
@@ -542,6 +549,20 @@ export default function App() {
 
   const saveProject = () => download(projectFileName(iri), new Blob([projectToJson(project())], { type: 'application/json' }))
 
+  const [tool, setTool] = useState<Tool>('select')
+  const panning = tool === 'hand'
+  // V picks the select tool and H the hand, unless a text field has the keyboard.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return
+      if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return
+      const picked = TOOLS.find((t) => t.key === event.key.toLowerCase())
+      if (picked) setTool(picked.tool)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   // Ctrl+S (Cmd+S on a Mac) saves the project file instead of the browser saving the web page.
   // Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes; in a text field they stay the field's own undo.
   useEffect(() => {
@@ -693,10 +714,10 @@ export default function App() {
           {theme === 'dark' ? '☀ Light' : '☾ Dark'}
         </button>
         <span className="hint">
-          Drag between boxes to add subClassOf, or broader between concepts. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its middle dot to curve it, or drag either end onto another class to move it. Drag on empty canvas to select several things and move them together; Shift-click adds to the selection. Pan with Space+drag or the middle mouse button.
+          Drag between boxes to add subClassOf, or broader between concepts. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its middle dot to curve it, or drag either end onto another class to move it. Drag on empty canvas to select several things and move them together; Shift-click adds to the selection. Pan with the hand tool (H), Space+drag or the middle mouse button; V goes back to selecting.
         </span>
       </header>
-      <main className="canvas">
+      <main className={panning ? 'canvas hand-tool' : 'canvas'}>
         <NamespacesContext.Provider value={namespaces}>
           <PageLinksContext.Provider value={pageLinks}>
             <ReactFlow
@@ -715,13 +736,17 @@ export default function App() {
               onReconnectEnd={onReconnectEnd}
               connectionMode={ConnectionMode.Loose}
               connectionLineComponent={ConnectionLine}
-              onNodeDoubleClick={renameClass}
-              onEdgeDoubleClick={editRelation}
+              onNodeDoubleClick={panning ? undefined : renameClass}
+              onEdgeDoubleClick={panning ? undefined : editRelation}
               zoomOnDoubleClick={false}
-              // Dragging on empty canvas draws a selection box; the whole selection then moves together.
-              // Panning moves to the middle mouse button, or Space held while dragging.
-              selectionOnDrag
-              panOnDrag={[1]}
+              // With the select tool, dragging on empty canvas draws a selection box; the whole selection then moves together,
+              // and panning is the middle mouse button or Space held while dragging. With the hand tool any left drag pans.
+              selectionOnDrag={!panning}
+              panOnDrag={panning ? true : [1]}
+              nodesDraggable={!panning}
+              nodesConnectable={!panning}
+              edgesReconnectable={!panning}
+              elementsSelectable={!panning}
               selectionKeyCode={null}
               multiSelectionKeyCode={MULTI_SELECT_KEYS}
               onSelectionEnd={keepEdgesInsideSelection}
@@ -734,6 +759,23 @@ export default function App() {
             </ReactFlow>
           </PageLinksContext.Provider>
         </NamespacesContext.Provider>
+        <div className="tools" role="toolbar" aria-label="Canvas tools">
+          {TOOLS.map((t) => (
+            <button
+              key={t.tool}
+              className={tool === t.tool ? 'active' : undefined}
+              aria-pressed={tool === t.tool}
+              aria-label={t.label}
+              title={`${t.label} (${t.key.toUpperCase()})`}
+              onClick={() => setTool(t.tool)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d={t.icon} />
+              </svg>
+              <span className="key">{t.key.toUpperCase()}</span>
+            </button>
+          ))}
+        </div>
         {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
           <StylePanel
             current={selectedNodes.length > 0 ? (selectedNodes[0].data.style ?? {}) : edgeStyle(selectedEdges[0])}
