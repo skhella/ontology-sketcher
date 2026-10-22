@@ -21,10 +21,11 @@ import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
 import { planImport, saveLayout } from './layout'
+import { keptStatementsOf } from './keptStatements'
 import { describeOwlImport, importOwl } from './owlImport'
 import { describeShapesImport, importShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
-import { importedOntologyIri, type ClassNode, type KeptProperty, type Namespace, type NodeKind, type RelationEdge } from './model'
+import { importedOntologyIri, type ClassNode, type KeptProperty, type KeptStatement, type Namespace, type NodeKind, type RelationEdge } from './model'
 import { NamespacesContext } from './namespaceContext'
 import { mergeNamespaces, renameNamespace } from './namespaces'
 import { NamespacesMenu } from './NamespacesMenu'
@@ -88,6 +89,8 @@ export default function App() {
   const [namespaces, setNamespaces] = useState<Namespace[]>(initial.namespaces ?? [])
   // Properties from imported ontologies the canvas doesn't draw; the export writes them back, see KeptProperty.
   const [kept, setKept] = useState<KeptProperty[]>(initial.kept ?? [])
+  // Other statements from imported ontologies the canvas doesn't show, see KeptStatement.
+  const [keptStatements, setKeptStatements] = useState<KeptStatement[]>(initial.keptStatements ?? [])
   const [nodes, setNodes, onNodesChange] = useNodesState<ClassNode>(initialCanvas.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<RelationEdge>(
     initialCanvas.edges.map((e) => markerFor(withDefaultHandles(e))),
@@ -199,6 +202,7 @@ export default function App() {
       const text = await file.text()
       if (/\.(ttl|nt|owl|rdf)$/i.test(file.name) || !text.trimStart().startsWith('{')) {
         const result = importOwl(text)
+        const statements = await keptStatementsOf(text, { iri: result.iri, nodes: result.nodes, edges: result.edges, kept: result.kept })
         if (nodes.length > 0 && !window.confirm(`Replace this page with ${file.name}? Classes already on it keep their place.`)) return
         // The first planned page replaces this one; a saved layout or a large ontology adds more.
         const { pages } = planImport(result, { iri, workspace: saved(), pageId })
@@ -211,9 +215,11 @@ export default function App() {
         setIri(result.iri)
         setNamespaces((current) => mergeNamespaces(current, result.namespaces))
         setKept((current) => [...current.filter((p) => !result.kept.some((k) => k.iri === p.iri)), ...result.kept])
+        setKeptStatements((current) => [...current.filter((s) => !statements.some((t) => t.ntriples === s.ntriples)), ...statements])
         show(ws, pageId, true)
         const added = pages.length > 1 ? ` Added ${pages.length - 1} ${pages.length === 2 ? 'page' : 'pages'}.` : ''
-        setNotice(describeOwlImport(result.summary) + added)
+        const other = statements.length > 0 ? ` Kept ${statements.length} other ${statements.length === 1 ? 'statement' : 'statements'} the canvas can't show; the export writes them back.` : ''
+        setNotice(describeOwlImport(result.summary) + added + other)
         return
       } else {
         const result = importExcalidraw(text)
@@ -358,7 +364,7 @@ export default function App() {
     setExportPages(null)
     setSvgLook(null)
     const ws = saved()
-    const ontology = { ...mergePages(ws, pageIds, iri), namespaces, kept }
+    const ontology = { ...mergePages(ws, pageIds, iri), namespaces, kept, keptStatements }
     // The OWL file carries the pages' layout so importing it draws them again; Neo4j gets plain OWL.
     const turtle = await toTurtle(ontology, format === 'owl' ? saveLayout(ws, pageIds, iri) : undefined)
     const shapes = hasConstraints(ontology) ? await toShaclTurtle(ontology) : null
@@ -406,13 +412,13 @@ export default function App() {
     if (shown) downloadText(shown.name, shown.type, shown.text)
   }
 
-  const project = (): Project => ({ iri, namespaces, kept, workspace: saved(), pageId })
+  const project = (): Project => ({ iri, namespaces, kept, keptStatements, workspace: saved(), pageId })
 
   // Autosave: shortly after the last change, and when the tab is closed, the whole project is kept in this browser.
   const storageWarned = useRef(false)
   useEffect(() => {
     const autosave = () => {
-      if (writeAutosave({ iri, namespaces, kept, workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }) || storageWarned.current) return
+      if (writeAutosave({ iri, namespaces, kept, keptStatements, workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }) || storageWarned.current) return
       storageWarned.current = true
       setNotice('This browser is not keeping your work (storage is full or blocked). Use Project, Save project to keep a copy.')
     }
@@ -422,7 +428,7 @@ export default function App() {
       clearTimeout(timer)
       window.removeEventListener('pagehide', autosave)
     }
-  }, [iri, namespaces, kept, workspace, pageId, nodes, edges])
+  }, [iri, namespaces, kept, keptStatements, workspace, pageId, nodes, edges])
 
   const saveProject = () => downloadText(projectFileName(iri), 'application/json', projectToJson(project()))
 
@@ -446,6 +452,7 @@ export default function App() {
     setIri(next.iri)
     setNamespaces(next.namespaces ?? [])
     setKept(next.kept ?? [])
+    setKeptStatements(next.keptStatements ?? [])
     show(next.workspace, next.pageId, true)
   }
 
@@ -640,7 +647,7 @@ export default function App() {
         )}
         {sampleOpen && (
           <SampleData
-            ontology={() => ({ ...mergePages(saved(), workspace.pages.map((p) => p.id), iri), kept })}
+            ontology={() => ({ ...mergePages(saved(), workspace.pages.map((p) => p.id), iri), kept, keptStatements })}
             nodes={nodes}
             onProblemClasses={setProblemClasses}
             onSelectClass={selectClass}
