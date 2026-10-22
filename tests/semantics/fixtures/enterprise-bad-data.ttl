@@ -1,5 +1,4 @@
-# An enterprise with a technical item as a part: the sketch draws Enterprise --hasPart--> only to
-# Organizational Unit and Site, so SHACL must report this, and a reasoner must not re-type the pump.
+# An enterprise with no legal name: the added constraint (legal name, at least one) reports it.
 @prefix : <https://w3id.org/plant-example#> .
 
 :acme a :Enterprise ;

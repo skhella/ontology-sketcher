@@ -3,7 +3,7 @@ import Validator from 'shacl-engine/Validator.js'
 import { describe, expect, it } from 'vitest'
 import { sampleOntology, type Ontology, type PropertyConstraint } from './model'
 import { toTurtle } from './owl'
-import { hasConstraints, hasShapes, SH, toShaclTurtle } from './shacl'
+import { hasConstraints, SH, toShaclTurtle } from './shacl'
 
 const P = 'http://example.org/pizza#'
 const S = 'http://example.org/pizza/shapes#'
@@ -34,12 +34,9 @@ const pizzaRules = withConstraints({
 const triplesOf = (turtle: string) => new Parser().parse(turtle).map((q) => [q.subject.value, q.predicate.value, q.object.value].join(' '))
 
 describe('toShaclTurtle', () => {
-  it('writes only the shapes graph header when nothing says what data should look like', async () => {
-    const hierarchy = { ...sampleOntology, edges: sampleOntology.edges.filter((e) => e.data?.kind === 'subClassOf') }
+  it('writes only the shapes graph header when no class has constraints', async () => {
     expect(hasConstraints(sampleOntology)).toBe(false)
-    expect(hasShapes(sampleOntology)).toBe(true)
-    expect(hasShapes(hierarchy)).toBe(false)
-    const triples = triplesOf(await toShaclTurtle(hierarchy))
+    const triples = triplesOf(await toShaclTurtle(sampleOntology))
     expect(triples).toEqual([
       'http://example.org/pizza/shapes http://www.w3.org/1999/02/22-rdf-syntax-ns#type http://www.w3.org/2002/07/owl#Ontology',
       'http://example.org/pizza/shapes http://www.w3.org/2002/07/owl#imports http://example.org/pizza',
@@ -56,14 +53,11 @@ describe('toShaclTurtle', () => {
     expect(one(S + 'PizzaShape', SH + 'targetClass', P + 'Pizza')).toHaveLength(1)
     expect(one(null, SH + 'targetClass', null)).toHaveLength(1)
     const props = one(S + 'PizzaShape', SH + 'property', null).map((q) => q.object)
-    expect(props).toHaveLength(4)
+    expect(props).toHaveLength(2)
     const fields = (node: (typeof props)[number]) =>
       Object.fromEntries(store.getQuads(node, null, null, null).map((q) => [q.predicate.value.replace(SH, ''), q.object.value]))
 
-    // The arrow and the listed data property first, then the constraint rows.
     expect(props.map(fields)).toEqual([
-      { path: P + 'hasTopping', class: P + 'Topping', message: 'Pizza hasTopping: every value must be an instance of Topping.' },
-      { path: P + 'name', datatype: XSD + 'string', message: 'Pizza name: every value must be xsd:string.' },
       { path: P + 'hasTopping', minCount: '1', class: P + 'Topping', message: 'A pizza needs a topping.' },
       { path: P + 'name', maxCount: '1', datatype: XSD + 'string' },
     ])
@@ -84,8 +78,7 @@ describe('toShaclTurtle', () => {
     const triples = triplesOf(await toShaclTurtle(ontology))
 
     expect(triples).toContain(`${S}PizzaShape ${SH}targetClass ${P}Pizza`)
-    // Only the arrow's and the data property's rules are left on Pizza.
-    expect(triples.filter((t) => t.startsWith(`${S}PizzaShape ${SH}property`))).toHaveLength(2)
+    expect(triples.filter((t) => t.startsWith(`${S}PizzaShape ${SH}property`))).toHaveLength(0)
     expect(triples).toContain(`${S}MargheritaShape ${SH}targetClass ${P}Margherita`)
     expect(triples).toContain(`${S}MargheritaShape2 ${SH}targetClass http://other.example/Margherita`)
   })
@@ -112,7 +105,7 @@ describe('toShaclTurtle', () => {
     expect(objects(shape, SH + 'closed').map((o) => o.id)).toEqual([`"true"^^${XSD}boolean`])
     expect(list(objects(shape, SH + 'ignoredProperties')[0]).map((o) => o.value)).toEqual([RDF + 'type'])
 
-    const [name, price, topping] = objects(shape, SH + 'property').slice(2)
+    const [name, price, topping] = objects(shape, SH + 'property')
     expect(objects(name, SH + 'pattern').map((o) => o.value)).toEqual(['^[A-Z]'])
     expect(list(objects(name, SH + 'in')[0]).map((o) => o.id)).toEqual(['"Lunch"', '"Dinner"']) // xsd:string is the plain literal's type
     expect(objects(name, SH + 'minLength').map((o) => o.value)).toEqual(['2'])
@@ -145,7 +138,6 @@ describe('toShaclTurtle', () => {
 
     expect(report.conforms).toBe(false)
     const found = report.results.map((r) => `${r.focusNode.value.replace(P, '')} ${r.constraintComponent.value.replace(SH, '')}`).sort()
-    // :rock breaks both the arrow's sh:class and the constraint row's.
-    expect(found).toEqual(['bare MaxCountConstraintComponent', 'bare MinCountConstraintComponent', 'odd ClassConstraintComponent', 'odd ClassConstraintComponent'])
+    expect(found).toEqual(['bare MaxCountConstraintComponent', 'bare MinCountConstraintComponent', 'odd ClassConstraintComponent'])
   })
 })
