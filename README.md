@@ -42,8 +42,13 @@ add axioms and data constraints, check a few example instances, and hand the res
 - Hand-drawn shapes and the Excalifont handwriting font, with a style panel like Excalidraw's: box or oval,
   stroke and fill colours, fill style, stroke width and style, and sloppiness.
 - Light and dark mode, following your system setting until you pick one in the toolbar.
-- Every class has four connection dots. Drag from one onto another class to add `rdfs:subClassOf`; the arrow
-  snaps to the nearest dot. Name an arrow to turn it into an object property, and drag its midpoint to curve it.
+- Every class has eight connection dots, on its four sides and four corners. Drag from one onto another class to
+  add `rdfs:subClassOf`; the arrow snaps to the nearest dot. Name an arrow to turn it into an object property, and
+  drag its midpoint to curve it.
+- Drag on empty canvas to select several classes and arrows and move them together; Shift-click adds to the
+  selection. Pan with Space+drag or the middle mouse button.
+- **Undo** and **Redo** in the toolbar (Ctrl+Z, and Ctrl+Shift+Z or Ctrl+Y; Cmd on a Mac) step back and forth
+  through canvas and inspector edits on every page. A group move is one step.
 - Pages, like layers: split a large ontology into views that share the same classes, and pick which pages to
   export. Double-click a page tab to rename it. A class can have a detail page (Pages in the inspector): the
   class then gets a small "page" tab on the canvas that opens it, and the inspector lists every page the class is on.
@@ -55,6 +60,10 @@ add axioms and data constraints, check a few example instances, and hand the res
   back onto the canvas with an automatic layout, superclasses above subclasses. Classes already on the page keep
   their place, so re-importing an edited file only adds what is new. A file exported here brings back its pages,
   positions and colours. A large ontology (over 60 classes) opens as an overview page plus a page per branch.
+- Nothing in an imported file is lost. A property whose range is a class the file doesn't declare (such as
+  `skos:Concept`) is drawn as an arrow to a dashed outside box. What the canvas can't draw, such as the ontology
+  header, individuals, union axioms, n-ary disjointness or property chains, is kept with the project and written
+  back unchanged on export. Entities without a label don't get one made up.
 - **Import an .excalidraw drawing**: labelled shapes become classes in the same place, and arrows between them become
   `rdfs:subClassOf` (unlabelled, or labelled "SCO" / "subClassOf") or an object property named after the label.
   Colours, fill, stroke, sloppiness, ovals and curved arrows carry over.
