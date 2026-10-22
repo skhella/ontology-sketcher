@@ -20,6 +20,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
+import { record, redo, startHistory, undo, type History } from './history'
 import { planImport, saveLayout } from './layout'
 import { keptStatementsOf } from './keptStatements'
 import { describeOwlImport, importOwl } from './owlImport'
@@ -454,14 +455,82 @@ export default function App() {
     }
   }, [iri, namespaces, kept, keptStatements, workspace, pageId, nodes, edges])
 
+  // Undo history: the project is noted once changes settle, and never while a mouse button is held,
+  // so dragging one class, a whole selection or an edge's curve is one step, see history.ts.
+  const history = useRef<History>(startHistory(initial))
+  const [steps, setSteps] = useState({ undo: 0, redo: 0 })
+  const latest = useRef<Project>(initial)
+  const pointerDown = useRef(false)
+  const setHistory = (next: History) => {
+    history.current = next
+    setSteps({ undo: next.past.length, redo: next.future.length })
+  }
+  const noteChange = () => {
+    if (!pointerDown.current) setHistory(record(history.current, latest.current))
+  }
+  useEffect(() => {
+    latest.current = { iri, namespaces, kept, keptStatements, workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }
+    const timer = setTimeout(noteChange, 300)
+    return () => clearTimeout(timer)
+  }, [iri, namespaces, kept, keptStatements, workspace, pageId, nodes, edges])
+  useEffect(() => {
+    const down = () => {
+      pointerDown.current = true
+    }
+    const up = () => {
+      pointerDown.current = false
+      noteChange()
+    }
+    window.addEventListener('pointerdown', down, true)
+    window.addEventListener('pointerup', up, true)
+    window.addEventListener('pointercancel', up, true)
+    return () => {
+      window.removeEventListener('pointerdown', down, true)
+      window.removeEventListener('pointerup', up, true)
+      window.removeEventListener('pointercancel', up, true)
+    }
+  }, [])
+
+  const restore = (next: Project) => {
+    setIri(next.iri)
+    setNamespaces(next.namespaces ?? [])
+    setKept(next.kept ?? [])
+    setKeptStatements(next.keptStatements ?? [])
+    show(next.workspace, next.pageId, next.pageId !== pageId)
+  }
+  // An edit made just before is noted first, so undo always takes it back.
+  const stepBack = () => {
+    const next = undo(record(history.current, latest.current))
+    if (!next) return
+    setHistory(next)
+    restore(next.present)
+  }
+  const stepForward = () => {
+    const next = redo(record(history.current, latest.current))
+    if (!next) return
+    setHistory(next)
+    restore(next.present)
+  }
+
   const saveProject = () => downloadText(projectFileName(iri), 'application/json', projectToJson(project()))
 
   // Ctrl+S (Cmd+S on a Mac) saves the project file instead of the browser saving the web page.
+  // Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes; in a text field they stay the field's own undo.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      if (!(event.ctrlKey || event.metaKey)) return
+      const key = event.key.toLowerCase()
+      if (key === 's') {
         event.preventDefault()
         saveProject()
+        return
+      }
+      const target = event.target as HTMLElement
+      if (target.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (key === 'z' || key === 'y') {
+        event.preventDefault()
+        if (key === 'y' || event.shiftKey) stepForward()
+        else stepBack()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -525,6 +594,12 @@ export default function App() {
           </div>
         </details>
         <input ref={projectInput} type="file" accept=".json,application/json" hidden onChange={openProject} />
+        <button onClick={stepBack} disabled={steps.undo === 0} title="Undo the last change, on any page (Ctrl+Z, Cmd+Z on a Mac)">
+          Undo
+        </button>
+        <button onClick={stepForward} disabled={steps.redo === 0} title="Redo what was undone (Ctrl+Shift+Z or Ctrl+Y)">
+          Redo
+        </button>
         <label>
           Ontology IRI{' '}
           <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />
