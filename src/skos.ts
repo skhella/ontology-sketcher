@@ -148,10 +148,12 @@ export function skosQuads(
     if (kind === 'topConceptOf') relate(e.target, SKOS + 'hasTopConcept', e.source)
   }
 
+  // A concept imported without a label gets none until it is given one, see EntityData.unlabelled.
+  const unlabelled = (n: ClassNode) => n.data.unlabelled && n.data.label === iri.get(n.id)!.replace(/^.*[#/]/, '')
   const body = members.flatMap((n) => [
     quad(node(n.id), type, namedNode(OWL + 'NamedIndividual')),
     quad(node(n.id), type, namedNode(SKOS + (n.data.kind === 'concept' ? 'Concept' : 'ConceptScheme'))),
-    quad(node(n.id), namedNode(SKOS + 'prefLabel'), literal(n.data.label, n.data.labelLang?.trim() || undefined)),
+    ...(unlabelled(n) ? [] : [quad(node(n.id), namedNode(SKOS + 'prefLabel'), literal(n.data.label, n.data.labelLang?.trim() || undefined))]),
     ...annotate(iri.get(n.id)!, n.data),
     ...(relations.get(n.id) ?? []),
   ])

@@ -13,8 +13,10 @@ export type Annotation = { property: string; value: string; lang?: string }
  * `namespace`, when set, is the base IRI the entity lives in instead of the ontology IRI, e.g. a reference data library.
  * `iri`, when set, replaces the IRI derived from the label: a full IRI, or a local name after the namespace.
  * `labelLang` is the language tag of the label (rdfs:label, or skos:prefLabel on a concept or scheme).
+ * `unlabelled` marks an entity imported without a label: its label is its IRI's local name, and the export
+ * writes no label for it until the label is changed.
  */
-export type EntityData = { iri?: string; namespace?: string; labelLang?: string; annotations?: Annotation[] }
+export type EntityData = { iri?: string; namespace?: string; labelLang?: string; unlabelled?: boolean; annotations?: Annotation[] }
 
 /** A namespace classes and properties can live in besides the ontology's own, written as `@prefix prefix: <iri>`. */
 export type Namespace = { prefix: string; iri: string }
@@ -58,6 +60,14 @@ export type KeptProperty = Omit<EntityData, 'iri' | 'namespace'> & {
   subPropertyOf?: string[]
   inverseOf?: string[]
 }
+
+/**
+ * A statement from an imported ontology that nothing on the canvas stands for, e.g. a union class axiom, a property
+ * chain or an individual, kept so the export writes it back unchanged. `ntriples` holds its triples, with the blank
+ * nodes it uses; `about` is the IRI of the class, concept or property it describes, and the statement is left out
+ * of the export once nothing has that IRI any more.
+ */
+export type KeptStatement = { ntriples: string; about?: string }
 
 /** A property value on a concept or scheme, e.g. :freq-3 :ordinal 2; `property` and an IRI `value` are full IRIs. */
 export type PropertyValue = { property: string; value: string; kind: 'iri' | 'literal'; datatype?: string; lang?: string }
@@ -168,6 +178,8 @@ export type Ontology = {
   edges: RelationEdge[]
   /** Properties from an import the canvas does not draw. */
   kept?: KeptProperty[]
+  /** Other statements from an import the canvas does not show. */
+  keptStatements?: KeptStatement[]
 }
 
 /** Turns a free-text label into a local name usable after the ontology IRI. */
