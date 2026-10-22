@@ -151,6 +151,68 @@ body,
   --xy-background-color: var(--paper);
 }
 
+/* The select and hand tools float over the top of the canvas, like Excalidraw's tool bar. */
+.tools {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1.5px solid var(--ink);
+  border-radius: 8px 4px 9px 5px;
+  background: var(--surface);
+  z-index: 10;
+}
+
+.tools button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1.5px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.tools button:hover {
+  background: var(--hover);
+}
+
+.tools button.active {
+  border-color: var(--accent);
+  background: var(--hover);
+  color: var(--accent);
+}
+
+.tools svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.tools .key {
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.hand-tool .react-flow__node,
+.hand-tool .react-flow__edge {
+  cursor: grab;
+}
+
 .class-node {
   position: relative;
   display: grid;
