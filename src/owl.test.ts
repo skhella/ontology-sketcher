@@ -2,7 +2,6 @@ import { DataFactory, Parser, Store, type Term } from 'n3'
 import { describe, expect, it } from 'vitest'
 import { importedOntologyIri, localName, sampleOntology, type ClassAxiom, type Ontology } from './model'
 import { toTurtle } from './owl'
-import { toShaclTurtle } from './shacl'
 
 const P = 'http://example.org/pizza#'
 const { namedNode } = DataFactory
@@ -15,26 +14,8 @@ describe('toTurtle', () => {
     expect(triples).toContain('http://example.org/pizza http://www.w3.org/1999/02/22-rdf-syntax-ns#type http://www.w3.org/2002/07/owl#Ontology')
     expect(triples).toContain(`${P}TomatoTopping http://www.w3.org/1999/02/22-rdf-syntax-ns#type http://www.w3.org/2002/07/owl#Class`)
     expect(triples).toContain(`${P}Margherita http://www.w3.org/2000/01/rdf-schema#subClassOf ${P}Pizza`)
-    expect(triples).toContain(`${P}hasTopping http://www.w3.org/1999/02/22-rdf-syntax-ns#type http://www.w3.org/2002/07/owl#ObjectProperty`)
-  })
-
-  it('writes an inference-safe TBox: no restrictions, domains, ranges or unions', async () => {
-    const turtle = await toTurtle(sampleOntology)
-    for (const term of ['owl:Restriction', 'owl:allValuesFrom', 'rdfs:domain', 'rdfs:range', 'owl:unionOf', 'Restriction', 'domain', 'range', 'unionOf']) {
-      expect(turtle).not.toContain(term)
-    }
-  })
-
-  it('needs an absolute base IRI', async () => {
-    expect(() => toTurtle({ ...sampleOntology, iri: '' })).toThrow(/base IRI/)
-    expect(() => toTurtle({ ...sampleOntology, iri: 'pizza#' })).toThrow(/base IRI/)
-  })
-
-  it('writes the version and the sketch it comes from into the ontology header', async () => {
-    const quads = new Parser().parse(await toTurtle(sampleOntology, undefined, { versionInfo: '2026-10-21T18:00:00.000Z', comment: 'From pizza.sketcher.json.' }))
-    const header = (p: string) => quads.filter((q) => q.subject.value === 'http://example.org/pizza' && q.predicate.value === p).map((q) => q.object.value)
-    expect(header('http://www.w3.org/2002/07/owl#versionInfo')).toEqual(['2026-10-21T18:00:00.000Z'])
-    expect(header('http://www.w3.org/2000/01/rdf-schema#comment')).toEqual(['From pizza.sketcher.json.'])
+    expect(triples).toContain(`${P}hasTopping http://www.w3.org/2000/01/rdf-schema#domain ${P}Pizza`)
+    expect(triples).toContain(`${P}hasTopping http://www.w3.org/2000/01/rdf-schema#range ${P}Topping`)
   })
 
 
@@ -98,7 +79,7 @@ describe('toTurtle annotations and IRIs', () => {
     expect(find(`${P}Margherita`, RDFS + 'subClassOf')[0].value).toBe(`${P}PizzaDish`)
 
     const prop = 'http://example.org/food#hasIngredient'
-    expect(find(prop, 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type')[0].value).toBe('http://www.w3.org/2002/07/owl#ObjectProperty')
+    expect(find(prop, RDFS + 'domain')[0].value).toBe(`${P}PizzaDish`)
     expect(find(prop, SKOS + 'definition')[0].value).toBe('Links a pizza to a topping.')
 
     expect(find(SKOS + 'definition', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type')[0].value).toBe('http://www.w3.org/2002/07/owl#AnnotationProperty')
@@ -128,38 +109,45 @@ describe('toTurtle with a property drawn between several class pairs', () => {
     ],
   }
 
-  const SH = 'http://www.w3.org/ns/shacl#'
   const parse = async (ontology: Ontology) => {
-    const quads = [...new Parser().parse(await toTurtle(ontology)), ...new Parser().parse(await toShaclTurtle(ontology))]
+    const quads = new Parser().parse(await toTurtle(ontology))
     const objects = (s: string, p: string) => quads.filter((q) => q.subject.value === s && q.predicate.value === p).map((q) => q.object.value)
     const list = (head: string): string[] => (head === RDF + 'nil' ? [] : [objects(head, RDF + 'first')[0], ...list(objects(head, RDF + 'rest')[0])])
-    // The classes a node shape allows as values of hasPart: its sh:class, or the sh:class of each sh:or member.
-    const allowed = (source: string) => {
-      const [shape] = quads.filter((q) => q.predicate.value === SH + 'targetClass' && q.object.value === `${P}${source}`).map((q) => q.subject.value)
-      const [property] = objects(shape, SH + 'property').filter((p) => objects(p, SH + 'path')[0] === `${P}hasPart`)
-      const or = objects(property, SH + 'or')[0]
-      return { values: or ? list(or).map((m) => objects(m, SH + 'class')[0]) : objects(property, SH + 'class'), property }
-    }
-    return { quads, objects, allowed }
+    return { quads, objects, union: (node: string) => list(objects(node, OWL + 'unionOf')[0]) }
   }
 
-  it('declares and labels the property once, without a domain or range', async () => {
-    const { objects } = await parse(parts)
+  it('declares and labels the property once, with a union as its domain and range', async () => {
+    const { objects, union } = await parse(parts)
     expect(objects(`${P}hasPart`, RDF + 'type')).toEqual([OWL + 'ObjectProperty'])
     expect(objects(`${P}hasPart`, RDFS + 'label')).toEqual(['has part'])
-    expect(objects(`${P}hasPart`, RDFS + 'domain')).toEqual([])
-    expect(objects(`${P}hasPart`, RDFS + 'range')).toEqual([])
+
+    const [domain] = objects(`${P}hasPart`, RDFS + 'domain')
+    const [range] = objects(`${P}hasPart`, RDFS + 'range')
+    expect(objects(`${P}hasPart`, RDFS + 'domain')).toHaveLength(1)
+    expect(objects(domain, RDF + 'type')).toEqual([OWL + 'Class'])
+    expect(union(domain)).toEqual([`${P}Building`, `${P}Floor`, `${P}Band`])
+    expect(union(range)).toEqual([`${P}Floor`, `${P}Room`, `${P}Singer`, `${P}Drummer`])
   })
 
-  it('keeps what each class can have as parts as a shape, not a restriction', async () => {
-    const { quads, objects, allowed } = await parse(parts)
-    expect(quads.some((q) => q.object.value === OWL + 'Restriction' || q.predicate.value === OWL + 'unionOf')).toBe(false)
-    expect(allowed('Building').values).toEqual([`${P}Floor`])
-    expect(allowed('Floor').values).toEqual([`${P}Room`])
-    expect(allowed('Band').values).toEqual([`${P}Singer`, `${P}Drummer`])
-    expect(objects(allowed('Band').property, SH + 'message')).toEqual(['Band hasPart: every value must be an instance of Singer or Drummer.'])
-    // An arrow says nothing about how many.
-    expect(quads.some((q) => [SH + 'minCount', SH + 'maxCount'].includes(q.predicate.value))).toBe(false)
+  it('keeps what each class can have as parts as an allValuesFrom restriction', async () => {
+    const { objects, union } = await parse(parts)
+    const onlyValues = (source: string) => {
+      const [restriction] = objects(`${P}${source}`, RDFS + 'subClassOf')
+      expect(objects(restriction, RDF + 'type')).toEqual([OWL + 'Restriction'])
+      expect(objects(restriction, OWL + 'onProperty')).toEqual([`${P}hasPart`])
+      return objects(restriction, OWL + 'allValuesFrom')[0]
+    }
+    expect(onlyValues('Building')).toBe(`${P}Floor`)
+    expect(onlyValues('Floor')).toBe(`${P}Room`)
+    expect(union(onlyValues('Band'))).toEqual([`${P}Singer`, `${P}Drummer`])
+  })
+
+  it('adds no restrictions when one class uses the property with several targets', async () => {
+    const band = { ...parts, edges: parts.edges.filter((e) => e.source === 'Band') }
+    const { quads, objects, union } = await parse(band)
+    expect(objects(`${P}hasPart`, RDFS + 'domain')).toEqual([`${P}Band`])
+    expect(union(objects(`${P}hasPart`, RDFS + 'range')[0])).toEqual([`${P}Singer`, `${P}Drummer`])
+    expect(quads.some((q) => q.object.value === OWL + 'Restriction')).toBe(false)
   })
 })
 
@@ -175,6 +163,7 @@ describe('importedOntologyIri', () => {
 
 describe('toTurtle class axioms', () => {
   const OWL = 'http://www.w3.org/2002/07/owl#'
+  const RDFS = 'http://www.w3.org/2000/01/rdf-schema#'
   const XSD = 'http://www.w3.org/2001/XMLSchema#'
   const axioms: Record<string, ClassAxiom[]> = {
     margherita: [
@@ -193,36 +182,31 @@ describe('toTurtle class axioms', () => {
     nodes: sampleOntology.nodes.map((n) => ({ ...n, data: { ...n.data, axioms: axioms[n.id] } })),
   }
 
-  it('writes named-class axioms, and restrictions as shapes, skipping ones that point at deleted elements', async () => {
-    const SH = 'http://www.w3.org/ns/shacl#'
+  it('writes named-class axioms and inline restrictions, skipping ones that point at deleted elements', async () => {
     const turtle = await toTurtle(withAxioms)
-    const store = new Store([...new Parser().parse(turtle), ...new Parser().parse(await toShaclTurtle(withAxioms))])
-    const objects = (s: Term | string, p: string) => store.getObjects(typeof s === 'string' ? namedNode(s) : s, namedNode(p), null)
+    const store = new Store(new Parser().parse(turtle))
     const one = (s: Term | string, p: string) => {
-      expect(objects(s, p)).toHaveLength(1)
-      return objects(s, p)[0]
+      const objects = store.getObjects(typeof s === 'string' ? namedNode(s) : s, namedNode(p), null)
+      expect(objects).toHaveLength(1)
+      return objects[0]
     }
 
     expect(one(`${P}Pizza`, OWL + 'disjointWith').value).toBe(`${P}Topping`)
-    expect(objects(`${P}Pizza`, OWL + 'equivalentClass')).toHaveLength(0)
-    expect(turtle).not.toContain('Restriction')
-    expect(turtle).not.toContain('xsd:')
+    expect(store.getObjects(namedNode(`${P}Pizza`), namedNode(OWL + 'equivalentClass'), null)).toHaveLength(0)
 
-    // Property shapes from the axioms, by class; the arrow's own sh:class rule comes first on Pizza.
-    const shapeOf = (cls: string) => store.getSubjects(namedNode(SH + 'targetClass'), namedNode(`${P}${cls}`), null)[0]
-    const fromAxioms = (cls: string) => objects(shapeOf(cls), SH + 'property').filter((p) => objects(p, SH + 'message')[0]?.value.startsWith('From the class axiom'))
-    expect(fromAxioms('Pizza')).toHaveLength(1)
-    const min = fromAxioms('Pizza')[0]
-    expect(one(min, SH + 'path').value).toBe(`${P}hasTopping`)
-    expect(one(min, SH + 'minCount')).toMatchObject({ value: '1', datatype: { value: XSD + 'integer' } })
-    expect(one(min, SH + 'message').value).toBe('From the class axiom Pizza subClassOf hasTopping min 1.')
+    const restrictions = (s: string) =>
+      store.getObjects(namedNode(s), namedNode(RDFS + 'subClassOf'), null).filter((o) => o.termType === 'BlankNode')
+    expect(restrictions(`${P}Pizza`)).toHaveLength(1)
+    const min = restrictions(`${P}Pizza`)[0]
+    expect(one(min, OWL + 'onProperty').value).toBe(`${P}hasTopping`)
+    expect(one(min, OWL + 'minCardinality')).toMatchObject({ value: '1', datatype: { value: XSD + 'nonNegativeInteger' } })
 
-    const [some, exactly] = fromAxioms('Margherita')
-    expect(one(one(some, SH + 'qualifiedValueShape'), SH + 'class').value).toBe(`${P}TomatoTopping`)
-    expect(one(some, SH + 'qualifiedMinCount').value).toBe('1')
-    expect(one(one(exactly, SH + 'qualifiedValueShape'), SH + 'class').value).toBe(`${P}Topping`)
-    expect(one(exactly, SH + 'qualifiedMinCount').value).toBe('2')
-    expect(one(exactly, SH + 'qualifiedMaxCount').value).toBe('2')
+    const has = (p: string) => restrictions(`${P}Margherita`).find((r) => store.countQuads(r, namedNode(p), null, null) > 0)!
+    const some = has(OWL + 'someValuesFrom')
+    const exactly = has(OWL + 'qualifiedCardinality')
+    expect(one(some, OWL + 'someValuesFrom').value).toBe(`${P}TomatoTopping`)
+    expect(one(exactly, OWL + 'qualifiedCardinality').value).toBe('2')
+    expect(one(exactly, OWL + 'onClass').value).toBe(`${P}Topping`)
   })
 })
 
@@ -266,23 +250,17 @@ describe('toTurtle property details', () => {
     expect(objects(`${P}inspiredBy`, RDFS + 'domain')).toEqual([])
   })
 
-  it('declares data properties, with the classes listing them and their datatype as shapes', async () => {
-    const SH = 'http://www.w3.org/ns/shacl#'
+  it('writes data properties with their class as domain and a datatype range', async () => {
     const quads = new Parser().parse(await toTurtle(ontology))
     const objects = (s: string, p: string) => quads.filter((q) => q.subject.value === s && q.predicate.value === p).map((q) => q.object.value)
     expect(objects(`${P}price`, RDF + 'type').sort()).toEqual([OWL + 'DatatypeProperty', OWL + 'FunctionalProperty'])
-    expect(objects(`${P}price`, RDFS + 'label')).toEqual(['price'])
-    expect(objects(`${P}price`, RDFS + 'domain')).toEqual([])
-    expect(objects(`${P}name`, RDFS + 'range')).toEqual([])
-    expect(objects(`${P}Unnamed`, RDF + 'type')).toEqual([])
+    expect(objects(`${P}price`, RDFS + 'domain')).toEqual([`${P}Pizza`])
+    expect(objects(`${P}price`, RDFS + 'range')).toEqual([XSD + 'decimal'])
 
-    const shapes = new Parser().parse(await toShaclTurtle(ontology))
-    const value = (s: string, p: string) => shapes.filter((q) => q.subject.value === s && q.predicate.value === p).map((q) => q.object.value)
-    const datatypes = (cls: string) => {
-      const [shape] = shapes.filter((q) => q.predicate.value === SH + 'targetClass' && q.object.value === `${P}${cls}`).map((q) => q.subject.value)
-      return value(shape, SH + 'property').filter((p) => value(p, SH + 'datatype').length).map((p) => [value(p, SH + 'path')[0], value(p, SH + 'datatype')[0]])
-    }
-    expect(datatypes('Pizza')).toEqual([[`${P}price`, XSD + 'decimal'], [`${P}name`, XSD + 'string']])
-    expect(datatypes('Topping')).toEqual([[`${P}name`, XSD + 'string']])
+    const [domain] = objects(`${P}name`, RDFS + 'domain')
+    const list = (head: string): string[] => (head === RDF + 'nil' ? [] : [objects(head, RDF + 'first')[0], ...list(objects(head, RDF + 'rest')[0])])
+    expect(list(objects(domain, OWL + 'unionOf')[0])).toEqual([`${P}Pizza`, `${P}Topping`])
+    expect(objects(`${P}name`, RDFS + 'range')).toEqual([XSD + 'string'])
+    expect(objects(`${P}Unnamed`, RDF + 'type')).toEqual([])
   })
 })

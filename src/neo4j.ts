@@ -12,7 +12,7 @@ export interface CypherScriptInput {
   iri: string
   /** The OWL ontology in Turtle, as toTurtle() writes it. */
   ontology: string
-  /** The SHACL shapes in Turtle, or null when nothing is drawn that makes a rule (see hasShapes). */
+  /** The SHACL shapes in Turtle, or null when no class has constraints. */
   shapes: string | null
   /** The project's other namespaces; each keeps its own prefix in Neo4j. */
   namespaces?: Namespace[]
@@ -67,10 +67,9 @@ export function toCypherScript({ iri, ontology, shapes, namespaces }: CypherScri
     '',
     '// 4. The ontology. n10s.onto.import keeps named classes (:Class), object properties (:Relationship),',
     '//   data properties (:Property), rdfs:subClassOf (SCO), rdfs:subPropertyOf (SPO),',
-    '//   and rdfs:label and rdfs:comment. The ontology has no rdfs:domain or rdfs:range, so there are no',
-    '//   DOMAIN or RANGE links: which classes a property links are rules in the SHACL shapes (step 5).',
-    '//   It leaves out equivalent and disjoint classes, property characteristics, inverses',
-    '//   and other annotations: the .ttl export keeps all of those.',
+    '//   rdfs:domain (DOMAIN), rdfs:range (RANGE), and rdfs:label and rdfs:comment.',
+    '//   It leaves out restrictions, equivalent and disjoint classes, property characteristics,',
+    '//   inverses, union domains and ranges, and other annotations: the .ttl export keeps all of those.',
     `CALL n10s.onto.import.inline(${cypherString(ontology)}, 'Turtle');`,
   ]
   if (shapes) {

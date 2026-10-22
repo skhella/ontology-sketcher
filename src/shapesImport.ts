@@ -16,8 +16,6 @@ export type ShapesImport = {
   /** Constraints read into rows, and rules kept as Turtle because the inspector can't edit them. */
   rows: number
   kept: number
-  /** Rules left out because the canvas already draws them: an arrow's sh:class, a listed data property's sh:datatype. */
-  drawn: number
   /** Shapes left out, with why, e.g. "PersonShape (targets Person, not on this page)". */
   skipped: string[]
 }
@@ -42,7 +40,6 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
   const { store, prefixes } = parseTurtle(turtle, base)
   const classes = nodes.filter((n) => !n.data.kind)
   const classOf = new Map(classes.map((n) => [entityIri(base, n.data, localName(n.data.label)), n.id]))
-  const iriOf = new Map([...classOf].map(([iri, id]) => [id, iri]))
   const objectProperties = edges.filter((e) => e.data?.kind === 'objectProperty')
   const propertyIri = (e: RelationEdge) => entityIri(base, e.data!, propertyLocalName(e.data!.label))
   const dataProperties = new Map<string, string>()
@@ -62,26 +59,6 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
       items.push(one(at, RDF + 'first'))
     }
     return items
-  }
-  // Whether a property shape on class `classId` is one the export writes for what is drawn (see shacl.ts):
-  // sh:class of exactly the classes the property's arrows from it point to, or sh:datatype of its listed data property.
-  const isDrawn = (shape: Term, classId: string): boolean => {
-    const predicates = store.getQuads(shape, null, null, null).map((q) => q.predicate.value)
-    const path = one(shape, SH + 'path')
-    if (path?.termType !== 'NamedNode' || predicates.some((p) => ![SH + 'path', SH + 'message', SH + 'class', SH + 'datatype', SH + 'or'].includes(p))) return false
-    const rule = predicates.filter((p) => p !== SH + 'path' && p !== SH + 'message')
-    if (rule.length !== 1) return false
-    // Each sh:or member holds just one sh:class or sh:datatype.
-    const or = rule[0] === SH + 'or' ? readList(one(shape, SH + 'or')!) : undefined
-    const values = (kind: string) =>
-      (or ? or.map((o) => (o && store.getQuads(o, null, null, null).length === 1 ? one(o, SH + kind) : undefined)) : [one(shape, SH + kind)]).map((t) =>
-        t?.termType === 'NamedNode' ? t.value : undefined,
-      )
-    const same = (a: (string | undefined)[], b: string[]) => a.every((v) => v && b.includes(v)) && b.every((v) => a.includes(v))
-    const arrows = objectProperties.filter((e) => e.source === classId && propertyIri(e) === path.value).map((e) => iriOf.get(e.target))
-    if (arrows.length > 0) return same(values('class'), arrows.filter((a): a is string => !!a))
-    const listed = (classes.find((n) => n.id === classId)?.data.dataProperties ?? []).filter((p) => p.name.trim() && base + propertyLocalName(p.name) === path.value)
-    return listed.length > 0 && same(values('datatype'), listed.map((p) => p.datatype))
   }
   const count = (term: Term | undefined) => (term?.termType === 'Literal' && /^\d+$/.test(term.value) ? Number(term.value) : undefined)
 
@@ -139,7 +116,7 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
     return undefined
   }
 
-  const result: ShapesImport = { classes: new Map(), rows: 0, kept: 0, drawn: 0, skipped: [] }
+  const result: ShapesImport = { classes: new Map(), rows: 0, kept: 0, skipped: [] }
   const kept = new Map<string, Quad[]>()
   const keep = (classId: string, quads: Quad[]) => kept.set(classId, [...(kept.get(classId) ?? []), ...quads])
   const entry = (classId: string) => {
@@ -175,7 +152,7 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
       readList(ignored).map((t) => t?.value).join() === RDF + 'type' &&
       onCanvas.length === 1 &&
       targeting.get(onCanvas[0].value) === 1 &&
-      properties.every((p) => isDrawn(p, classOf.get(onCanvas[0].value)!) || toRow(p, classOf.get(onCanvas[0].value)!))
+      properties.every((p) => toRow(p, classOf.get(onCanvas[0].value)!))
     const own = closable ? quads.filter((q) => q.predicate.value !== SH + 'closed' && q.predicate.value !== SH + 'ignoredProperties') : quads
     if (own.some((q) => !SHAPE_PREDICATES.has(q.predicate.value))) {
       // Rules on the shape itself (sh:closed, sh:or, other targets…): keep the whole shape, on the first class it targets.
@@ -190,10 +167,6 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
       const into = entry(classId)
       if (closable) into.closed = true
       for (const property of properties) {
-        if (isDrawn(property, classId)) {
-          result.drawn += 1
-          continue
-        }
         const row = toRow(property, classId)
         if (row) {
           into.constraints.push(row)
@@ -218,11 +191,10 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
 }
 
 /** One line for the notice after an import. */
-export function describeShapesImport({ classes, rows, kept, drawn, skipped }: ShapesImport): string {
+export function describeShapesImport({ classes, rows, kept, skipped }: ShapesImport): string {
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
   const parts = [`Imported ${plural(rows, 'constraint', 'constraints')} on ${plural(classes.size, 'class', 'classes')}.`]
   if (kept > 0) parts.push(`Kept ${plural(kept, 'rule', 'rules')} the inspector can't edit yet; ${kept === 1 ? 'it exports' : 'they export'} unchanged.`)
-  if (drawn > 0) parts.push(`Left out ${plural(drawn, 'rule', 'rules')} the arrows and data properties on the canvas already give.`)
   if (skipped.length > 0) parts.push(`Skipped ${skipped.join(', ')}.`)
   return parts.join(' ')
 }

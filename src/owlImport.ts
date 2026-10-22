@@ -16,7 +16,6 @@ import {
   type SkosEdgeKind,
 } from './model'
 import { LAYOUT_PROPERTY, parseLayout, type SavedLayout } from './savedLayout'
-import { AXIOM_MESSAGE } from './shacl'
 import { conceptSchemes, MAPPING_KINDS, NODE_KIND_STYLES } from './skos'
 import { suggestPrefix } from './namespaces'
 import { ANNOTATION_PROPERTIES, BUILT_IN_ANNOTATION_PROPERTIES, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS, SKOS, SKOS_ANNOTATION_PROPERTIES, XSD } from './vocab'
@@ -26,9 +25,7 @@ import { ANNOTATION_PROPERTIES, BUILT_IN_ANNOTATION_PROPERTIES, isAbsoluteIri, O
  * Named classes become nodes; rdfs:subClassOf between named classes and object properties (one arrow per
  * domain/range pair) become edges; restrictions become class axioms; data properties are listed on their domain classes.
  * SKOS concepts and schemes become concept and scheme nodes with their broader, narrower, related and topConceptOf edges.
- * The arrows and data property datatypes this app's export keeps in the shapes file (see shacl.ts) are read from there
- * when it is imported together with the ontology; other SHACL shapes are left alone (see shapesImport.ts).
- * Node positions are left at 0,0; see layout.ts.
+ * Node positions are left at 0,0; see layout.ts. SHACL shapes in the same file are left alone.
  */
 
 export type OwlImportSummary = {
@@ -45,7 +42,6 @@ export type OwlImportSummary = {
 /** `layout` is how this app drew the ontology when it exported it, see savedLayout.ts. */
 export type OwlImportResult = { iri: string; namespaces: Namespace[]; nodes: ClassNode[]; edges: RelationEdge[]; layout?: SavedLayout; summary: OwlImportSummary }
 
-const SH = 'http://www.w3.org/ns/shacl#'
 const TYPE = RDF + 'type'
 const LABEL = RDFS + 'label'
 const SUB_CLASS_OF = RDFS + 'subClassOf'
@@ -103,27 +99,19 @@ const STRUCTURAL = new Set([
   ...MAPPING_KINDS.map((k) => SKOS + k),
 ])
 
-/**
- * Parses Turtle and converts it, see the module comment; several texts, such as an ontology and its shapes file,
- * are read as one graph. Throws with a readable message on files it cannot read.
- */
-export function importOwl(text: string | string[]): OwlImportResult {
+/** Parses Turtle and converts it, see the module comment. Throws with a readable message on files it cannot read. */
+export function importOwl(text: string): OwlImportResult {
+  if (/^\s*(<\?xml|<rdf:RDF)/.test(text)) {
+    throw new Error('This is RDF/XML. Save it as Turtle first (in Protégé: File > Save as > Turtle Syntax).')
+  }
   const prefixes: Record<string, string> = {}
-  const quads: Quad[] = []
-  for (const t of typeof text === 'string' ? [text] : text) {
-    if (/^\s*(<\?xml|<rdf:RDF)/.test(t)) {
-      throw new Error('This is RDF/XML. Save it as Turtle first (in Protégé: File > Save as > Turtle Syntax).')
-    }
-    try {
-      // A parser per file keeps the files' blank nodes apart.
-      quads.push(
-        ...new Parser().parse(t, null, (prefix, iri) => {
-          prefixes[prefix] ??= iri.value
-        }),
-      )
-    } catch (error) {
-      throw new Error(`This is not valid Turtle: ${(error as Error).message}`)
-    }
+  let quads: Quad[]
+  try {
+    quads = new Parser().parse(text, null, (prefix, iri) => {
+      prefixes[prefix] = iri.value
+    })
+  } catch (error) {
+    throw new Error(`This is not valid Turtle: ${(error as Error).message}`)
   }
   const store = new Store(quads)
   return convert(store, prefixes)
@@ -136,9 +124,7 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
   const isA = (s: string, type: string) => store.countQuads(s, TYPE, type, null) > 0
 
   // The namespace: the empty prefix when the file has one, else the one most classes share, else the ontology IRI plus '#'.
-  // A shapes file read along has its own owl:Ontology, which imports the ontology itself.
-  const ontologies = subjectsOfType(OWL + 'Ontology')
-  const ontologyIri = ontologies.find((o) => !ontologies.some((other) => store.countQuads(o, OWL + 'imports', other, null) > 0)) ?? ontologies[0]
+  const ontologyIri = subjectsOfType(OWL + 'Ontology')[0]
   const counts = new Map<string, number>()
   for (const c of [...subjectsOfType(OWL + 'Class'), ...subjectsOfType(SKOS + 'Concept')]) {
     const ns = c.replace(/[^#/]*$/, '')
@@ -242,39 +228,6 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     return items
   }
 
-  // Arrows and data property datatypes as shacl.ts writes them: a property shape with only sh:path, sh:message and
-  // sh:class or sh:datatype, or sh:or over those, on a node shape targeting a class. By property IRI: the class and allowed values.
-  const drawnRules = new Map<string, { kind: 'class' | 'datatype'; holder: string; values: string[] }[]>()
-  const ruleShapes = new Set<string>()
-  for (const q of store.getQuads(null, SH + 'property', null, null)) {
-    const shape = q.object
-    const path = object(shape, SH + 'path')
-    const predicates = store.getQuads(shape, null, null, null).map((p) => p.predicate.value)
-    if (path?.termType !== 'NamedNode' || predicates.some((p) => ![SH + 'path', SH + 'message', SH + 'class', SH + 'datatype', SH + 'or'].includes(p))) continue
-    if (predicates.filter((p) => p !== SH + 'message').length !== 2) continue
-    // An `only` class axiom exported as a shape looks like an arrow but isn't one; see axiomShape in shacl.ts.
-    if (objects(shape, SH + 'message').some((m) => m.value.startsWith(AXIOM_MESSAGE))) continue
-    // One sh:class or sh:datatype and nothing else, as each member of an sh:or is.
-    const valueOf = (term: Term, keys: string[]) => {
-      const kind = keys[0] === SH + 'class' ? 'class' : keys[0] === SH + 'datatype' ? 'datatype' : undefined
-      const value = kind && object(term, keys[0])
-      return keys.length === 1 && value?.termType === 'NamedNode' ? { kind, value: value.value } : undefined
-    }
-    const list = object(shape, SH + 'or')
-    const values = list
-      ? listItems(list).map((item) => valueOf(item, store.getQuads(item, null, null, null).map((p) => p.predicate.value)))
-      : [valueOf(shape, predicates.filter((p) => p !== SH + 'path' && p !== SH + 'message'))]
-    if (values.length === 0 || values.some((v) => !v || v.kind !== values[0]!.kind)) continue
-    for (const target of objects(q.subject, SH + 'targetClass')) {
-      if (!nodeId.has(target.value)) continue
-      const rules = drawnRules.get(path.value) ?? []
-      rules.push({ kind: values[0]!.kind as 'class' | 'datatype', holder: target.value, values: values.map((v) => v!.value) })
-      drawnRules.set(path.value, rules)
-      ruleShapes.add(shape.value)
-    }
-  }
-  const rulesFor = (property: string, kind: 'class' | 'datatype') => (drawnRules.get(property) ?? []).filter((r) => r.kind === kind)
-
   let subClassOf = 0
   for (const c of classIris) {
     for (const sup of objects(c, SUB_CLASS_OF)) {
@@ -321,10 +274,6 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
       }
       for (const t of targets) pairs.push([d, t])
     }
-    // Exported here: the arrows are in the shapes file.
-    if (pairs.length === 0) {
-      for (const rule of rulesFor(p, 'class')) for (const t of rule.values) if (nodeId.has(t)) pairs.push([rule.holder, t])
-    }
     // A property with no domain or range but used in a restriction is drawn from that class to the filler.
     if (pairs.length === 0) {
       for (const q of store.getQuads(null, OWL + 'onProperty', p, null)) {
@@ -337,7 +286,7 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
       }
     }
     if (pairs.length === 0) {
-      skip('object properties without a domain and range (for a file exported here, import its -shapes.ttl along with it)')
+      skip('object properties without a domain and range')
       continue
     }
     for (const [d, t] of pairs) {
@@ -434,9 +383,8 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
 
       const listed: DataProperty[] = []
       for (const p of dataProperties) {
-        const fromShapes = rulesFor(p, 'datatype').find((r) => r.holder === entity)
-        if (!unionMembers(object(p, RDFS + 'domain')).includes(entity) && !fromShapes) continue
-        const range = unionMembers(object(p, RDFS + 'range'))[0] ?? fromShapes?.values[0]
+        if (!unionMembers(object(p, RDFS + 'domain')).includes(entity)) continue
+        const range = unionMembers(object(p, RDFS + 'range'))[0]
         listed.push({ name: labelOf(p), datatype: range ?? XSD + 'string', ...(isA(p, OWL + 'FunctionalProperty') && { functional: true }) })
         dataPropertyCount.add(p)
       }
@@ -469,10 +417,7 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
   if (dataOnly) skip('data properties without a domain class', dataOnly)
   const individuals = subjectsOfType(OWL + 'NamedIndividual').filter((i) => !concepts.has(i) && !schemes.has(i)).length
   if (individuals) skip('individuals', individuals)
-  // Node shapes holding only arrows and datatypes are shown as those; the rest is for the SHACL shapes import.
-  const shapes = subjectsOfType(SH + 'NodeShape').filter(
-    (s) => store.getQuads(s, null, null, null).some((q) => ![TYPE, SH + 'targetClass', SH + 'property'].includes(q.predicate.value) || (q.predicate.value === SH + 'property' && !ruleShapes.has(q.object.value))),
-  ).length
+  const shapes = subjectsOfType('http://www.w3.org/ns/shacl#NodeShape').length
   if (shapes) skip('SHACL shapes', shapes)
 
   const layout = parseLayout(ontologyIri ? object(ontologyIri, LAYOUT_PROPERTY)?.value : undefined)

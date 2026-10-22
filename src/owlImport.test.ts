@@ -4,7 +4,6 @@ import { layoutOntology, planImport, saveLayout } from './layout'
 import { loadCanvas, saveCanvas, workspaceFrom } from './pages'
 import { sampleOntology, type ClassNode, type Ontology, type RelationEdge } from './model'
 import { toTurtle } from './owl'
-import { toShaclTurtle } from './shacl'
 import { describeOwlImport, importOwl } from './owlImport'
 
 const P = 'http://example.org/pizza#'
@@ -32,13 +31,10 @@ function canonical(turtle: string): string[] {
     .sort()
 }
 
-/** Exports both files, imports them together and exports again. */
 async function roundTrip(ontology: Ontology) {
   const turtle = await toTurtle(ontology)
-  const shapes = await toShaclTurtle(ontology)
-  const imported = importOwl([turtle, shapes])
-  const back = { iri: imported.iri, nodes: imported.nodes, edges: imported.edges }
-  return { turtle, shapes, imported, again: await toTurtle(back), shapesAgain: await toShaclTurtle(back) }
+  const imported = importOwl(turtle)
+  return { turtle, imported, again: await toTurtle({ iri: imported.iri, nodes: imported.nodes, edges: imported.edges }) }
 }
 
 const cls = (id: string, label = id, extra: Partial<ClassNode['data']> = {}): ClassNode => ({ id, type: 'owlClass', position: { x: 0, y: 0 }, data: { label, ...extra } })
@@ -93,46 +89,33 @@ const rich: Ontology = {
 
 describe('importOwl', () => {
   it('round-trips the sample ontology', async () => {
-    const { turtle, shapes, imported, again, shapesAgain } = await roundTrip(sampleOntology)
+    const { turtle, imported, again } = await roundTrip(sampleOntology)
     expect(canonical(again)).toEqual(canonical(turtle))
-    expect(canonical(shapesAgain)).toEqual(canonical(shapes))
     expect(imported.iri).toBe(P)
     expect(imported.summary).toMatchObject({ classes: 4, subClassOf: 2, objectProperties: 1, skipped: [] })
   })
 
   it('round-trips axioms, properties, annotations, IRIs and SKOS', async () => {
-    const { turtle, shapes, imported, again, shapesAgain } = await roundTrip(rich)
+    const { turtle, imported, again } = await roundTrip(rich)
     expect(canonical(again)).toEqual(canonical(turtle))
-    // Restriction axioms are shapes now, which the ontology import leaves to the SHACL shapes import; the rest comes back.
-    // (Vegetarian Pizza's shape holds only its axiom, so it goes too.)
-    const drawn = (lines: string[]) => lines.filter((l) => !l.includes('From the class axiom') && !l.includes('VegetarianPizzaShape'))
-    expect(canonical(shapesAgain)).toEqual(drawn(canonical(shapes)))
-    expect(canonical(shapes).length).toBeGreaterThan(drawn(canonical(shapes)).length)
-    expect(imported.summary.skipped).toEqual(['2 SHACL shapes'])
+    expect(imported.summary.skipped).toEqual([])
 
     const byLabel = (label: string) => imported.nodes.find((n) => n.data.label === label)!
     expect(byLabel('Pizza').data.iri).toBe('PizzaDish')
     expect(byLabel('Dish').data.namespace).toBe('http://example.org/food#')
     expect(byLabel('Dish').data.iri).toBeUndefined()
     expect(imported.namespaces).toEqual([{ prefix: 'food', iri: 'http://example.org/food#' }])
-    expect(byLabel('Pizza').data.axioms).toBeUndefined()
-    expect(byLabel('Topping').data.axioms).toEqual([{ kind: 'disjointWith', expression: { type: 'class', ref: byLabel('Pizza Base').id } }])
+    expect(byLabel('Pizza').data.axioms).toHaveLength(3)
     expect(byLabel('Pizza').data.dataProperties).toEqual([
       { name: 'diameter', datatype: XSD + 'decimal', functional: true },
       { name: 'name', datatype: XSD + 'string' },
     ])
     expect(byLabel('Crust').data).toMatchObject({ kind: 'concept', labelLang: 'en' })
-    // Each class's targets of a property come back as its arrows.
+    // The per-source restriction becomes arrows again, not an axiom on Pizza.
     expect(imported.edges.filter((e) => e.data?.label === 'has ingredient').map((e) => [e.source, e.target])).toEqual([
       [byLabel('Pizza').id, byLabel('Topping').id],
       [byLabel('Topping').id, byLabel('Vegetable Topping').id],
     ])
-  })
-
-  it('says to import the shapes file along when the arrows are only there', async () => {
-    const { summary, edges } = importOwl(await toTurtle(sampleOntology))
-    expect(edges.filter((e) => e.data?.kind === 'objectProperty')).toEqual([])
-    expect(summary.skipped).toEqual(['1 object properties without a domain and range (for a file exported here, import its -shapes.ttl along with it)'])
   })
 
   it('reads a hand-written file: undeclared superclasses, owl:Thing fillers, and what it cannot show', () => {
@@ -174,7 +157,7 @@ describe('layout', () => {
     const { workspace, pageId } = workspaceFrom('Page 1', nodes, sampleOntology.edges)
     // The file adds Calzone under Pizza.
     const file = (await toTurtle(sampleOntology)) + `\n<${P}Calzone> a <http://www.w3.org/2002/07/owl#Class> ; <${RDFS}subClassOf> <${P}Pizza> .`
-    const { pages, kept } = planImport(importOwl([file, await toShaclTurtle(sampleOntology)]), { iri: P, workspace, pageId })
+    const { pages, kept } = planImport(importOwl(file), { iri: P, workspace, pageId })
     expect(pages).toHaveLength(1)
     expect(kept).toBe(4)
     const placed = pages[0]
@@ -212,9 +195,8 @@ describe('layout saved in the export', () => {
 
   it('brings back pages, positions, colours, dots and curves', async () => {
     const turtle = await toTurtle({ iri: P, nodes: styled, edges: curved }, saveLayout(workspace, pageIds, P))
-    const shapes = await toShaclTurtle({ iri: P, nodes: styled, edges: curved })
     const fresh = workspaceFrom('Page 1', [], [])
-    const { pages } = planImport(importOwl([turtle, shapes]), { iri: P, workspace: fresh.workspace, pageId: fresh.pageId })
+    const { pages } = planImport(importOwl(turtle), { iri: P, workspace: fresh.workspace, pageId: fresh.pageId })
     expect(pages.map((p) => p.name)).toEqual(['Main', 'Kinds'])
     for (const [page, id] of [[pages[0], first.pageId], [pages[1], secondId]] as const) {
       const before = loadCanvas(workspace, id)
@@ -249,7 +231,7 @@ describe('large ontologies', () => {
   edges.push(rel('livesIn', 'Animal', 'Place', { kind: 'objectProperty', label: 'lives in' }))
 
   it('adds an overview and a page per branch, drawing every arrow somewhere', async () => {
-    const imported = importOwl([await toTurtle({ iri: P, nodes, edges }), await toShaclTurtle({ iri: P, nodes, edges })])
+    const imported = importOwl(await toTurtle({ iri: P, nodes, edges }))
     const fresh = workspaceFrom('Page 1', [], [])
     const { pages } = planImport(imported, { iri: P, workspace: fresh.workspace, pageId: fresh.pageId }, 40)
     // Place is small enough to share Animal's page.
@@ -277,7 +259,7 @@ describe('namespaces', () => {
     expect(turtle).toContain('rdl:Mozz a owl:Class')
     expect(turtle).toContain('rdl:hasCheese a owl:ObjectProperty')
 
-    const imported = importOwl([turtle, await toShaclTurtle(ontology)])
+    const imported = importOwl(turtle)
     expect(imported.iri).toBe(P)
     expect(imported.namespaces).toEqual([{ prefix: 'rdl', iri: RDL }])
     const byLabel = (label: string) => imported.nodes.find((n) => n.data.label === label)!.data
