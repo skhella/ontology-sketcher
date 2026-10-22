@@ -1,12 +1,12 @@
-import { Handle, useConnection, useInternalNode, type NodeProps } from '@xyflow/react'
-import { Fragment, useContext, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { Handle, useConnection, useInternalNode, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
+import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { ClassNode } from '../model'
 import { NamespacesContext } from '../namespaceContext'
 import { PageLinksContext } from '../pageLinksContext'
 import { prefixOf } from '../namespaces'
 import { breakPoints } from './label'
 import { roughEllipse, roughRect, seedFor } from './rough'
-import { boxOf, CLASS_HEIGHT as HEIGHT, CLASS_WIDTH as WIDTH, SIDES, snapToClass } from './snap'
+import { ANCHORS, boxOf, CLASS_HEIGHT as HEIGHT, CLASS_WIDTH as WIDTH, cornerFraction, handlePosition, isCorner, snapToClass, type Anchor } from './snap'
 import { dashArray, nodeStyle, roughNodeOptions } from './style'
 
 export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
@@ -31,12 +31,16 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
     [id, style, height, oval],
   )
 
+  // Switching between box and oval moves the corner dots without resizing the class, so React Flow has to measure them again.
+  const updateNodeInternals = useUpdateNodeInternals()
+  useEffect(() => updateNodeInternals(id), [id, oval, updateNodeInternals])
+
   // While a new edge is dragged over this class, highlight the dot it will lock to.
   // `to` is the pointer in flow coordinates, or the dot React Flow itself snapped to.
   const position = internal?.internals.positionAbsolute
   const measured = internal?.measured
   const snapSide = useConnection((c) =>
-    c.inProgress && position ? (snapToClass([boxOf({ id, position, measured })], c.to, c.fromNode.id)?.side ?? null) : null,
+    c.inProgress && position ? (snapToClass([boxOf({ id, position, measured, data })], c.to, c.fromNode.id)?.side ?? null) : null,
   )
 
   return (
@@ -96,12 +100,26 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
           page ↗
         </button>
       )}
-      {/* One dot per side. With ConnectionMode.Loose any dot can start or end an edge; the id is the side. */}
-      {SIDES.map((side) => (
-        <Handle key={side} id={side} type="source" position={side} className={side === snapSide ? 'snapped' : undefined} />
+      {/* Eight dots: one per side and one per corner. With ConnectionMode.Loose any dot can start or end an edge; the id is the anchor. */}
+      {ANCHORS.map((anchor) => (
+        <Handle
+          key={anchor}
+          id={anchor}
+          type="source"
+          position={handlePosition(anchor)}
+          className={anchor === snapSide ? 'snapped' : undefined}
+          style={cornerStyle(anchor, oval)}
+        />
       ))}
     </div>
   )
+}
+
+/** A corner dot sits on the box's corner or at 45° on the oval, centred on that point. */
+function cornerStyle(anchor: Anchor, oval: boolean) {
+  if (!isCorner(anchor)) return undefined
+  const f = cornerFraction(anchor, oval)
+  return { left: `${f.x * 100}%`, top: `${f.y * 100}%`, right: 'auto', bottom: 'auto', transform: 'translate(-50%, -50%)' }
 }
 
 /** Rendered height of the label, kept current as it wraps or its text changes. */

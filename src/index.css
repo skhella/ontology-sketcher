@@ -1114,6 +1114,12 @@ body,
   cursor: pointer;
 }
 
+/* An oval's bottom-left dot sits where the tab would; the tab moves between that dot and the bottom one, just below the outline. */
+.class-node.oval .page-link {
+  left: 32px;
+  bottom: -14px;
+}
+
 .pages .page.linked > button:first-child {
   text-decoration: underline dotted;
 }

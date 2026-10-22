@@ -109,7 +109,9 @@ describe('pages not on screen', () => {
   })
 
   it('ends edges on the outer side of the dot, as the canvas does', () => {
-    expect(dotEndpoint(node('a', 'A', 0, 0), Position.Top)).toEqual({ x: 90, y: -5.5 })
-    expect(dotEndpoint(node('a', 'A', 0, 0), Position.Right)).toEqual({ x: 185.5, y: 32 })
+    expect(dotEndpoint(node('a', 'A', 0, 0), Position.Top)).toEqual({ x: 90, y: -4 })
+    expect(dotEndpoint(node('a', 'A', 0, 0), Position.Right)).toEqual({ x: 184, y: 32 })
+    // A corner dot ends its edge on the dot's top or bottom side, as React Flow does.
+    expect(dotEndpoint(node('a', 'A', 0, 0), 'bottom-left')).toEqual({ x: 0, y: 68 })
   })
 })

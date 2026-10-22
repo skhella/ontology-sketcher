@@ -1,6 +1,6 @@
 import { Position } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
-import { snapToClass, toFlowPoint } from './snap'
+import { sidePoint, snapToClass, toAnchor, toFlowPoint } from './snap'
 
 const a = { id: 'a', x: 0, y: 0, width: 180, height: 64 }
 const b = { id: 'b', x: 300, y: 0, width: 180, height: 64 }
@@ -13,9 +13,29 @@ describe('snapToClass', () => {
     expect(snapToClass([a, b], { x: 380, y: 60 }, 'a')?.side).toBe(Position.Bottom)
   })
 
+  it('locks onto a corner dot near a corner, on the corner of a box and at 45° on an oval', () => {
+    expect(snapToClass([a, b], { x: 305, y: 4 }, 'a')).toEqual({ nodeId: 'b', side: 'top-left', point: { x: 300, y: 0 } })
+    expect(snapToClass([a, b], { x: 475, y: 60 }, 'a')?.side).toBe('bottom-right')
+    const oval = { ...b, oval: true }
+    const snap = snapToClass([a, oval], { x: 320, y: 10 }, 'a')
+    expect(snap?.side).toBe('top-left')
+    expect(snap?.point.x).toBeCloseTo(300 + 90 - 90 * Math.SQRT1_2)
+    expect(snap?.point.y).toBeCloseTo(32 - 32 * Math.SQRT1_2)
+  })
+
   it('ignores the class the edge starts from and empty canvas', () => {
     expect(snapToClass([a, b], { x: 90, y: 30 }, 'a')).toBeNull()
     expect(snapToClass([a, b], { x: 240, y: 30 }, 'a')).toBeNull()
+  })
+})
+
+describe('toAnchor', () => {
+  it('keeps the four side ids saved before corner dots existed and falls back on unknown ids', () => {
+    expect(toAnchor('left', Position.Top)).toBe(Position.Left)
+    expect(toAnchor('bottom-left', Position.Top)).toBe('bottom-left')
+    expect(toAnchor(undefined, Position.Bottom)).toBe(Position.Bottom)
+    expect(toAnchor('middle', Position.Top)).toBe(Position.Top)
+    expect(sidePoint(a, 'top-right')).toEqual({ x: 180, y: 0 })
   })
 })
 
