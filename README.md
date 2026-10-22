@@ -117,6 +117,12 @@ add axioms and data constraints, check a few example instances, and hand the res
 - **Export > Image of this page (SVG)** saves the current page as a drawing for papers and slides, cropped to the content, with
   or without a background and in light or dark colours. Excalifont is embedded, so browsers show the hand-drawn
   lettering; viewers that ignore embedded fonts (such as librsvg) fall back to a system font.
+- With several pages, the export asks which pages to include. Tick **One file per page** to get a separate
+  `.ttl` (and `.shapes.ttl`) or `.cypher` file for each chosen page, named after it, each exactly what exporting
+  that page alone would give; **Images of several pages (SVG)** does the same for drawings. **Download all (.zip)**
+  saves every file in one go. A class on several pages is written to each of their files, and a property drawn on
+  several pages gets only that page's domain and range in each file, so load the merged export, not the page files
+  together, when you want the whole ontology.
 
 ![The Cypher (Neo4j) export preview next to the pizza drawing: a commented Cypher script that sets up n10s, adds a pizza prefix and imports the ontology inline](docs/screenshot-neo4j.png)
 

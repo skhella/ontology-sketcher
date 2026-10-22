@@ -4,7 +4,7 @@ import { edgeLine, type Point } from './sketch/curve'
 import { breakPoints } from './sketch/label'
 import { constraintOnArrow, multiplicity, nearTarget } from './sketch/multiplicity'
 import { roughEllipse, roughPath, roughRect, seedFor, type SketchPath } from './sketch/rough'
-import { boxOf, sidePoint, type Box } from './sketch/snap'
+import { boxOf, CLASS_HEIGHT, sidePoint, type Box } from './sketch/snap'
 import { dashArray, EDGE_DEFAULTS, nodeStyle, roughNodeOptions } from './sketch/style'
 
 /**
@@ -148,6 +148,28 @@ export function toSvg(nodes: ClassNode[], edges: RelationEdge[], options: SvgOpt
     '</g>',
     '</svg>',
   ].join('\n')
+}
+
+// A class's dot: 8px plus a 1.5px border a side (index.css), centred on the middle of a side of the box.
+const DOT = 11
+
+/** Where an edge meets a class's dot when no canvas has drawn the page: the middle of the dot's outer side, as on the canvas. */
+export function dotEndpoint(node: ClassNode, side: Position): Point {
+  const middle = sidePoint(boxOf(node), side)
+  return sidePoint({ id: node.id, x: middle.x - DOT / 2, y: middle.y - DOT / 2, width: DOT, height: DOT }, side)
+}
+
+/**
+ * A class with its size as the canvas would draw it, for pages not on screen: one the canvas has measured keeps
+ * that size, otherwise the height follows its wrapped label as ClassNodeView grows it (6px padding above and
+ * below in a box; an oval tall enough for the label to fit its inscribed rectangle).
+ */
+export function sized(node: ClassNode, measure: SvgOptions['measure']): ClassNode {
+  if (node.measured?.width && node.measured.height) return node
+  const oval = nodeStyle(node.data.style).shape === 'oval'
+  const label = wrap(node.data.label, boxOf(node).width - (oval ? 56 : 16), (t) => measure(t, CLASS_FONT)).length * CLASS_LINE
+  const height = Math.max(CLASS_HEIGHT, oval ? Math.ceil(label * Math.SQRT2) + 12 : label + 12)
+  return { ...node, measured: { width: boxOf(node).width, height } }
 }
 
 /** Text on a small background-coloured plate, like the canvas's edge labels and counts. */

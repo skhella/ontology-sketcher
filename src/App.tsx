@@ -21,7 +21,8 @@ import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
 import { record, redo, startHistory, undo, type History } from './history'
-import { planImport, saveLayout } from './layout'
+import { planImport } from './layout'
+import { exportFiles, exportFilesPerPage, pageFileStems, type ExportFile, type ExportFormat } from './exportFiles'
 import { keptStatementsOf } from './keptStatements'
 import { describeOwlImport, importOwl } from './owlImport'
 import { describeShapesImport, importShapes } from './shapesImport'
@@ -31,9 +32,6 @@ import { NamespacesContext } from './namespaceContext'
 import { PageLinksContext, type PageLinks } from './pageLinksContext'
 import { mergeNamespaces, renameNamespace } from './namespaces'
 import { NamespacesMenu } from './NamespacesMenu'
-import { toTurtle } from './owl'
-import { toCypherScript } from './neo4j'
-import { hasConstraints, toShaclTurtle } from './shacl'
 import { defaultEdge, isSkosEdge, NODE_KIND_NAMES, NODE_KIND_STYLES } from './skos'
 import { ClassPages } from './inspector/ClassPages'
 import { Inspector } from './inspector/Inspector'
@@ -47,16 +45,15 @@ import { boxOf, snapToClass, toFlowPoint } from './sketch/snap'
 import { StylePanel } from './sketch/StylePanel'
 import { EDGE_DEFAULTS, type SketchStyle } from './sketch/style'
 import { useTheme } from './theme'
-import { toSvg } from './svgExport'
+import { dotEndpoint, sized, toSvg } from './svgExport'
 import { excalifontCss, excalifontMeasure, handleEndpoint } from './svgBrowser'
+import { zip } from './zip'
 
 const nodeTypes = { owlClass: ClassNodeView }
 const edgeTypes = { relation: RelationEdgeView }
 
-type ExportFormat = 'owl' | 'cypher'
 // How the SVG image of the page is drawn; it follows the canvas's light colours unless dark is picked.
 type SvgLook = { dark: boolean; background: boolean }
-type ExportFile = { name: string; label: string; type: string; text: string }
 
 function markerFor(edge: RelationEdge): RelationEdge {
   const closed = edge.data?.kind === 'subClassOf'
@@ -77,8 +74,8 @@ function edgeStyle(edge: RelationEdge): SketchStyle {
   return { strokeStyle: edge.data?.kind === 'subClassOf' ? 'solid' : 'dashed', ...edge.data?.style }
 }
 
-function downloadText(name: string, type: string, text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type }))
+function download(name: string, blob: Blob) {
+  const url = URL.createObjectURL(blob)
   const a = Object.assign(document.createElement('a'), { href: url, download: name })
   a.click()
   URL.revokeObjectURL(url)
@@ -102,12 +99,16 @@ export default function App() {
   const [workspace, setWorkspace] = useState<Workspace>(initial.workspace)
   const [pageId, setPageId] = useState(initial.pageId)
   const [exportPages, setExportPages] = useState<string[] | null>(null)
+  // Whether the chosen pages go into one file or a file each; SVG images are always one per page.
+  const [exportSplit, setExportSplit] = useState(false)
   // What the open export shows: the OWL ontology plus SHACL shapes when any class has constraints,
-  // or the Cypher script for Neo4j. Several files get tabs.
-  const [exportFormat, setExportFormat] = useState<ExportFormat>('owl')
+  // or the Cypher script for Neo4j, or images. Several files get tabs and can be downloaded together as a zip.
+  const [exportFormat, setExportFormat] = useState<ExportFormat | 'svg'>('owl')
   const [exported, setExported] = useState<ExportFile[] | null>(null)
+  const [zipName, setZipName] = useState('ontology.zip')
   const [shownFile, setShownFile] = useState(0)
   const [svgLook, setSvgLook] = useState<SvgLook | null>(null)
+  const [svgPages, setSvgPages] = useState<string[]>([])
   // The sample data panel, and the classes whose instances in it break a constraint (outlined on the canvas).
   const [sampleOpen, setSampleOpen] = useState(false)
   const [problemClasses, setProblemClasses] = useState<string[]>([])
@@ -385,56 +386,75 @@ export default function App() {
     show(placeClass(saved(), pageId, classId, at), pageId, false)
   }
 
-  const runExport = async (format: ExportFormat, pageIds: string[]) => {
+  // The chosen pages merged into one file, or with `split` a file (or OWL and SHACL pair) per page, see exportFiles.ts.
+  const runExport = async (format: ExportFormat, pageIds: string[], split: boolean) => {
     setExportPages(null)
     setSvgLook(null)
     const ws = saved()
-    const ontology = { ...mergePages(ws, pageIds, iri), namespaces, kept, keptStatements }
-    // The OWL file carries the pages' layout so importing it draws them again; Neo4j gets plain OWL.
-    const turtle = await toTurtle(ontology, format === 'owl' ? saveLayout(ws, pageIds, iri) : undefined)
-    const shapes = hasConstraints(ontology) ? await toShaclTurtle(ontology) : null
+    const context = { iri, namespaces, kept, keptStatements }
+    const files = split ? await exportFilesPerPage(format, ws, pageIds, context) : await exportFiles(format, ws, pageIds, context)
     setShownFile(0)
-    setExported(
-      format === 'cypher'
-        ? [{ name: 'ontology.cypher', label: 'ontology.cypher (Neo4j)', type: 'text/plain', text: toCypherScript({ iri: ontology.iri, ontology: turtle, shapes, namespaces }) }]
-        : [
-            { name: 'ontology.ttl', label: 'ontology.ttl (OWL)', type: 'text/turtle', text: turtle },
-            ...(shapes ? [{ name: 'shapes.ttl', label: 'shapes.ttl (SHACL)', type: 'text/turtle', text: shapes }] : []),
-          ],
-    )
+    setZipName(split ? 'ontology-pages.zip' : 'ontology.zip')
+    setExported(files)
   }
 
   // With one page there is nothing to choose; otherwise ask which pages go into the file.
   const startExport = (format: ExportFormat) => {
     setExportFormat(format)
-    if (workspace.pages.length === 1) runExport(format, [pageId])
+    setExportSplit(false)
+    if (workspace.pages.length === 1) runExport(format, [pageId], false)
     else setExportPages(workspace.pages.map((p) => p.id))
   }
 
-  // The SVG image shows this page as drawn, so there are no pages to choose.
-  const exportSvg = async (look: SvgLook) => {
+  // Images of several pages at once: ask which.
+  const startSvgExport = () => {
+    setExportFormat('svg')
+    setExportPages(workspace.pages.map((p) => p.id))
+  }
+
+  // An SVG image per page, as drawn. The page on screen is drawn from the canvas itself; other pages
+  // from their placements, sized as the canvas would draw them. `keepTab` keeps the shown image when the look changes.
+  const exportSvg = async (look: SvgLook, pageIds: string[] = [pageId], keepTab = false) => {
     setExportPages(null)
     setSvgLook(look)
-    const text = nodes.map((n) => n.data.label).join(' ') + edges.map((e) => e.data?.label ?? '').join(' ')
+    setSvgPages(pageIds)
+    const ws = saved()
+    const stems = pageFileStems(ws.pages)
+    const canvases = ws.pages
+      .filter((p) => pageIds.includes(p.id))
+      .map((page) => ({ page, ...(page.id === pageId ? { nodes, edges } : loadCanvas(ws, page.id)) }))
+    const text = canvases.flatMap((c) => [...c.nodes.map((n) => n.data.label), ...c.edges.map((e) => e.data?.label ?? '')]).join(' ')
     const [measure, fontCss] = await Promise.all([excalifontMeasure(), excalifontCss(text)])
-    const svg = toSvg(nodes, edges, {
-      measure,
-      fontCss,
-      endpoint: (node, side) => handleEndpoint(flow?.getInternalNode(node.id), node, side),
-      ...look,
+    const files = canvases.map(({ page, nodes, edges }): ExportFile => {
+      const onScreen = page.id === pageId
+      const svg = toSvg(onScreen ? nodes : nodes.map((n) => sized(n, measure)), edges, {
+        measure,
+        fontCss,
+        endpoint: onScreen ? (node, side) => handleEndpoint(flow?.getInternalNode(node.id), node, side) : dotEndpoint,
+        ...look,
+      })
+      const name = `${stems.get(page.id)}.svg`
+      return { name, label: canvases.length > 1 ? page.name : name, type: 'image/svg+xml', text: svg }
     })
-    const page = workspace.pages.find((p) => p.id === pageId)?.name ?? 'page'
-    const name = `${page.trim().replace(/[^\w.-]+/g, '-') || 'page'}.svg`
-    setShownFile(0)
-    setExported([{ name, label: name, type: 'image/svg+xml', text: svg }])
+    setShownFile((i) => (keepTab && i < files.length ? i : 0))
+    setZipName('page-images.zip')
+    setExported(files)
+  }
+
+  const runChosenExport = (pageIds: string[]) => {
+    if (exportFormat === 'svg') exportSvg({ dark: false, background: true }, pageIds)
+    else runExport(exportFormat, pageIds, exportSplit)
   }
 
   const toggleExportPage = (id: string) =>
     setExportPages((ids) => (ids?.includes(id) ? ids.filter((i) => i !== id) : [...(ids ?? []), id]))
 
   const shown = exported?.[shownFile]
-  const download = () => {
-    if (shown) downloadText(shown.name, shown.type, shown.text)
+  const downloadShown = () => {
+    if (shown) download(shown.name, new Blob([shown.text], { type: shown.type }))
+  }
+  const downloadAll = () => {
+    if (exported) download(zipName, new Blob([zip(exported.map(({ name, text }) => ({ name, text })))], { type: 'application/zip' }))
   }
 
   const project = (): Project => ({ iri, namespaces, kept, keptStatements, workspace: saved(), pageId })
@@ -512,7 +532,7 @@ export default function App() {
     restore(next.present)
   }
 
-  const saveProject = () => downloadText(projectFileName(iri), 'application/json', projectToJson(project()))
+  const saveProject = () => download(projectFileName(iri), new Blob([projectToJson(project())], { type: 'application/json' }))
 
   // Ctrl+S (Cmd+S on a Mac) saves the project file instead of the browser saving the web page.
   // Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes; in a text field they stay the field's own undo.
@@ -651,6 +671,11 @@ export default function App() {
             <button onClick={() => exportSvg({ dark: false, background: true })} title="This page as a drawing, for papers and slides">
               Image of this page (SVG)
             </button>
+            {workspace.pages.length > 1 && (
+              <button onClick={startSvgExport} title="A drawing of each chosen page, downloaded together as a zip">
+                Images of several pages (SVG)
+              </button>
+            )}
           </div>
         </details>
         <button onClick={() => setSampleOpen(true)} title="Check example instances against the classes' SHACL constraints">
@@ -751,9 +776,21 @@ export default function App() {
                 {p.name}
               </label>
             ))}
-            <span className="hint">Classes on any chosen page are exported once. Relations drawn only on other pages are left out.</span>
+            {exportFormat !== 'svg' && (
+              <label>
+                <input type="checkbox" checked={exportSplit} onChange={(e) => setExportSplit(e.target.checked)} />
+                One file per page
+              </label>
+            )}
+            <span className="hint">
+              {exportFormat === 'svg'
+                ? 'Each chosen page becomes its own image.'
+                : exportSplit
+                  ? 'Each chosen page becomes its own file, as if it were exported alone: its classes and the relations drawn on it. A class on several pages is in each of their files.'
+                  : 'Classes on any chosen page are exported once. Relations drawn only on other pages are left out.'}
+            </span>
             <div className="export-actions">
-              <button disabled={exportPages.length === 0} onClick={() => runExport(exportFormat, exportPages)}>
+              <button disabled={exportPages.length === 0} onClick={() => runChosenExport(exportPages)}>
                 Export
               </button>
               <button onClick={() => setExportPages(null)}>Cancel</button>
@@ -781,18 +818,19 @@ export default function App() {
               </div>
             )}
             <div className="export-actions">
-              <button onClick={download}>Download {shown?.name}</button>
+              <button onClick={downloadShown}>Download {shown?.name}</button>
+              {exported.length > 1 && <button onClick={downloadAll} title={zipName}>Download all (.zip)</button>}
               <button onClick={() => setExported(null)}>Close</button>
             </div>
             {svgLook && shown ? (
               <>
                 <div className="export-options">
                   <label>
-                    <input type="checkbox" checked={svgLook.background} onChange={(e) => exportSvg({ ...svgLook, background: e.target.checked })} />
+                    <input type="checkbox" checked={svgLook.background} onChange={(e) => exportSvg({ ...svgLook, background: e.target.checked }, svgPages, true)} />
                     Background
                   </label>
                   <label>
-                    <input type="checkbox" checked={svgLook.dark} onChange={(e) => exportSvg({ ...svgLook, dark: e.target.checked })} />
+                    <input type="checkbox" checked={svgLook.dark} onChange={(e) => exportSvg({ ...svgLook, dark: e.target.checked }, svgPages, true)} />
                     Dark mode
                   </label>
                 </div>
