@@ -1,8 +1,10 @@
 import { Parser } from 'n3'
 import { describe, expect, it } from 'vitest'
+import { keptStatementsOf } from './keptStatements'
 import { sampleOntology } from './model'
 import { cypherString, prefixFor, toCypherScript } from './neo4j'
 import { toTurtle } from './owl'
+import { importOwl } from './owlImport'
 
 /** Reads a Cypher single-quoted literal back, the way Neo4j does for the escapes cypherString writes. */
 function unquote(literal: string): string {
@@ -61,6 +63,29 @@ describe('toCypherScript', () => {
 
     expect(argumentOf(script, 'n10s.validation.shacl.import.inline')).toBe(shapes)
     expect(script.indexOf('onto.import')).toBeLessThan(script.indexOf('shacl.import'))
+  })
+
+  it('embeds the same Turtle as the OWL export of an imported file, with what the canvas does not draw', async () => {
+    const source = `@prefix : <http://example.org/pizza#>. @prefix owl: <http://www.w3.org/2002/07/owl#>.
+      @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>. @prefix dct: <http://purl.org/dc/terms/>.
+      <http://example.org/pizza> a owl:Ontology; dct:title "Pizza"; owl:versionInfo "1.2".
+      :Pizza a owl:Class; rdfs:label "Pizza". :Topping a owl:Class; rdfs:label "Topping".
+      :madeIn a owl:ObjectProperty; rdfs:domain :Pizza; rdfs:range <http://example.org/places#Country>.
+      :lunch a owl:NamedIndividual, :Pizza.
+      [] a owl:AllDisjointClasses; owl:members (:Pizza :Topping).`
+    const { iri, nodes, edges, kept } = importOwl(source)
+    const imported = { iri, nodes, edges, kept }
+    const ontology = await toTurtle({ ...imported, keptStatements: await keptStatementsOf(source, imported) })
+    const script = toCypherScript({ iri, ontology, shapes: null })
+
+    const inline = argumentOf(script, 'n10s.onto.import.inline')
+    expect(inline).toBe(ontology)
+    const triples = new Parser().parse(inline).map((q) => `${q.subject.value} ${q.predicate.value} ${q.object.value}`)
+    expect(triples).toContain('http://example.org/places#Country http://www.w3.org/1999/02/22-rdf-syntax-ns#type http://www.w3.org/2002/07/owl#Class')
+    expect(triples).toContain('http://example.org/pizza http://www.w3.org/2002/07/owl#versionInfo 1.2')
+    expect(triples).toContain('http://example.org/pizza#lunch http://www.w3.org/1999/02/22-rdf-syntax-ns#type http://example.org/pizza#Pizza')
+    expect(triples.some((t) => t.endsWith('#AllDisjointClasses'))).toBe(true)
+    expect(script).toMatch(/leaves out[^']*\n[^']*individuals, and the ontology header/)
   })
 
   it('adds a prefix for each of the project\'s other namespaces', () => {

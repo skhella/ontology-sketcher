@@ -69,7 +69,10 @@ export function toCypherScript({ iri, ontology, shapes, namespaces }: CypherScri
     '//   data properties (:Property), rdfs:subClassOf (SCO), rdfs:subPropertyOf (SPO),',
     '//   rdfs:domain (DOMAIN), rdfs:range (RANGE), and rdfs:label and rdfs:comment.',
     '//   It leaves out restrictions, equivalent and disjoint classes, property characteristics,',
-    '//   inverses, union domains and ranges, and other annotations: the .ttl export keeps all of those.',
+    '//   inverses, union domains and ranges, other annotations, individuals, and the ontology header',
+    '//   (title, version, owl:imports). The Turtle below has all of it, including what an imported file said',
+    '//   that the canvas does not draw; the .ttl export keeps it too. Classes outside this ontology that',
+    '//   properties point at come in as :Class nodes without an rdfs:label.',
     `CALL n10s.onto.import.inline(${cypherString(ontology)}, 'Turtle');`,
   ]
   if (shapes) {
