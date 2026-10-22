@@ -20,7 +20,14 @@ describe('project', () => {
     }
     const workspace = saveCanvas(sample.workspace, sample.pageId, [edited, ...rest], canvas.edges)
     const second = { id: 'p2', name: 'Second', nodes: [], edges: [] }
-    const project = { iri: 'http://example.org/zoo#', namespaces: [{ prefix: 'rdl', iri: 'http://example.org/rdl/' }], workspace: { ...workspace, pages: [...workspace.pages, second] }, pageId: 'p2' }
+    const kept = [{ kind: 'object' as const, iri: 'http://example.org/zoo#status', label: 'status', labelLang: 'en', ranges: ['http://www.w3.org/2004/02/skos/core#Concept'] }]
+    const project = {
+      iri: 'http://example.org/zoo#',
+      namespaces: [{ prefix: 'rdl', iri: 'http://example.org/rdl/' }],
+      kept,
+      workspace: { ...workspace, pages: [...workspace.pages, second] },
+      pageId: 'p2',
+    }
 
     const opened = projectFromJson(projectToJson(project))
 

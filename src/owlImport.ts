@@ -9,8 +9,10 @@ import {
   type ClassExpression,
   type ClassNode,
   type DataProperty,
+  type KeptProperty,
   type Mapping,
   type Namespace,
+  type PropertyValue,
   type Quantifier,
   type RelationEdge,
   type SkosEdgeKind,
@@ -25,6 +27,8 @@ import { ANNOTATION_PROPERTIES, BUILT_IN_ANNOTATION_PROPERTIES, isAbsoluteIri, O
  * Reads an OWL 2 ontology in Turtle (or N-Triples) back into canvas nodes and edges: the reverse of owl.ts and skos.ts.
  * Named classes become nodes; rdfs:subClassOf between named classes and object properties (one arrow per
  * domain/range pair) become edges; restrictions become class axioms; data properties are listed on their domain classes.
+ * Properties that can't be drawn that way (a range outside the file, such as skos:Concept, or no domain) are kept
+ * as they are, so the export writes them back (see KeptProperty).
  * SKOS concepts and schemes become concept and scheme nodes with their broader, narrower, related and topConceptOf edges.
  * The arrows and data property datatypes this app's export keeps in the shapes file (see shacl.ts) are read from there
  * when it is imported together with the ontology; other SHACL shapes are left alone (see shapesImport.ts).
@@ -43,7 +47,15 @@ export type OwlImportSummary = {
 }
 
 /** `layout` is how this app drew the ontology when it exported it, see savedLayout.ts. */
-export type OwlImportResult = { iri: string; namespaces: Namespace[]; nodes: ClassNode[]; edges: RelationEdge[]; layout?: SavedLayout; summary: OwlImportSummary }
+export type OwlImportResult = {
+  iri: string
+  namespaces: Namespace[]
+  nodes: ClassNode[]
+  edges: RelationEdge[]
+  kept: KeptProperty[]
+  layout?: SavedLayout
+  summary: OwlImportSummary
+}
 
 const SH = 'http://www.w3.org/ns/shacl#'
 const TYPE = RDF + 'type'
@@ -166,10 +178,16 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     if (entity === ns + derivedLocal) return field
     return { ...field, iri: entity.startsWith(ns) && entity.length > ns.length ? entity.slice(ns.length) : entity }
   }
-  const labelOf = (s: string) => {
-    const labels = objects(s, LABEL).filter((o) => o.termType === 'Literal')
-    const label = labels.find((l) => !('language' in l) || !l.language || l.language === 'en') ?? labels[0]
-    return label?.value ?? s.replace(/^.*[#/]/, '')
+  // The rdfs:label (or skos:prefLabel) shown as the name: one without a language or in English, else the first.
+  // Other labels, e.g. in other languages, stay annotations; see annotationsOf.
+  const labelTerm = (s: string, predicate = LABEL) => {
+    const labels = objects(s, predicate).filter((o) => o.termType === 'Literal')
+    return labels.find((l) => !('language' in l) || !l.language || l.language === 'en') ?? labels[0]
+  }
+  const labelOf = (s: string) => labelTerm(s)?.value ?? s.replace(/^.*[#/]/, '')
+  const labelLangOf = (s: string, predicate = LABEL) => {
+    const term = labelTerm(s, predicate)
+    return term && 'language' in term && term.language ? { labelLang: term.language } : {}
   }
 
   const declaredAnnotationProperties = new Set([
@@ -205,13 +223,12 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
   for (const c of classIris) {
     if (concepts.has(c) || schemes.has(c)) continue
     const label = labelOf(c)
-    addNode(c, { label, ...iriField(c, localName(label)) })
+    addNode(c, { label, ...labelLangOf(c), ...iriField(c, localName(label)) })
   }
   for (const c of [...schemes, ...concepts]) {
-    const prefLabels = objects(c, SKOS + 'prefLabel').filter((o) => o.termType === 'Literal')
-    const pref = prefLabels.find((l) => 'language' in l && l.language === 'en') ?? prefLabels[0]
+    const pref = labelTerm(c, SKOS + 'prefLabel')
     const label = pref?.value ?? labelOf(c)
-    const lang = pref && 'language' in pref && pref.language ? { labelLang: pref.language } : {}
+    const lang = pref ? labelLangOf(c, SKOS + 'prefLabel') : labelLangOf(c)
     const kind = concepts.has(c) ? 'concept' : 'scheme'
     addNode(c, { label, kind, ...lang, ...iriField(c, localName(label)), style: NODE_KIND_STYLES[kind] })
   }
@@ -275,6 +292,29 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
   }
   const rulesFor = (property: string, kind: 'class' | 'datatype') => (drawnRules.get(property) ?? []).filter((r) => r.kind === kind)
 
+  // A property kept as it is, see KeptProperty.
+  const kept: KeptProperty[] = []
+  const keep = (p: string, kind: KeptProperty['kind']) => {
+    namespaceField(p)
+    const named = (predicate: string) => objects(p, predicate).filter((o) => o.termType === 'NamedNode').map((o) => o.value)
+    const domains = unionMembers(object(p, RDFS + 'domain'))
+    const ranges = unionMembers(object(p, RDFS + 'range'))
+    const characteristics = kind === 'object' ? objects(p, TYPE).map((t) => CHARACTERISTICS[t.value]).filter((c): c is Characteristic => !!c) : []
+    if (kind === 'data' && isA(p, OWL + 'FunctionalProperty')) characteristics.push('functional')
+    kept.push({
+      kind,
+      iri: p,
+      label: labelTerm(p)?.value ?? '',
+      ...labelLangOf(p),
+      ...(domains.length > 0 && { domains }),
+      ...(ranges.length > 0 && { ranges }),
+      ...(characteristics.length > 0 && { characteristics }),
+      ...(named(RDFS + 'subPropertyOf').length > 0 && { subPropertyOf: named(RDFS + 'subPropertyOf') }),
+      ...(named(OWL + 'inverseOf').length > 0 && { inverseOf: named(OWL + 'inverseOf') }),
+      ...annotationsOf(p),
+    })
+  }
+
   let subClassOf = 0
   for (const c of classIris) {
     for (const sup of objects(c, SUB_CLASS_OF)) {
@@ -304,6 +344,7 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     const data = {
       kind: 'objectProperty' as const,
       label,
+      ...labelLangOf(p),
       ...iriField(p, propertyLocalName(label)),
       ...(characteristics.length > 0 && { characteristics }),
       ...annotationsOf(p),
@@ -337,7 +378,10 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
       }
     }
     if (pairs.length === 0) {
-      skip('object properties without a domain and range (for a file exported here, import its -shapes.ttl along with it)')
+      keep(p, 'object')
+      const { domains, ranges } = kept[kept.length - 1]
+      if (domains || ranges) skip('object properties that cannot be drawn as arrows (kept for the export)')
+      else skip('object properties without a domain and range (for a file exported here, import its -shapes.ttl along with it)')
       continue
     }
     for (const [d, t] of pairs) {
@@ -437,7 +481,15 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
         const fromShapes = rulesFor(p, 'datatype').find((r) => r.holder === entity)
         if (!unionMembers(object(p, RDFS + 'domain')).includes(entity) && !fromShapes) continue
         const range = unionMembers(object(p, RDFS + 'range'))[0] ?? fromShapes?.values[0]
-        listed.push({ name: labelOf(p), datatype: range ?? XSD + 'string', ...(isA(p, OWL + 'FunctionalProperty') && { functional: true }) })
+        const name = labelOf(p)
+        listed.push({
+          name,
+          datatype: range ?? XSD + 'string',
+          ...(isA(p, OWL + 'FunctionalProperty') && { functional: true }),
+          ...labelLangOf(p),
+          ...iriField(p, propertyLocalName(name)),
+          ...annotationsOf(p),
+        })
         dataPropertyCount.add(p)
       }
       if (listed.length > 0) data.dataProperties = listed
@@ -452,7 +504,22 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
       if (mappings.length > 0) data.mappings = mappings
     }
 
-    Object.assign(data, annotationsOf(entity, data.kind ? SKOS + 'prefLabel' : undefined))
+    // Values of the ontology's own data and object properties on a concept or scheme, e.g. an ordinal.
+    if (data.kind) {
+      const values: PropertyValue[] = []
+      for (const q of store.getQuads(entity, null, null, null)) {
+        const p = q.predicate.value
+        if (STRUCTURAL.has(p) || !(isA(p, OWL + 'DatatypeProperty') || isA(p, OWL + 'ObjectProperty'))) continue
+        if (q.object.termType === 'NamedNode') values.push({ property: p, value: q.object.value, kind: 'iri' })
+        else if (q.object.termType === 'Literal') {
+          const { language, datatype } = q.object
+          values.push({ property: p, value: q.object.value, kind: 'literal', ...(language ? { lang: language } : datatype.value !== XSD + 'string' && { datatype: datatype.value }) })
+        }
+      }
+      if (values.length > 0) data.values = values
+    }
+
+    Object.assign(data, annotationsOf(entity, data.kind && labelTerm(entity, SKOS + 'prefLabel') ? SKOS + 'prefLabel' : LABEL))
   }
 
   // Concepts keep in `inScheme` only the schemes their hierarchy does not already give them (see skos.ts).
@@ -465,8 +532,9 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     if (extra.length > 0) node.data.inScheme = extra
   }
 
-  const dataOnly = dataProperties.filter((p) => !dataPropertyCount.has(p)).length
-  if (dataOnly) skip('data properties without a domain class', dataOnly)
+  const dataOnly = dataProperties.filter((p) => !dataPropertyCount.has(p))
+  for (const p of dataOnly) keep(p, 'data')
+  if (dataOnly.length) skip('data properties without a domain class (kept for the export)', dataOnly.length)
   const individuals = subjectsOfType(OWL + 'NamedIndividual').filter((i) => !concepts.has(i) && !schemes.has(i)).length
   if (individuals) skip('individuals', individuals)
   // Node shapes holding only arrows and datatypes are shown as those; the rest is for the SHACL shapes import.
@@ -482,6 +550,7 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     namespaces: [...namespaces].map(([ns, prefix]) => ({ prefix, iri: ns })),
     nodes,
     edges,
+    kept,
     ...(layout && { layout }),
     summary: {
       classes: nodes.filter((n) => !n.data.kind).length,
@@ -494,13 +563,15 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     },
   }
 
-  // Annotation assertions with literal or IRI values, as the inspector lists them.
-  function annotationsOf(subject: string, alsoSkip?: string): { annotations?: Annotation[] } {
+  // Annotation assertions with literal or IRI values, as the inspector lists them. The label shown as the name
+  // (`labelPredicate`, rdfs:label or a concept's skos:prefLabel, see labelTerm) is left out; other labels stay.
+  function annotationsOf(subject: string, labelPredicate = LABEL): { annotations?: Annotation[] } {
     const annotations: Annotation[] = []
+    const name = labelTerm(subject, labelPredicate)
     for (const q of store.getQuads(subject, null, null, null)) {
       const p = q.predicate.value
-      // A class may carry skos:prefLabel as an annotation; on a concept it is the label itself.
-      if (p === LABEL || p === alsoSkip || (STRUCTURAL.has(p) && p !== SKOS + 'prefLabel')) continue
+      if (p === labelPredicate && name?.equals(q.object)) continue
+      if (STRUCTURAL.has(p) && p !== SKOS + 'prefLabel' && p !== LABEL) continue
       if (!declaredAnnotationProperties.has(p)) continue
       if (q.object.termType === 'Literal') {
         annotations.push({ property: p, value: q.object.value, ...(q.object.language && { lang: q.object.language }) })

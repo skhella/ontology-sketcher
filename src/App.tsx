@@ -25,7 +25,7 @@ import { describeOwlImport, importOwl } from './owlImport'
 import { describeShapesImport, importShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
 import { exportOwl } from './export'
-import { importedOntologyIri, type ClassNode, type Namespace, type NodeKind, type RelationEdge } from './model'
+import { importedOntologyIri, type ClassNode, type KeptProperty, type Namespace, type NodeKind, type RelationEdge } from './model'
 import { NamespacesContext } from './namespaceContext'
 import { mergeNamespaces, renameNamespace } from './namespaces'
 import { NamespacesMenu } from './NamespacesMenu'
@@ -85,6 +85,8 @@ export default function App() {
   const [initialCanvas] = useState(() => loadCanvas(initial.workspace, initial.pageId))
   const [iri, setIri] = useState(initial.iri)
   const [namespaces, setNamespaces] = useState<Namespace[]>(initial.namespaces ?? [])
+  // Properties from imported ontologies the canvas doesn't draw; the export writes them back, see KeptProperty.
+  const [kept, setKept] = useState<KeptProperty[]>(initial.kept ?? [])
   // The sketch file last opened or imported, named in the export; until then the project file name.
   const [sourceFile, setSourceFile] = useState<string | null>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState<ClassNode>(initialCanvas.nodes)
@@ -213,6 +215,7 @@ export default function App() {
         setIri(result.iri)
         setSourceFile(file.name)
         setNamespaces((current) => mergeNamespaces(current, result.namespaces))
+        setKept((current) => [...current.filter((p) => !result.kept.some((k) => k.iri === p.iri)), ...result.kept])
         show(ws, pageId, true)
         const added = pages.length > 1 ? ` Added ${pages.length - 1} ${pages.length === 2 ? 'page' : 'pages'}.` : ''
         setNotice(describeOwlImport(result.summary) + added)
@@ -361,7 +364,7 @@ export default function App() {
     setExportPages(null)
     setSvgLook(null)
     const ws = saved()
-    const ontology = { ...mergePages(ws, pageIds, iri.trim()), namespaces }
+    const ontology = { ...mergePages(ws, pageIds, iri.trim()), namespaces, kept }
     // The OWL file carries the pages' layout so importing it draws them again; Neo4j gets plain OWL.
     let files
     try {
@@ -417,13 +420,13 @@ export default function App() {
     if (shown) downloadText(shown.name, shown.type, shown.text)
   }
 
-  const project = (): Project => ({ iri, namespaces, workspace: saved(), pageId })
+  const project = (): Project => ({ iri, namespaces, kept, workspace: saved(), pageId })
 
   // Autosave: shortly after the last change, and when the tab is closed, the whole project is kept in this browser.
   const storageWarned = useRef(false)
   useEffect(() => {
     const autosave = () => {
-      if (writeAutosave({ iri, namespaces, workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }) || storageWarned.current) return
+      if (writeAutosave({ iri, namespaces, kept, workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }) || storageWarned.current) return
       storageWarned.current = true
       setNotice('This browser is not keeping your work (storage is full or blocked). Use Project, Save project to keep a copy.')
     }
@@ -433,7 +436,7 @@ export default function App() {
       clearTimeout(timer)
       window.removeEventListener('pagehide', autosave)
     }
-  }, [iri, namespaces, workspace, pageId, nodes, edges])
+  }, [iri, namespaces, kept, workspace, pageId, nodes, edges])
 
   const saveProject = () => downloadText(projectFileName(iri), 'application/json', projectToJson(project()))
 
@@ -457,6 +460,7 @@ export default function App() {
     setIri(next.iri)
     setSourceFile(null)
     setNamespaces(next.namespaces ?? [])
+    setKept(next.kept ?? [])
     show(next.workspace, next.pageId, true)
   }
 
@@ -658,7 +662,7 @@ export default function App() {
         )}
         {sampleOpen && (
           <SampleData
-            ontology={() => mergePages(saved(), workspace.pages.map((p) => p.id), iri)}
+            ontology={() => ({ ...mergePages(saved(), workspace.pages.map((p) => p.id), iri), kept })}
             nodes={nodes}
             onProblemClasses={setProblemClasses}
             onSelectClass={selectClass}
