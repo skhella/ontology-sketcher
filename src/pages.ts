@@ -18,7 +18,8 @@ export type Store = { classes: Record<string, ClassEntity>; relations: Record<st
 export type NodePlacement = Omit<ClassNode, 'data'> & { data: Pick<ClassData, 'style'> }
 export type EdgePlacement = Omit<RelationEdge, 'data'> & { data: Pick<RelationData, 'style' | 'bend'> }
 
-export type Page = { id: string; name: string; nodes: NodePlacement[]; edges: EdgePlacement[] }
+/** `classId` links the page to one class as its detail page, so the class can open it from any page. */
+export type Page = { id: string; name: string; classId?: string; nodes: NodePlacement[]; edges: EdgePlacement[] }
 
 export type Workspace = { store: Store; pages: Page[] }
 
@@ -152,4 +153,27 @@ export function mergePages(workspace: Workspace, pageIds: string[], iri: string)
 export function removePage(workspace: Workspace, pageId: string): Workspace {
   const pages = workspace.pages.filter((p) => p.id !== pageId)
   return { store: prune(workspace.store, pages), pages }
+}
+
+/** The page linked to a class as its detail page, if the class still exists. */
+export function detailPageOf(workspace: Workspace, classId: string): Page | undefined {
+  return workspace.store.classes[classId] ? workspace.pages.find((p) => p.classId === classId) : undefined
+}
+
+/** Links a page to a class (or unlinks it with undefined). A class has one detail page, so any other page linked to it lets go. */
+export function linkPage(workspace: Workspace, pageId: string, classId: string | undefined): Workspace {
+  const unlinked = ({ classId: _classId, ...page }: Page): Page => page
+  const pages = workspace.pages.map((p) => {
+    if (p.id === pageId) return classId ? { ...p, classId } : unlinked(p)
+    return classId && p.classId === classId ? unlinked(p) : p
+  })
+  return { ...workspace, pages }
+}
+
+/** Adds a detail page for a class: named after it, linked to it, and showing it. */
+export function addDetailPage(workspace: Workspace, classId: string, pageId: string = crypto.randomUUID()): Workspace {
+  const label = workspace.store.classes[classId]?.label
+  if (!label) return workspace
+  const added = { ...workspace, pages: [...workspace.pages, { id: pageId, name: label, nodes: [], edges: [] }] }
+  return placeClass(linkPage(added, pageId, classId), pageId, classId, { x: 0, y: 0 })
 }

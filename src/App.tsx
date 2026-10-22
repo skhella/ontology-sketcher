@@ -20,6 +20,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
+import { record, redo, startHistory, undo, type History } from './history'
 import { planImport, saveLayout } from './layout'
 import { keptStatementsOf } from './keptStatements'
 import { describeOwlImport, importOwl } from './owlImport'
@@ -27,15 +28,17 @@ import { describeShapesImport, importShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
 import { importedOntologyIri, type ClassNode, type KeptProperty, type KeptStatement, type Namespace, type NodeKind, type RelationEdge } from './model'
 import { NamespacesContext } from './namespaceContext'
+import { PageLinksContext, type PageLinks } from './pageLinksContext'
 import { mergeNamespaces, renameNamespace } from './namespaces'
 import { NamespacesMenu } from './NamespacesMenu'
 import { toTurtle } from './owl'
 import { toCypherScript } from './neo4j'
 import { hasConstraints, toShaclTurtle } from './shacl'
 import { defaultEdge, isSkosEdge, NODE_KIND_NAMES, NODE_KIND_STYLES } from './skos'
+import { ClassPages } from './inspector/ClassPages'
 import { Inspector } from './inspector/Inspector'
 import { SampleData } from './SampleData'
-import { classesNotOn, loadCanvas, mergePages, placeClass, removePage, saveCanvas, type Workspace } from './pages'
+import { addDetailPage, classesNotOn, linkPage, loadCanvas, mergePages, placeClass, removePage, saveCanvas, type Workspace } from './pages'
 import { emptyProject, loadAutosave, projectFileName, projectFromJson, projectToJson, sampleProject, writeAutosave, PROJECT_EXTENSION, type Project } from './project'
 import { ClassNodeView } from './sketch/ClassNodeView'
 import { ConnectionLine } from './sketch/ConnectionLine'
@@ -210,9 +213,11 @@ export default function App() {
         const { pages } = planImport(result, { iri, workspace: saved(), pageId })
         let ws = saveCanvas(saved(), pageId, pages[0].nodes, pages[0].edges)
         if (pages[0].name) ws = { ...ws, pages: ws.pages.map((p) => (p.id === pageId ? { ...p, name: pages[0].name! } : p)) }
+        if (pages[0].classId) ws = linkPage(ws, pageId, pages[0].classId)
         for (const page of pages.slice(1)) {
           const id = crypto.randomUUID()
           ws = saveCanvas({ ...ws, pages: [...ws.pages, { id, name: page.name ?? `Page ${ws.pages.length + 1}`, nodes: [], edges: [] }] }, id, page.nodes, page.edges)
+          if (page.classId) ws = linkPage(ws, id, page.classId)
         }
         setIri(result.iri)
         setNamespaces((current) => mergeNamespaces(current, result.namespaces))
@@ -333,6 +338,26 @@ export default function App() {
     if (id !== pageId) show(saved(), id, true)
   }
 
+  // Classes on this page with a detail page elsewhere get a tab that opens it; the ref keeps `open` current without changing the context.
+  const openRef = useRef(openPage)
+  useEffect(() => {
+    openRef.current = openPage
+  })
+  const pageLinks = useMemo<PageLinks>(
+    () => ({
+      detail: new Map(workspace.pages.filter((p) => p.classId && p.id !== pageId).map((p) => [p.classId!, { id: p.id, name: p.name }])),
+      open: (id) => openRef.current(id),
+    }),
+    [workspace.pages, pageId],
+  )
+
+  const linkClassPage = (id: string, classId: string | undefined) => setWorkspace(linkPage(saved(), id, classId))
+
+  const addClassPage = (classId: string) => {
+    const id = crypto.randomUUID()
+    show(addDetailPage(saved(), classId, id), id, true)
+  }
+
   const addPage = () => {
     const name = window.prompt('Page name', `Page ${workspace.pages.length + 1}`)
     if (!name) return
@@ -438,14 +463,82 @@ export default function App() {
     }
   }, [iri, namespaces, kept, keptStatements, workspace, pageId, nodes, edges])
 
+  // Undo history: the project is noted once changes settle, and never while a mouse button is held,
+  // so dragging one class, a whole selection or an edge's curve is one step, see history.ts.
+  const history = useRef<History>(startHistory(initial))
+  const [steps, setSteps] = useState({ undo: 0, redo: 0 })
+  const latest = useRef<Project>(initial)
+  const pointerDown = useRef(false)
+  const setHistory = (next: History) => {
+    history.current = next
+    setSteps({ undo: next.past.length, redo: next.future.length })
+  }
+  const noteChange = () => {
+    if (!pointerDown.current) setHistory(record(history.current, latest.current))
+  }
+  useEffect(() => {
+    latest.current = { iri, namespaces, kept, keptStatements, workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }
+    const timer = setTimeout(noteChange, 300)
+    return () => clearTimeout(timer)
+  }, [iri, namespaces, kept, keptStatements, workspace, pageId, nodes, edges])
+  useEffect(() => {
+    const down = () => {
+      pointerDown.current = true
+    }
+    const up = () => {
+      pointerDown.current = false
+      noteChange()
+    }
+    window.addEventListener('pointerdown', down, true)
+    window.addEventListener('pointerup', up, true)
+    window.addEventListener('pointercancel', up, true)
+    return () => {
+      window.removeEventListener('pointerdown', down, true)
+      window.removeEventListener('pointerup', up, true)
+      window.removeEventListener('pointercancel', up, true)
+    }
+  }, [])
+
+  const restore = (next: Project) => {
+    setIri(next.iri)
+    setNamespaces(next.namespaces ?? [])
+    setKept(next.kept ?? [])
+    setKeptStatements(next.keptStatements ?? [])
+    show(next.workspace, next.pageId, next.pageId !== pageId)
+  }
+  // An edit made just before is noted first, so undo always takes it back.
+  const stepBack = () => {
+    const next = undo(record(history.current, latest.current))
+    if (!next) return
+    setHistory(next)
+    restore(next.present)
+  }
+  const stepForward = () => {
+    const next = redo(record(history.current, latest.current))
+    if (!next) return
+    setHistory(next)
+    restore(next.present)
+  }
+
   const saveProject = () => downloadText(projectFileName(iri), 'application/json', projectToJson(project()))
 
   // Ctrl+S (Cmd+S on a Mac) saves the project file instead of the browser saving the web page.
+  // Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes; in a text field they stay the field's own undo.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      if (!(event.ctrlKey || event.metaKey)) return
+      const key = event.key.toLowerCase()
+      if (key === 's') {
         event.preventDefault()
         saveProject()
+        return
+      }
+      const target = event.target as HTMLElement
+      if (target.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (key === 'z' || key === 'y') {
+        event.preventDefault()
+        if (key === 'y' || event.shiftKey) stepForward()
+        else stepBack()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -509,6 +602,12 @@ export default function App() {
           </div>
         </details>
         <input ref={projectInput} type="file" accept=".json,application/json" hidden onChange={openProject} />
+        <button onClick={stepBack} disabled={steps.undo === 0} title="Undo the last change, on any page (Ctrl+Z, Cmd+Z on a Mac)">
+          Undo
+        </button>
+        <button onClick={stepForward} disabled={steps.redo === 0} title="Redo what was undone (Ctrl+Shift+Z or Ctrl+Y)">
+          Redo
+        </button>
         <label>
           Ontology IRI{' '}
           <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />
@@ -574,39 +673,41 @@ export default function App() {
       </header>
       <main className="canvas">
         <NamespacesContext.Provider value={namespaces}>
-          <ReactFlow
-            nodes={shownNodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onConnectEnd={onConnectEnd}
-            onReconnect={onReconnect}
-            onReconnectStart={() => {
-              reconnecting.current = true
-            }}
-            onReconnectEnd={onReconnectEnd}
-            connectionMode={ConnectionMode.Loose}
-            connectionLineComponent={ConnectionLine}
-            onNodeDoubleClick={renameClass}
-            onEdgeDoubleClick={editRelation}
-            zoomOnDoubleClick={false}
-            // Dragging on empty canvas draws a selection box; the whole selection then moves together.
-            // Panning moves to the middle mouse button, or Space held while dragging.
-            selectionOnDrag
-            panOnDrag={[1]}
-            selectionKeyCode={null}
-            multiSelectionKeyCode={MULTI_SELECT_KEYS}
-            onSelectionEnd={keepEdgesInsideSelection}
-            onInit={setFlow}
-            fitView
-            minZoom={0.05}
-          >
-            <Background variant={BackgroundVariant.Dots} gap={20} />
-            <Controls />
-          </ReactFlow>
+          <PageLinksContext.Provider value={pageLinks}>
+            <ReactFlow
+              nodes={shownNodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onConnectEnd={onConnectEnd}
+              onReconnect={onReconnect}
+              onReconnectStart={() => {
+                reconnecting.current = true
+              }}
+              onReconnectEnd={onReconnectEnd}
+              connectionMode={ConnectionMode.Loose}
+              connectionLineComponent={ConnectionLine}
+              onNodeDoubleClick={renameClass}
+              onEdgeDoubleClick={editRelation}
+              zoomOnDoubleClick={false}
+              // Dragging on empty canvas draws a selection box; the whole selection then moves together.
+              // Panning moves to the middle mouse button, or Space held while dragging.
+              selectionOnDrag
+              panOnDrag={[1]}
+              selectionKeyCode={null}
+              multiSelectionKeyCode={MULTI_SELECT_KEYS}
+              onSelectionEnd={keepEdgesInsideSelection}
+              onInit={setFlow}
+              fitView
+              minZoom={0.05}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={20} />
+              <Controls />
+            </ReactFlow>
+          </PageLinksContext.Provider>
         </NamespacesContext.Provider>
         {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
           <StylePanel
@@ -626,6 +727,20 @@ export default function App() {
             selection={[...selectedNodes, ...selectedEdges]}
             onNodeChange={updateNode}
             onEdgeChange={updateEdge}
+            classPages={
+              selectedNodes.length === 1 &&
+              selectedEdges.length === 0 && (
+                <ClassPages
+                  classId={selectedNodes[0].id}
+                  label={selectedNodes[0].data.label}
+                  pages={workspace.pages}
+                  pageId={pageId}
+                  onOpen={openPage}
+                  onLink={linkClassPage}
+                  onNewPage={() => addClassPage(selectedNodes[0].id)}
+                />
+              )
+            }
           />
         )}
         {notice && (
@@ -708,8 +823,12 @@ export default function App() {
       </main>
       <nav className="pages" aria-label="Pages">
         {workspace.pages.map((p) => (
-          <span key={p.id} className={p.id === pageId ? 'page active' : 'page'}>
-            <button onClick={() => openPage(p.id)} onDoubleClick={() => renamePage(p.id)} title="Double-click to rename">
+          <span key={p.id} className={`page${p.id === pageId ? ' active' : ''}${p.classId ? ' linked' : ''}`}>
+            <button
+              onClick={() => openPage(p.id)}
+              onDoubleClick={() => renamePage(p.id)}
+              title={p.classId && workspace.store.classes[p.classId] ? `Detail page of ${workspace.store.classes[p.classId].label}. Double-click to rename` : 'Double-click to rename'}
+            >
               {p.name}
             </button>
             {workspace.pages.length > 1 && (

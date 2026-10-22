@@ -45,7 +45,8 @@ add axioms and data constraints, check a few example instances, and hand the res
 - Every class has four connection dots. Drag from one onto another class to add `rdfs:subClassOf`; the arrow
   snaps to the nearest dot. Name an arrow to turn it into an object property, and drag its midpoint to curve it.
 - Pages, like layers: split a large ontology into views that share the same classes, and pick which pages to
-  export.
+  export. Double-click a page tab to rename it. A class can have a detail page (Pages in the inspector): the
+  class then gets a small "page" tab on the canvas that opens it, and the inspector lists every page the class is on.
 - Your work is autosaved in the browser and comes back when you reload. **Project > Save project** (or Ctrl+S)
   downloads everything, every page and position included, as one `.sketcher.json` file that **Open project** reads
   back; **New project** starts over on an empty page.
