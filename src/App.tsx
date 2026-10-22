@@ -26,15 +26,17 @@ import { describeShapesImport, importShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
 import { importedOntologyIri, type ClassNode, type KeptProperty, type Namespace, type NodeKind, type RelationEdge } from './model'
 import { NamespacesContext } from './namespaceContext'
+import { PageLinksContext, type PageLinks } from './pageLinksContext'
 import { mergeNamespaces, renameNamespace } from './namespaces'
 import { NamespacesMenu } from './NamespacesMenu'
 import { toTurtle } from './owl'
 import { toCypherScript } from './neo4j'
 import { hasConstraints, toShaclTurtle } from './shacl'
 import { defaultEdge, isSkosEdge, NODE_KIND_NAMES, NODE_KIND_STYLES } from './skos'
+import { ClassPages } from './inspector/ClassPages'
 import { Inspector } from './inspector/Inspector'
 import { SampleData } from './SampleData'
-import { classesNotOn, loadCanvas, mergePages, placeClass, removePage, saveCanvas, type Workspace } from './pages'
+import { addDetailPage, classesNotOn, linkPage, loadCanvas, mergePages, placeClass, removePage, saveCanvas, type Workspace } from './pages'
 import { emptyProject, loadAutosave, projectFileName, projectFromJson, projectToJson, sampleProject, writeAutosave, PROJECT_EXTENSION, type Project } from './project'
 import { ClassNodeView } from './sketch/ClassNodeView'
 import { ConnectionLine } from './sketch/ConnectionLine'
@@ -204,9 +206,11 @@ export default function App() {
         const { pages } = planImport(result, { iri, workspace: saved(), pageId })
         let ws = saveCanvas(saved(), pageId, pages[0].nodes, pages[0].edges)
         if (pages[0].name) ws = { ...ws, pages: ws.pages.map((p) => (p.id === pageId ? { ...p, name: pages[0].name! } : p)) }
+        if (pages[0].classId) ws = linkPage(ws, pageId, pages[0].classId)
         for (const page of pages.slice(1)) {
           const id = crypto.randomUUID()
           ws = saveCanvas({ ...ws, pages: [...ws.pages, { id, name: page.name ?? `Page ${ws.pages.length + 1}`, nodes: [], edges: [] }] }, id, page.nodes, page.edges)
+          if (page.classId) ws = linkPage(ws, id, page.classId)
         }
         setIri(result.iri)
         setNamespaces((current) => mergeNamespaces(current, result.namespaces))
@@ -317,6 +321,26 @@ export default function App() {
 
   const openPage = (id: string) => {
     if (id !== pageId) show(saved(), id, true)
+  }
+
+  // Classes on this page with a detail page elsewhere get a tab that opens it; the ref keeps `open` current without changing the context.
+  const openRef = useRef(openPage)
+  useEffect(() => {
+    openRef.current = openPage
+  })
+  const pageLinks = useMemo<PageLinks>(
+    () => ({
+      detail: new Map(workspace.pages.filter((p) => p.classId && p.id !== pageId).map((p) => [p.classId!, { id: p.id, name: p.name }])),
+      open: (id) => openRef.current(id),
+    }),
+    [workspace.pages, pageId],
+  )
+
+  const linkClassPage = (id: string, classId: string | undefined) => setWorkspace(linkPage(saved(), id, classId))
+
+  const addClassPage = (classId: string) => {
+    const id = crypto.randomUUID()
+    show(addDetailPage(saved(), classId, id), id, true)
   }
 
   const addPage = () => {
@@ -559,32 +583,34 @@ export default function App() {
       </header>
       <main className="canvas">
         <NamespacesContext.Provider value={namespaces}>
-          <ReactFlow
-            nodes={shownNodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onConnectEnd={onConnectEnd}
-            onReconnect={onReconnect}
-            onReconnectStart={() => {
-              reconnecting.current = true
-            }}
-            onReconnectEnd={onReconnectEnd}
-            connectionMode={ConnectionMode.Loose}
-            connectionLineComponent={ConnectionLine}
-            onNodeDoubleClick={renameClass}
-            onEdgeDoubleClick={editRelation}
-            zoomOnDoubleClick={false}
-            onInit={setFlow}
-            fitView
-            minZoom={0.05}
-          >
-            <Background variant={BackgroundVariant.Dots} gap={20} />
-            <Controls />
-          </ReactFlow>
+          <PageLinksContext.Provider value={pageLinks}>
+            <ReactFlow
+              nodes={shownNodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onConnectEnd={onConnectEnd}
+              onReconnect={onReconnect}
+              onReconnectStart={() => {
+                reconnecting.current = true
+              }}
+              onReconnectEnd={onReconnectEnd}
+              connectionMode={ConnectionMode.Loose}
+              connectionLineComponent={ConnectionLine}
+              onNodeDoubleClick={renameClass}
+              onEdgeDoubleClick={editRelation}
+              zoomOnDoubleClick={false}
+              onInit={setFlow}
+              fitView
+              minZoom={0.05}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={20} />
+              <Controls />
+            </ReactFlow>
+          </PageLinksContext.Provider>
         </NamespacesContext.Provider>
         {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
           <StylePanel
@@ -604,6 +630,20 @@ export default function App() {
             selection={[...selectedNodes, ...selectedEdges]}
             onNodeChange={updateNode}
             onEdgeChange={updateEdge}
+            classPages={
+              selectedNodes.length === 1 &&
+              selectedEdges.length === 0 && (
+                <ClassPages
+                  classId={selectedNodes[0].id}
+                  label={selectedNodes[0].data.label}
+                  pages={workspace.pages}
+                  pageId={pageId}
+                  onOpen={openPage}
+                  onLink={linkClassPage}
+                  onNewPage={() => addClassPage(selectedNodes[0].id)}
+                />
+              )
+            }
           />
         )}
         {notice && (
@@ -686,8 +726,12 @@ export default function App() {
       </main>
       <nav className="pages" aria-label="Pages">
         {workspace.pages.map((p) => (
-          <span key={p.id} className={p.id === pageId ? 'page active' : 'page'}>
-            <button onClick={() => openPage(p.id)} onDoubleClick={() => renamePage(p.id)} title="Double-click to rename">
+          <span key={p.id} className={`page${p.id === pageId ? ' active' : ''}${p.classId ? ' linked' : ''}`}>
+            <button
+              onClick={() => openPage(p.id)}
+              onDoubleClick={() => renamePage(p.id)}
+              title={p.classId && workspace.store.classes[p.classId] ? `Detail page of ${workspace.store.classes[p.classId].label}. Double-click to rename` : 'Double-click to rename'}
+            >
               {p.name}
             </button>
             {workspace.pages.length > 1 && (
