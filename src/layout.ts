@@ -44,16 +44,21 @@ export function layoutOntology(nodes: ClassNode[], edges: RelationEdge[], keep =
     g.setEdge(parent, `block:${parent}`, { weight: 4, minlen: 1 }, `block:${parent}`)
   }
   const inHierarchy = new Set(edges.filter((e) => HIERARCHY.has(e.data?.kind ?? '')).flatMap((e) => [e.source, e.target]))
+  // Arrows between the same two classes rank them once: dagre can fail to route parallel edges
+  // ("Not possible to find intersection inside of the rectangle"), and the canvas routes them itself.
+  const link = (source: string, target: string, weight: number) => {
+    if ((g.edge(source, target, 'link')?.weight ?? 0) < weight) g.setEdge(source, target, { weight, minlen: 1 }, 'link')
+  }
   for (const e of edges) {
     if (blockOf.has(e.source) && parentOf(e)?.[1] === e.source) continue // drawn by the block's own edge
     const kind = e.data?.kind
     const [source, target] = [at(e.source), at(e.target)]
     if (source === target) continue
     // The general end goes on top: dagre ranks an edge's source above its target.
-    if (kind === 'subClassOf' || kind === 'broader' || kind === 'topConceptOf') g.setEdge(target, source, { weight: 4, minlen: 1 }, e.id)
-    else if (kind === 'narrower') g.setEdge(source, target, { weight: 4, minlen: 1 }, e.id)
+    if (kind === 'subClassOf' || kind === 'broader' || kind === 'topConceptOf') link(target, source, 4)
+    else if (kind === 'narrower') link(source, target, 4)
     // Other arrows only rank a class that sits in no hierarchy, so properties between trees don't bend them.
-    else if (!inHierarchy.has(e.source) || !inHierarchy.has(e.target)) g.setEdge(source, target, { weight: 1, minlen: 1 }, e.id)
+    else if (!inHierarchy.has(e.source) || !inHierarchy.has(e.target)) link(source, target, 1)
   }
   dagre.layout(g)
 
@@ -174,6 +179,7 @@ export function saveLayout(workspace: Workspace, pageIds: string[], base: string
       const canvas = loadCanvas(workspace, page.id)
       return {
         name: page.name,
+        ...(page.classId && iriOf.has(page.classId) && { class: iriOf.get(page.classId) }),
         nodes: canvas.nodes.map((n) => ({ iri: iriOf.get(n.id)!, x: Math.round(n.position.x), y: Math.round(n.position.y), ...(n.data.style && { style: n.data.style }) })),
         edges: canvas.edges
           .filter((e) => e.data && iriOf.has(e.source) && iriOf.has(e.target))
@@ -193,9 +199,9 @@ export function saveLayout(workspace: Workspace, pageIds: string[], base: string
 }
 
 /** A page an import fills: the first replaces the current page, the rest are added. */
-export type PlannedPage = { name?: string; nodes: ClassNode[]; edges: RelationEdge[] }
+export type PlannedPage = { name?: string; classId?: string; nodes: ClassNode[]; edges: RelationEdge[] }
 
-type Group = { name?: string; ids: string[]; positions: Map<string, { x: number; y: number }>; looks?: Map<string, SavedEdge>; current?: boolean }
+type Group = { name?: string; classId?: string; ids: string[]; positions: Map<string, { x: number; y: number }>; looks?: Map<string, SavedEdge>; current?: boolean }
 
 /**
  * Lays an imported ontology out on pages.
@@ -222,6 +228,7 @@ export function planImport(
   if (imported.layout && imported.layout.pages.length > 0) {
     groups = imported.layout.pages.map((p) => ({
       name: p.name,
+      classId: p.class ? idOf.get(p.class) : undefined,
       ids: p.nodes.map((n) => idOf.get(n.iri)).filter((id): id is string => !!id),
       positions: new Map(p.nodes.filter((n) => idOf.has(n.iri)).map((n) => [idOf.get(n.iri)!, { x: n.x, y: n.y }])),
       looks: new Map(p.edges.map((e) => [edgeKey(e.source, e.kind, e.label, e.target), e])),
@@ -272,7 +279,7 @@ export function planImport(
           data: { ...e.data!, ...(look.style && { style: look.style }), ...(look.bend && { bend: look.bend }) },
         }
       })
-    return { ...(g.name && { name: g.name }), ...layoutOntology(groupNodes, groupEdges, g.positions) }
+    return { ...(g.name && { name: g.name }), ...(g.classId && { classId: g.classId }), ...layoutOntology(groupNodes, groupEdges, g.positions) }
   })
   return { pages, kept }
 }

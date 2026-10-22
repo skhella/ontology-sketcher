@@ -109,10 +109,15 @@ body,
   color: var(--ink);
 }
 
-.toolbar button:hover,
+.toolbar button:hover:not(:disabled),
 .export button:hover,
 .sample-data button:hover:not(:disabled) {
   background: var(--hover);
+}
+
+/* Undo and Redo fade out when there is nothing to undo or redo. */
+.toolbar button:disabled {
+  opacity: 0.4;
 }
 
 /* The logo is drawn in --ink so it follows the theme toggle, not just the system setting. */
@@ -1092,4 +1097,35 @@ body,
   font-size: 12px;
   line-height: 16px;
   pointer-events: none;
+}
+
+/* Opens the class's detail page; sits left of the bottom dot, like the kind tab on the top edge. */
+.class-node .page-link {
+  position: absolute;
+  bottom: -9px;
+  left: 12px;
+  padding: 0 6px;
+  border: 1px solid;
+  border-radius: 8px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+/* An oval's bottom-left dot sits where the tab would; the tab moves between that dot and the bottom one, just below the outline. */
+.class-node.oval .page-link {
+  left: 32px;
+  bottom: -14px;
+}
+
+.pages .page.linked > button:first-child {
+  text-decoration: underline dotted;
+}
+
+.class-pages .page-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
 }

@@ -2,6 +2,7 @@ import { Handle, useConnection, useInternalNode, useUpdateNodeInternals, type No
 import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { ClassNode } from '../model'
 import { NamespacesContext } from '../namespaceContext'
+import { PageLinksContext } from '../pageLinksContext'
 import { prefixOf } from '../namespaces'
 import { breakPoints } from './label'
 import { roughEllipse, roughRect, seedFor } from './rough'
@@ -13,6 +14,8 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
   const { strokeStyle, strokeWidth, shape, stroke, fill } = nodeStyle(style)
   const oval = shape === 'oval'
   const prefix = prefixOf(useContext(NamespacesContext), data.namespace)
+  const links = useContext(PageLinksContext)
+  const detail = links.detail.get(id)
 
   // An oval only holds text inside its inscribed rectangle, which is 1/√2 of its height,
   // so it grows taller than the label (the label's side padding covers the width).
@@ -72,10 +75,30 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
           {data.kind}
         </span>
       )}
+      {/* A class from another ontology, shown so arrows to it can be drawn; see ClassData.outside. */}
+      {data.outside && (
+        <span className="kind-badge" style={{ color: stroke, borderColor: stroke }} title="Declared in another ontology; the export writes no label for it">
+          outside
+        </span>
+      )}
       {data.namespace && (
         <span className="namespace-badge" style={{ color: stroke, borderColor: stroke }} title={data.namespace}>
           {prefix ?? 'other'}:
         </span>
+      )}
+      {/* A class with a detail page gets a tab on its bottom edge that opens it. */}
+      {detail && (
+        <button
+          className="page-link nodrag"
+          style={{ color: stroke, borderColor: stroke }}
+          title={`Open page "${detail.name}"`}
+          onClick={(event) => {
+            event.stopPropagation()
+            links.open(detail.id)
+          }}
+        >
+          page ↗
+        </button>
       )}
       {/* Eight dots: one per side and one per corner. With ConnectionMode.Loose any dot can start or end an edge; the id is the anchor. */}
       {ANCHORS.map((anchor) => (

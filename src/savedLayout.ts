@@ -22,7 +22,8 @@ export type SavedEdge = {
   style?: SketchStyle
   bend?: Point
 }
-export type SavedPage = { name: string; nodes: SavedNode[]; edges: SavedEdge[] }
+/** `class` is the IRI of the class this page is the detail page of. */
+export type SavedPage = { name: string; class?: string; nodes: SavedNode[]; edges: SavedEdge[] }
 export type SavedLayout = { version: 1; pages: SavedPage[] }
 
 /** The key an arrow is matched by between the layout and the imported ontology. */
@@ -39,6 +40,7 @@ export function parseLayout(json: string | undefined): SavedLayout | undefined {
     const pages = layout.pages.filter((p) => p && Array.isArray(p.nodes) && Array.isArray(p.edges))
     for (const p of pages) {
       p.name = typeof p.name === 'string' ? p.name : 'Page'
+      if (typeof p.class !== 'string') delete p.class
       p.nodes = p.nodes.filter((n) => typeof n?.iri === 'string' && Number.isFinite(n.x) && Number.isFinite(n.y))
       p.edges = p.edges.filter((e) => typeof e?.source === 'string' && typeof e.target === 'string' && typeof e.kind === 'string')
     }
