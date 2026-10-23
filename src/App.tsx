@@ -38,6 +38,8 @@ import { NamespacesMenu } from './NamespacesMenu'
 import { defaultEdge, isSkosEdge, NODE_KIND_NAMES, NODE_KIND_STYLES } from './skos'
 import { ClassPages } from './inspector/ClassPages'
 import { Inspector } from './inspector/Inspector'
+import { PropertyHierarchy } from './PropertyHierarchyPanel'
+import { propertyEntries } from './propertyHierarchy'
 import { SampleData } from './SampleData'
 import { addDetailPage, classesNotOn, linkPage, loadCanvas, mergePages, placeClass, removePage, saveCanvas, type Workspace } from './pages'
 import { emptyProject, loadAutosave, projectFileName, projectFromJson, projectToJson, sampleProject, writeAutosave, PROJECT_EXTENSION, type Project } from './project'
@@ -123,6 +125,7 @@ export default function App() {
   const [svgPages, setSvgPages] = useState<string[]>([])
   // The sample data panel, and the classes whose instances in it break a constraint (outlined on the canvas).
   const [sampleOpen, setSampleOpen] = useState(false)
+  const [propertiesOpen, setPropertiesOpen] = useState(false)
   const [problemClasses, setProblemClasses] = useState<string[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   // Whether hidden classes and arrows are drawn (faded) on the canvas and in SVG images; see hidden.ts.
@@ -432,6 +435,12 @@ export default function App() {
 
   // Classes from other pages that can be placed here; placing shares the class, it does not copy it.
   const placeable = useMemo(() => classesNotOn(saveCanvas(workspace, pageId, nodes, edges), pageId), [workspace, pageId, nodes, edges])
+
+  // Every property of the project for the property hierarchy, worked out only while it is open.
+  const properties = useMemo(
+    () => (propertiesOpen ? propertyEntries(saveCanvas(workspace, pageId, nodes, edges), { iri, kept, keptStatements }) : new Map()),
+    [propertiesOpen, workspace, pageId, nodes, edges, iri, kept, keptStatements],
+  )
 
   const placeExisting = (event: ChangeEvent<HTMLSelectElement>) => {
     const classId = event.target.value
@@ -751,6 +760,13 @@ export default function App() {
             )}
           </div>
         </details>
+        <button
+          onClick={() => setPropertiesOpen((open) => !open)}
+          aria-pressed={propertiesOpen}
+          title="Object and data properties as a tree by subPropertyOf, with domain, range and the pages each is on"
+        >
+          Properties
+        </button>
         <button onClick={() => setSampleOpen(true)} title="Check example instances against the classes' SHACL constraints">
           Check sample data
         </button>
@@ -911,6 +927,7 @@ export default function App() {
             </div>
           </div>
         )}
+        {propertiesOpen && <PropertyHierarchy entries={properties} pageId={pageId} onOpenPage={openPage} onClose={() => setPropertiesOpen(false)} />}
         {sampleOpen && (
           <SampleData
             ontology={() => ({ ...mergePages(saved(), workspace.pages.map((p) => p.id), iri), kept, keptStatements })}
