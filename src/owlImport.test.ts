@@ -4,6 +4,7 @@ import { layoutOntology, planImport, saveLayout } from './layout'
 import { linkPage, loadCanvas, saveCanvas, workspaceFrom } from './pages'
 import { sampleOntology, type ClassNode, type Ontology, type RelationEdge } from './model'
 import { toTurtle } from './owl'
+import { keptStatementsOf } from './keptStatements'
 import { describeOwlImport, importOwl } from './owlImport'
 
 const P = 'http://example.org/pizza#'
@@ -203,9 +204,25 @@ describe('layout saved in the export', () => {
     const plain = canonical(await toTurtle(ontology))
     const withLayout = canonical(await toTurtle(ontology, saveLayout(workspace, pageIds, P)))
     expect(withLayout.filter((line) => !plain.includes(line)).sort().reverse()).toEqual([
-      'https://github.com/skhella/ontology-sketcher#layout http://www.w3.org/1999/02/22-rdf-syntax-ns#type http://www.w3.org/2002/07/owl#AnnotationProperty',
-      expect.stringMatching(/^http:\/\/example.org\/pizza https:\/\/github.com\/skhella\/ontology-sketcher#layout /),
+      'https://w3id.org/ontology-sketcher#layout http://www.w3.org/2000/01/rdf-schema#label ["Ontology Sketcher layout","en","http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"]',
+      expect.stringMatching(/^https:\/\/w3id.org\/ontology-sketcher#layout http:\/\/www.w3.org\/2000\/01\/rdf-schema#comment \["How Ontology Sketcher drew/),
+      'https://w3id.org/ontology-sketcher#layout http://www.w3.org/1999/02/22-rdf-syntax-ns#type http://www.w3.org/2002/07/owl#AnnotationProperty',
+      expect.stringMatching(/^http:\/\/example.org\/pizza https:\/\/w3id.org\/ontology-sketcher#layout /),
     ])
+  })
+
+  it('reads the layout from files saved under its earlier name, and saves it under the current one', async () => {
+    const OLD = 'https://github.com/skhella/ontology-sketcher#layout'
+    const turtle = (await toTurtle({ iri: P, nodes: styled, edges: curved }, saveLayout(workspace, pageIds, P))).replaceAll(
+      'https://w3id.org/ontology-sketcher#layout',
+      OLD,
+    )
+    const imported = importOwl(turtle)
+    expect(imported.layout?.pages.map((p) => p.name)).toEqual(['Main', 'Kinds'])
+    const ontology = { ...imported, keptStatements: await keptStatementsOf(turtle, imported) }
+    const again = await toTurtle(ontology, imported.layout)
+    expect(again).not.toContain(OLD)
+    expect(importOwl(again).layout).toEqual(imported.layout)
   })
 
   it('brings back pages, positions, colours, dots and curves', async () => {
