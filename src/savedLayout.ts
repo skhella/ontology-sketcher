@@ -8,7 +8,10 @@ import type { SketchStyle } from './sketch/style'
  * LAYOUT_PROPERTY: other tools ignore it, and the classes and properties themselves stay plain OWL.
  * Classes and arrows are named by IRI, so the layout still applies after the ontology was edited elsewhere.
  */
-export const LAYOUT_PROPERTY = 'https://github.com/skhella/ontology-sketcher#layout'
+export const LAYOUT_PROPERTY = 'https://w3id.org/ontology-sketcher#layout'
+/** The name exports used before LAYOUT_PROPERTY; files saved with it still bring back their layout. */
+export const OLD_LAYOUT_PROPERTY = 'https://github.com/skhella/ontology-sketcher#layout'
+export const LAYOUT_PROPERTIES = new Set([LAYOUT_PROPERTY, OLD_LAYOUT_PROPERTY])
 
 export type SavedNode = { iri: string; x: number; y: number; style?: SketchStyle }
 /** An arrow by its two classes' IRIs, its kind and its label (empty for subClassOf). */

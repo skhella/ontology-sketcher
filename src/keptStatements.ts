@@ -1,7 +1,7 @@
 import { Parser, Store, Writer, type Quad, type Term } from 'n3'
 import { localName, propertyLocalName, type KeptStatement, type Ontology } from './model'
 import { dataPropertyIri, entityIri, toTurtle } from './owl'
-import { LAYOUT_PROPERTY } from './savedLayout'
+import { LAYOUT_PROPERTIES } from './savedLayout'
 import { describe } from './turtle'
 
 /**
@@ -25,8 +25,9 @@ export async function keptStatementsOf(source: string, imported: Ontology): Prom
 
   const bySubject = new Map<string, Quad[]>()
   for (const s of statements(sourceStore)) {
-    if (written.has(s.key) || s.quads[0].predicate.value === LAYOUT_PROPERTY) continue
-    const subject = s.quads[0].subject
+    // The layout and what is said about its property are written afresh on export, under the current name.
+    const { subject, predicate } = s.quads[0]
+    if (written.has(s.key) || LAYOUT_PROPERTIES.has(predicate.value) || LAYOUT_PROPERTIES.has(subject.value)) continue
     const group = subject.termType === 'NamedNode' ? subject.value : `_:${subject.value}`
     bySubject.set(group, [...(bySubject.get(group) ?? []), ...s.quads])
   }

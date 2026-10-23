@@ -17,7 +17,7 @@ import {
   type RelationEdge,
   type SkosEdgeKind,
 } from './model'
-import { LAYOUT_PROPERTY, parseLayout, type SavedLayout } from './savedLayout'
+import { LAYOUT_PROPERTY, OLD_LAYOUT_PROPERTY, parseLayout, type SavedLayout } from './savedLayout'
 import { conceptSchemes, MAPPING_KINDS, NODE_KIND_STYLES } from './skos'
 import { suggestPrefix } from './namespaces'
 import { ANNOTATION_PROPERTIES, BUILT_IN_ANNOTATION_PROPERTIES, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS, shortName, SKOS, SKOS_ANNOTATION_PROPERTIES, XSD } from './vocab'
@@ -513,7 +513,7 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
   const shapes = subjectsOfType('http://www.w3.org/ns/shacl#NodeShape').length
   if (shapes) skip('SHACL shapes', shapes)
 
-  const layout = parseLayout(ontologyIri ? object(ontologyIri, LAYOUT_PROPERTY)?.value : undefined)
+  const layout = parseLayout(ontologyIri ? (object(ontologyIri, LAYOUT_PROPERTY) ?? object(ontologyIri, OLD_LAYOUT_PROPERTY))?.value : undefined)
 
   return {
     iri,

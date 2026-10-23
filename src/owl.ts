@@ -7,6 +7,9 @@ import { BUILT_IN_ANNOTATION_PROPERTIES, expandIri, IRI_VALUED, isAbsoluteIri, O
 
 const { literal, namedNode, quad } = DataFactory
 
+const LAYOUT_COMMENT =
+  'How Ontology Sketcher drew this ontology (pages, positions, colours, arrows), as JSON. It has no logical meaning and other tools can ignore it.'
+
 /** The IRI of a class or property: its own `iri` when set, else `localName` after its namespace (the ontology IRI by default). */
 export function entityIri(base: string, data: EntityData, local: string): string {
   const namespace = data.namespace?.trim() || base
@@ -99,6 +102,11 @@ export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<stri
   if (layout) {
     usedAnnotationProperties.add(LAYOUT_PROPERTY)
     quads.push(quad(namedNode(ontologyIri), namedNode(LAYOUT_PROPERTY), literal(JSON.stringify(layout))))
+    // Named and explained, so Protégé and other tools show what the long string is.
+    quads.push(
+      quad(namedNode(LAYOUT_PROPERTY), label, literal('Ontology Sketcher layout', 'en')),
+      quad(namedNode(LAYOUT_PROPERTY), namedNode(RDFS + 'comment'), literal(LAYOUT_COMMENT, 'en')),
+    )
   }
 
   const classIri = new Map<string, string>()
