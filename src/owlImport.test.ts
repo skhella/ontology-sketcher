@@ -239,6 +239,22 @@ describe('layout saved in the export', () => {
     expect(property).toMatchObject({ sourceHandle: 'right', targetHandle: 'left', data: { label: 'has topping', bend: { x: 0, y: -40 } } })
   })
 
+  it('brings back a class drawn differently on each page with the look of that page', async () => {
+    const shaded = { fill: '#a5d8ff', fillStyle: 'cross-hatch' as const }
+    const plain = { fill: 'transparent' }
+    const restyle = (id: string, look: (n: ClassNode) => ClassNode['data']['style']) =>
+      saveCanvas(workspace, id, loadCanvas(workspace, id).nodes.map((n) => ({ ...n, data: { ...n.data, style: look(n) } })), loadCanvas(workspace, id).edges)
+    // Main: Pizza shaded, Topping plain. Kinds: Pizza without a look of its own, Topping shaded.
+    let ws = restyle(first.pageId, (n) => (n.id === 'pizza' ? shaded : plain))
+    ws = saveCanvas(ws, secondId, loadCanvas(ws, secondId).nodes.map((n) => ({ ...n, data: { ...n.data, style: n.id === 'topping' ? shaded : undefined } })), loadCanvas(ws, secondId).edges)
+    const turtle = await toTurtle({ iri: P, nodes: styled, edges: curved }, saveLayout(ws, pageIds, P))
+    const fresh = workspaceFrom('Page 1', [], [])
+    const { pages } = planImport(importOwl(turtle), { iri: P, workspace: fresh.workspace, pageId: fresh.pageId })
+    const styleOf = (page: number, label: string) => pages[page].nodes.find((n) => n.data.label === label)?.data.style
+    expect([styleOf(0, 'Pizza'), styleOf(0, 'Topping')]).toEqual([shaded, plain])
+    expect([styleOf(1, 'Pizza'), styleOf(1, 'Topping')]).toEqual([undefined, shaded])
+  })
+
   it('brings back which class a page is the detail page of', async () => {
     const linked = linkPage(workspace, secondId, 'topping')
     const turtle = await toTurtle({ iri: P, nodes: styled, edges: curved }, saveLayout(linked, pageIds, P))
