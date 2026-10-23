@@ -5,9 +5,9 @@ import { workspaceFrom, type Workspace } from './pages'
  * A project is everything needed to pick the work up again: the ontology IRI, every page with its
  * positions, colours and curves, the other namespaces classes can live in, and the shared store of classes and relations with their axioms,
  * annotations, SHACL constraints and SKOS kinds. The same shape is autosaved in the browser and
- * written to a project file.
+ * written to a project file. The name is the user's own; saving uses it as the file name.
  */
-export type Project = { iri: string; namespaces?: Namespace[]; kept?: KeptProperty[]; keptStatements?: KeptStatement[]; workspace: Workspace; pageId: string }
+export type Project = { name?: string; iri: string; namespaces?: Namespace[]; kept?: KeptProperty[]; keptStatements?: KeptStatement[]; workspace: Workspace; pageId: string }
 
 /** Marks a project file, so opening some other JSON file fails with a clear message. */
 const FORMAT = 'ontology-sketcher-project'
@@ -61,7 +61,8 @@ export function projectFromJson(text: string): Project {
     : []
   const kept = Array.isArray(p.kept) ? p.kept.filter((k) => k && typeof k.iri === 'string' && (k.kind === 'object' || k.kind === 'data')) : []
   const keptStatements = Array.isArray(p.keptStatements) ? p.keptStatements.filter((s) => s && typeof s.ntriples === 'string') : []
-  return { iri: p.iri, ...(namespaces.length > 0 && { namespaces }), ...(kept.length > 0 && { kept }), ...(keptStatements.length > 0 && { keptStatements }), workspace: ws, pageId }
+  const name = typeof p.name === 'string' ? p.name.trim() : ''
+  return { ...(name && { name }), iri: p.iri, ...(namespaces.length > 0 && { namespaces }), ...(kept.length > 0 && { kept }), ...(keptStatements.length > 0 && { keptStatements }), workspace: ws, pageId }
 }
 
 /** The project autosaved in this browser, or null when there is none or it cannot be read. */
@@ -84,8 +85,18 @@ export function writeAutosave(project: Project, storage: Pick<Storage, 'setItem'
   }
 }
 
-/** A file name from the ontology IRI's last part, e.g. http://example.org/pizza# gives pizza.sketcher.json. */
-export function projectFileName(iri: string): string {
-  const name = iri.replace(/[#/]+$/, '').split(/[#/:]/).pop() ?? ''
-  return `${name.replace(/[^\w.-]+/g, '-') || 'ontology'}${PROJECT_EXTENSION}`
+/** The name a project goes by until the user gives it one: the ontology IRI's last part, e.g. pizza for http://example.org/pizza#. */
+export function defaultProjectName(iri: string): string {
+  return iri.replace(/[#/]+$/, '').split(/[#/:]/).pop() || 'ontology'
+}
+
+/** The project's name as it was saved, from a file name such as Pizza v2.sketcher.json. */
+export function nameFromFileName(fileName: string): string {
+  return fileName.replace(/\.sketcher\.json$|\.json$/i, '').trim()
+}
+
+/** A file name from the project's name, or else from the ontology IRI's last part, e.g. http://example.org/pizza# gives pizza.sketcher.json. */
+export function projectFileName(iri: string, name?: string): string {
+  const base = (name?.trim() || defaultProjectName(iri)).replace(/[^\w. -]+/g, '-').replace(/^[ .]+|[ .]+$/g, '')
+  return `${base || 'ontology'}${PROJECT_EXTENSION}`
 }
