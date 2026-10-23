@@ -5,6 +5,7 @@ import { entityIri } from './owl'
 import { loadCanvas, type Workspace } from './pages'
 import { edgeKey, type SavedEdge, type SavedLayout, type SavedPage } from './savedLayout'
 import { CLASS_HEIGHT, CLASS_WIDTH, nearestSide } from './sketch/snap'
+import type { SketchStyle } from './sketch/style'
 
 /**
  * Places imported classes with a layered layout: superclasses above their subclasses, SKOS broader
@@ -215,6 +216,8 @@ type Group = {
   positions: Map<string, { x: number; y: number }>
   /** Classes the saved page hides. */
   hidden?: Set<string>
+  /** How the saved page drew its classes; a class drawn differently on another page keeps that look there. */
+  styles?: Map<string, SketchStyle>
   looks?: Map<string, SavedEdge>
   current?: boolean
 }
@@ -248,10 +251,9 @@ export function planImport(
       ids: p.nodes.map((n) => idOf.get(n.iri)).filter((id): id is string => !!id),
       positions: new Map(p.nodes.filter((n) => idOf.has(n.iri)).map((n) => [idOf.get(n.iri)!, { x: n.x, y: n.y }])),
       hidden: new Set(p.nodes.filter((n) => n.hidden === true && idOf.has(n.iri)).map((n) => idOf.get(n.iri)!)),
+      styles: new Map(p.nodes.filter((n) => n.style && idOf.has(n.iri)).map((n) => [idOf.get(n.iri)!, n.style!])),
       looks: new Map(p.edges.map((e) => [edgeKey(e.source, e.kind, e.label, e.target), e])),
     }))
-    const styles = new Map(imported.layout.pages.flatMap((p) => p.nodes.filter((n) => n.style && idOf.has(n.iri)).map((n) => [idOf.get(n.iri)!, n.style!])))
-    for (const n of nodes) if (styles.has(n.id)) n.data = { ...n.data, style: styles.get(n.id) }
     const placed = new Set(groups.flatMap((g) => g.ids))
     groups[0].ids.push(...nodes.filter((n) => !placed.has(n.id)).map((n) => n.id))
   } else if (nodes.length > limit) {
@@ -270,14 +272,19 @@ export function planImport(
     home.ids.push(e.target)
   }
 
+  // A class a page didn't save a look for (one the import adds to that page) takes the first look the layout gives it.
+  const firstStyle = new Map<string, SketchStyle>()
+  for (const g of groups) for (const [id, style] of g.styles ?? []) if (!firstStyle.has(id)) firstStyle.set(id, style)
+
   const known = new Set(groups.flatMap((g) => [...(g.looks?.keys() ?? [])]))
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const pages = groups.map((g): PlannedPage => {
     const ids = new Set(g.ids)
     const groupNodes = [...ids].map((id) => {
       const n = byId.get(id)!
-      // On the current page a class keeps its look and stays hidden if it was; elsewhere it starts with the imported ones.
-      const style = g.current ? onPage.get(id)?.data.style : undefined
+      // On the current page a class keeps its look and stays hidden if it was; elsewhere it starts with the imported ones,
+      // each saved page with the look it drew the class with.
+      const style = g.current ? onPage.get(id)?.data.style : (g.positions.has(id) ? g.styles?.get(id) : firstStyle.get(id))
       const hidden = g.current ? onPage.get(id)?.data.hidden : g.hidden?.has(id)
       return style || hidden ? { ...n, data: { ...n.data, ...(style && { style }), ...(hidden && { hidden }) } } : n
     })
