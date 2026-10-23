@@ -19,12 +19,15 @@ type Props = {
   edgesOnly: boolean
   /** Number of selected edges that have been bent; enables "Straighten". */
   bentEdges: number
+  /** True when everything selected is hidden on this page; the button then unhides instead. */
+  hidden: boolean
+  onHide: (hide: boolean) => void
   onChange: (patch: SketchStyle) => void
   onStraighten: () => void
 }
 
 /** Excalidraw-style properties panel for the selected nodes and edges. */
-export function StylePanel({ current, edgesOnly, bentEdges, onChange, onStraighten }: Props) {
+export function StylePanel({ current, edgesOnly, bentEdges, hidden, onHide, onChange, onStraighten }: Props) {
   const s = { ...(edgesOnly ? EDGE_DEFAULTS : NODE_DEFAULTS), ...current }
 
   return (
@@ -91,6 +94,20 @@ export function StylePanel({ current, edgesOnly, bentEdges, onChange, onStraight
             <WiggleIcon amount={roughness} />
           </Option>
         ))}
+      </Section>
+
+      <Section title="On this page">
+        <button
+          className="text-option"
+          onClick={() => onHide(!hidden)}
+          title={
+            hidden
+              ? 'Draw it on this page again'
+              : 'Leave it off this page and its SVG image (a class takes its arrows along); it stays in the ontology and every other export'
+          }
+        >
+          {hidden ? 'Unhide' : 'Hide'}
+        </button>
       </Section>
 
       {bentEdges > 0 && (

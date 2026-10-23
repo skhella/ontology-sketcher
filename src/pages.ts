@@ -3,20 +3,20 @@ import type { ClassData, ClassNode, Ontology, RelationData, RelationEdge } from 
 /**
  * Pages work like views in Archi or Enterprise Architect: classes and relations live once in a
  * shared store, and a page only places them. The same class (same node id, same IRI) can sit on
- * several pages; editing it on one page edits it everywhere, while position, size, colours and
- * curves stay per page.
+ * several pages; editing it on one page edits it everywhere, while position, size, colours,
+ * curves and being hidden stay per page.
  */
 
 /** Everything about a class except how one page draws it. */
-export type ClassEntity = Omit<ClassData, 'style'>
+export type ClassEntity = Omit<ClassData, 'style' | 'hidden'>
 /** Everything about a relation except how one page draws it. */
-export type RelationEntity = Omit<RelationData, 'style' | 'bend'> & { source: string; target: string }
+export type RelationEntity = Omit<RelationData, 'style' | 'bend' | 'hidden'> & { source: string; target: string }
 
 export type Store = { classes: Record<string, ClassEntity>; relations: Record<string, RelationEntity> }
 
 /** A canvas node or edge with only its page-specific data left in `data`. */
-export type NodePlacement = Omit<ClassNode, 'data'> & { data: Pick<ClassData, 'style'> }
-export type EdgePlacement = Omit<RelationEdge, 'data'> & { data: Pick<RelationData, 'style' | 'bend'> }
+export type NodePlacement = Omit<ClassNode, 'data'> & { data: Pick<ClassData, 'style' | 'hidden'> }
+export type EdgePlacement = Omit<RelationEdge, 'data'> & { data: Pick<RelationData, 'style' | 'bend' | 'hidden'> }
 
 /** `classId` links the page to one class as its detail page, so the class can open it from any page. */
 export type Page = { id: string; name: string; classId?: string; nodes: NodePlacement[]; edges: EdgePlacement[] }
@@ -41,16 +41,17 @@ export function saveCanvas(workspace: Workspace, pageId: string, nodes: ClassNod
   const placedNodes: NodePlacement[] = []
   const placedEdges: EdgePlacement[] = []
 
-  for (const node of nodes) {
-    const { style, ...entity } = node.data
+  // React Flow's own `hidden` is only how the canvas leaves hidden elements out (see App); `data.hidden` is what is kept.
+  for (const { hidden: _hidden, ...node } of nodes) {
+    const { style, hidden, ...entity } = node.data
     classes[node.id] = entity
-    placedNodes.push({ ...node, selected: false, data: style ? { style } : {} })
+    placedNodes.push({ ...node, selected: false, data: { ...(style && { style }), ...(hidden && { hidden }) } })
   }
-  for (const edge of edges) {
+  for (const { hidden: _hidden, ...edge } of edges) {
     if (!edge.data) continue
-    const { style, bend, ...entity } = edge.data
+    const { style, bend, hidden, ...entity } = edge.data
     relations[edge.id] = { ...entity, source: edge.source, target: edge.target }
-    placedEdges.push({ ...edge, selected: false, markerEnd: undefined, data: { ...(style && { style }), ...(bend && { bend }) } })
+    placedEdges.push({ ...edge, selected: false, markerEnd: undefined, data: { ...(style && { style }), ...(bend && { bend }), ...(hidden && { hidden }) } })
   }
 
   const pages = workspace.pages.map((p) => (p.id === pageId ? { ...p, nodes: placedNodes, edges: placedEdges } : p))
@@ -100,7 +101,7 @@ export function classesNotOn(workspace: Workspace, pageId: string): { id: string
 /**
  * Places an existing class on a page, and with it every stored relation between that class and
  * classes already on the page (Archi does the same when you drag an element into a view).
- * Each relation keeps the handles and curve of the first page that draws it.
+ * Each relation keeps the handles and curve of the first page that draws it; nothing placed this way starts hidden.
  */
 export function placeClass(workspace: Workspace, pageId: string, classId: string, position: { x: number; y: number }): Workspace {
   const page = workspace.pages.find((p) => p.id === pageId)
@@ -114,7 +115,7 @@ export function placeClass(workspace: Workspace, pageId: string, classId: string
     .filter(([id, r]) => !drawn.has(id) && onPage.has(r.source) && onPage.has(r.target) && (r.source === classId || r.target === classId))
     .map(([id, r]) => {
       const elsewhere = workspace.pages.flatMap((p) => p.edges).find((e) => e.id === id)
-      const { bend: _bend, ...look } = elsewhere?.data ?? {}
+      const { bend: _bend, hidden: _hidden, ...look } = elsewhere?.data ?? {}
       return {
         id,
         type: 'relation',

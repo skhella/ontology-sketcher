@@ -111,7 +111,9 @@ export type MappingKind = 'exactMatch' | 'closeMatch' | 'broadMatch' | 'narrowMa
 export type Mapping = { kind: MappingKind; iri: string }
 
 /**
- * A named OWL class drawn as a box on the canvas, or with `kind` a SKOS concept or scheme. `style` is visual only.
+ * A named OWL class drawn as a box on the canvas, or with `kind` a SKOS concept or scheme. `style` is visual only,
+ * and so is `hidden`: the class (with its arrows) is left off this page's drawing and its SVG unless hidden
+ * elements are shown, but every other export includes it.
  * `axioms` adds to the subClassOf edges drawn on the canvas; `constraints` export as a SHACL node shape, see shacl.ts,
  * which `constraintsClosed` closes: instances may then use only the constrained properties (and rdf:type).
  * `inScheme` lists scheme node ids a concept belongs to besides those its hierarchy reaches, see skos.ts.
@@ -136,6 +138,7 @@ export type ClassData = EntityData & {
   extraShapes?: string
   constraintsClosed?: boolean
   style?: SketchStyle
+  hidden?: boolean
 }
 export type ClassNode = Node<ClassData, 'owlClass'>
 
@@ -157,7 +160,7 @@ export type Characteristic = 'functional' | 'inverseFunctional' | 'transitive' |
  * `iri` and `annotations` describe the property and are ignored on subClassOf edges.
  * `characteristics`, `inverseOf` and `subPropertyOf` apply to object properties; the last two hold the id of an edge
  * drawing the other property. Edges with the same label are one property, and the inspector keeps these in step on all of them.
- * `style` and `bend` (offset of the curve's midpoint, see sketch/curve.ts) are visual only.
+ * `style`, `bend` (offset of the curve's midpoint, see sketch/curve.ts) and `hidden` (as on a class) are visual only.
  */
 export type RelationData = EntityData & {
   kind: EdgeKind
@@ -167,6 +170,7 @@ export type RelationData = EntityData & {
   subPropertyOf?: string
   style?: SketchStyle
   bend?: Point
+  hidden?: boolean
 }
 export type RelationEdge = Edge<RelationData, 'relation'>
 

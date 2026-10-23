@@ -440,6 +440,11 @@ body,
   text-align: left;
 }
 
+/* Hidden on this page, drawn only while hidden elements are shown. */
+.is-hidden {
+  opacity: 0.3;
+}
+
 .react-flow__node.has-problems {
   outline: 3px solid #e03131;
   outline-offset: 4px;

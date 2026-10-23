@@ -22,6 +22,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
+import { hiddenOn, withoutHidden } from './hidden'
 import { record, redo, startHistory, undo, type History } from './history'
 import { planImport } from './layout'
 import { exportFiles, exportFilesPerPage, pageFileStems, type ExportFile, type ExportFormat } from './exportFiles'
@@ -124,6 +125,8 @@ export default function App() {
   const [sampleOpen, setSampleOpen] = useState(false)
   const [problemClasses, setProblemClasses] = useState<string[]>([])
   const [notice, setNotice] = useState<string | null>(null)
+  // Whether hidden classes and arrows are drawn (faded) on the canvas and in SVG images; see hidden.ts.
+  const [showHidden, setShowHidden] = useState(false)
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const drawingInput = useRef<HTMLInputElement>(null)
@@ -288,10 +291,24 @@ export default function App() {
   }
 
   const selectedNodes = nodes.filter((n) => n.selected)
+  const hidden = useMemo(() => hiddenOn(nodes, edges), [nodes, edges])
+  const hiddenCount = nodes.filter((n) => n.data.hidden).length + edges.filter((e) => e.data?.hidden).length
   // Classes whose sample instances break a constraint get an outline, set only on the nodes React Flow draws so it never reaches saved pages.
+  // Hidden classes and arrows are left out the same way, unless hidden elements are shown.
   const shownNodes = useMemo(
-    () => (problemClasses.length === 0 ? nodes : nodes.map((n) => (problemClasses.includes(n.id) ? { ...n, className: 'has-problems' } : n))),
-    [nodes, problemClasses],
+    () =>
+      problemClasses.length === 0 && (showHidden || hidden.nodes.size === 0)
+        ? nodes
+        : nodes.map((n) => {
+            const problem = problemClasses.includes(n.id)
+            const out = !showHidden && hidden.nodes.has(n.id)
+            return problem || out ? { ...n, ...(problem && { className: 'has-problems' }), ...(out && { hidden: true }) } : n
+          }),
+    [nodes, problemClasses, showHidden, hidden],
+  )
+  const shownEdges = useMemo(
+    () => (showHidden || hidden.edges.size === 0 ? edges : edges.map((e) => (hidden.edges.has(e.id) ? { ...e, hidden: true } : e))),
+    [edges, showHidden, hidden],
   )
   const selectClass = (id: string) => {
     setEdges((es) => es.map((e) => (e.selected ? { ...e, selected: false } : e)))
@@ -328,6 +345,29 @@ export default function App() {
     setWorkspace((ws) => renameNamespace(ws, renamed.from, renamed.to))
     setNodes(move)
     setEdges(move)
+  }
+
+  // Hides or unhides what is selected, on this page only. Hidden things that are not drawn are unselected,
+  // so a key press can't delete what can't be seen.
+  const setSelectionHidden = (hide: boolean) => {
+    const drop = hide && !showHidden
+    const ids = new Set(nodes.filter((n) => n.selected).map((n) => n.id))
+    const mark = <T extends ClassNode | RelationEdge>(item: T): T => ({
+      ...item,
+      ...(drop && { selected: false }),
+      data: { ...item.data!, hidden: hide || undefined },
+    })
+    setNodes((ns) => ns.map((n) => (n.selected ? mark(n) : n)))
+    // An arrow of a class that is hidden goes too, without being marked: it comes back with its class.
+    setEdges((es) => es.map((e) => (e.selected && e.data ? mark(e) : drop && (ids.has(e.source) || ids.has(e.target)) ? { ...e, selected: false } : e)))
+  }
+
+  const toggleShowHidden = () => {
+    if (showHidden) {
+      setNodes((ns) => ns.map((n) => (n.selected && hidden.nodes.has(n.id) ? { ...n, selected: false } : n)))
+      setEdges((es) => es.map((e) => (e.selected && hidden.edges.has(e.id) ? { ...e, selected: false } : e)))
+    }
+    setShowHidden(!showHidden)
   }
 
   const straighten = () => setEdges((es) => es.map((e) => (e.selected && e.data ? { ...e, data: { ...e.data, bend: undefined } } : e)))
@@ -437,9 +477,11 @@ export default function App() {
     setSvgPages(pageIds)
     const ws = saved()
     const stems = pageFileStems(ws.pages)
+    // Hidden classes and arrows are drawn only while they are shown on the canvas.
+    const drawn = (canvas: { nodes: ClassNode[]; edges: RelationEdge[] }) => (showHidden ? canvas : withoutHidden(canvas.nodes, canvas.edges))
     const canvases = ws.pages
       .filter((p) => pageIds.includes(p.id))
-      .map((page) => ({ page, ...(page.id === pageId ? { nodes, edges } : loadCanvas(ws, page.id)) }))
+      .map((page) => ({ page, ...drawn(page.id === pageId ? { nodes, edges } : loadCanvas(ws, page.id)) }))
     const text = canvases.flatMap((c) => [...c.nodes.map((n) => n.data.label), ...c.edges.map((e) => e.data?.label ?? '')]).join(' ')
     const [measure, fontCss] = await Promise.all([excalifontMeasure(), excalifontCss(text)])
     const files = canvases.map(({ page, nodes, edges }): ExportFile => {
@@ -712,6 +754,15 @@ export default function App() {
         <button onClick={() => setSampleOpen(true)} title="Check example instances against the classes' SHACL constraints">
           Check sample data
         </button>
+        {(hiddenCount > 0 || showHidden) && (
+          <button
+            onClick={toggleShowHidden}
+            aria-pressed={showHidden}
+            title="Draw the classes and arrows hidden on this page, faded, or leave them out. SVG images follow this; the other exports always include everything."
+          >
+            {showHidden ? 'Leave out hidden' : `Show hidden (${hiddenCount})`}
+          </button>
+        )}
         <button onClick={toggleTheme} aria-pressed={theme === 'dark'} title="Switch between light and dark mode">
           {theme === 'dark' ? '☀ Light' : '☾ Dark'}
         </button>
@@ -724,7 +775,7 @@ export default function App() {
           <PageLinksContext.Provider value={pageLinks}>
             <ReactFlow
               nodes={shownNodes}
-              edges={edges}
+              edges={shownEdges}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               onNodesChange={onNodesChange}
@@ -785,6 +836,8 @@ export default function App() {
             current={selectedNodes.length > 0 ? (selectedNodes[0].data.style ?? {}) : edgeStyle(selectedEdges[0])}
             edgesOnly={selectedNodes.length === 0}
             bentEdges={selectedEdges.filter((e) => e.data?.bend).length}
+            hidden={[...selectedNodes, ...selectedEdges].every((item) => item.data?.hidden)}
+            onHide={setSelectionHidden}
             onChange={restyle}
             onStraighten={straighten}
           />
