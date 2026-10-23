@@ -180,7 +180,13 @@ export function saveLayout(workspace: Workspace, pageIds: string[], base: string
       return {
         name: page.name,
         ...(page.classId && iriOf.has(page.classId) && { class: iriOf.get(page.classId) }),
-        nodes: canvas.nodes.map((n) => ({ iri: iriOf.get(n.id)!, x: Math.round(n.position.x), y: Math.round(n.position.y), ...(n.data.style && { style: n.data.style }) })),
+        nodes: canvas.nodes.map((n) => ({
+          iri: iriOf.get(n.id)!,
+          x: Math.round(n.position.x),
+          y: Math.round(n.position.y),
+          ...(n.data.style && { style: n.data.style }),
+          ...(n.data.hidden && { hidden: true }),
+        })),
         edges: canvas.edges
           .filter((e) => e.data && iriOf.has(e.source) && iriOf.has(e.target))
           .map((e) => ({
@@ -192,6 +198,7 @@ export function saveLayout(workspace: Workspace, pageIds: string[], base: string
             ...(e.targetHandle && { targetHandle: e.targetHandle }),
             ...(e.data!.style && { style: e.data!.style }),
             ...(e.data!.bend && { bend: e.data!.bend }),
+            ...(e.data!.hidden && { hidden: true }),
           })),
       }
     })
@@ -201,7 +208,16 @@ export function saveLayout(workspace: Workspace, pageIds: string[], base: string
 /** A page an import fills: the first replaces the current page, the rest are added. */
 export type PlannedPage = { name?: string; classId?: string; nodes: ClassNode[]; edges: RelationEdge[] }
 
-type Group = { name?: string; classId?: string; ids: string[]; positions: Map<string, { x: number; y: number }>; looks?: Map<string, SavedEdge>; current?: boolean }
+type Group = {
+  name?: string
+  classId?: string
+  ids: string[]
+  positions: Map<string, { x: number; y: number }>
+  /** Classes the saved page hides. */
+  hidden?: Set<string>
+  looks?: Map<string, SavedEdge>
+  current?: boolean
+}
 
 /**
  * Lays an imported ontology out on pages.
@@ -231,6 +247,7 @@ export function planImport(
       classId: p.class ? idOf.get(p.class) : undefined,
       ids: p.nodes.map((n) => idOf.get(n.iri)).filter((id): id is string => !!id),
       positions: new Map(p.nodes.filter((n) => idOf.has(n.iri)).map((n) => [idOf.get(n.iri)!, { x: n.x, y: n.y }])),
+      hidden: new Set(p.nodes.filter((n) => n.hidden === true && idOf.has(n.iri)).map((n) => idOf.get(n.iri)!)),
       looks: new Map(p.edges.map((e) => [edgeKey(e.source, e.kind, e.label, e.target), e])),
     }))
     const styles = new Map(imported.layout.pages.flatMap((p) => p.nodes.filter((n) => n.style && idOf.has(n.iri)).map((n) => [idOf.get(n.iri)!, n.style!])))
@@ -259,9 +276,10 @@ export function planImport(
     const ids = new Set(g.ids)
     const groupNodes = [...ids].map((id) => {
       const n = byId.get(id)!
-      // On the current page a class keeps its look; elsewhere it starts with the imported one.
+      // On the current page a class keeps its look and stays hidden if it was; elsewhere it starts with the imported ones.
       const style = g.current ? onPage.get(id)?.data.style : undefined
-      return style ? { ...n, data: { ...n.data, style } } : n
+      const hidden = g.current ? onPage.get(id)?.data.hidden : g.hidden?.has(id)
+      return style || hidden ? { ...n, data: { ...n.data, ...(style && { style }), ...(hidden && { hidden }) } } : n
     })
     const keyOf = (e: RelationEdge) => edgeKey(iriOf.get(e.source)!, e.data?.kind, e.data?.label, iriOf.get(e.target)!)
     // A saved page draws the arrows it drew before, and arrows the layout doesn't know yet.
@@ -276,7 +294,7 @@ export function planImport(
           ...e,
           sourceHandle: look.sourceHandle ?? undefined,
           targetHandle: look.targetHandle ?? undefined,
-          data: { ...e.data!, ...(look.style && { style: look.style }), ...(look.bend && { bend: look.bend }) },
+          data: { ...e.data!, ...(look.style && { style: look.style }), ...(look.bend && { bend: look.bend }), ...(look.hidden === true && { hidden: true }) },
         }
       })
     return { ...(g.name && { name: g.name }), ...(g.classId && { classId: g.classId }), ...layoutOntology(groupNodes, groupEdges, g.positions) }

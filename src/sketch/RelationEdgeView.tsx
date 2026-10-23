@@ -8,10 +8,13 @@ import { toAnchor } from './snap'
 import { dashArray, EDGE_DEFAULTS } from './style'
 
 export function RelationEdgeView(props: EdgeProps<RelationEdge>) {
-  const { id, data, markerEnd, selected, source: sourceId, sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, sourceHandleId, targetHandleId } = props
+  const { id, data, markerEnd, selected, source: sourceId, target: targetId, sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, sourceHandleId, targetHandleId } = props
   const { getEdge, screenToFlowPosition, updateEdgeData } = useReactFlow<ClassNode, RelationEdge>()
   const store = useStoreApi<ClassNode, RelationEdge>()
   const sourceClass = useNodesData<ClassNode>(sourceId)
+  const targetClass = useNodesData<ClassNode>(targetId)
+  // Drawn at all only while hidden elements are shown, then faded; hiding either class hides the arrow too.
+  const faded = data?.hidden || sourceClass?.data.hidden || targetClass?.data.hidden ? ' is-hidden' : ''
   const source = { x: sourceX, y: sourceY }
   const target = { x: targetX, y: targetY }
 
@@ -53,20 +56,22 @@ export function RelationEdgeView(props: EdgeProps<RelationEdge>) {
   return (
     <>
       {selected && <path d={d} fill="none" className="edge-selection" strokeWidth={style.strokeWidth + 8} />}
-      {paths.map((p, i) => (
-        <path key={i} d={p.d} stroke={p.stroke} strokeWidth={p.strokeWidth} strokeDasharray={dash} fill="none" />
-      ))}
-      {/* Invisible copies of the smooth path: one carries the arrow marker (sized by its stroke width), one widens the hit area. */}
-      <path d={d} fill="none" stroke="transparent" strokeWidth={1.5} markerEnd={markerEnd} />
+      <g className={faded || undefined}>
+        {paths.map((p, i) => (
+          <path key={i} d={p.d} stroke={p.stroke} strokeWidth={p.strokeWidth} strokeDasharray={dash} fill="none" />
+        ))}
+        {/* Invisible copies of the smooth path: one carries the arrow marker (sized by its stroke width), one widens the hit area. */}
+        <path d={d} fill="none" stroke="transparent" strokeWidth={1.5} markerEnd={markerEnd} />
+      </g>
       <path d={d} fill="none" stroke="transparent" strokeWidth={14} className="react-flow__edge-interaction" />
       <EdgeLabelRenderer>
         {/* While selected, the label moves up so the bend handle does not cover it. */}
-        <div className="edge-label" style={{ transform: `translate(-50%, ${selected ? '-130%' : '-50%'}) translate(${mid.x}px, ${mid.y}px)` }}>
+        <div className={`edge-label${faded}`} style={{ transform: `translate(-50%, ${selected ? '-130%' : '-50%'}) translate(${mid.x}px, ${mid.y}px)` }}>
           {label}
         </div>
         {counts && (
           <button
-            className="edge-multiplicity nodrag nopan"
+            className={`edge-multiplicity nodrag nopan${faded}`}
             title={`SHACL: each ${sourceClass?.data.label ?? 'instance'} needs ${counts} "${data?.label}" values. Click to edit the constraint.`}
             style={{ transform: `translate(-50%, -50%) translate(${countsAt.x}px, ${countsAt.y}px)` }}
             onClick={openConstraint}

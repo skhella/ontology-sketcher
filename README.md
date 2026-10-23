@@ -52,6 +52,9 @@ add axioms and data constraints, check a few example instances, and hand the res
 - Pages, like layers: split a large ontology into views that share the same classes, and pick which pages to
   export. Double-click a page tab to rename it. A class can have a detail page (Pages in the inspector): the
   class then gets a small "page" tab on the canvas that opens it, and the inspector lists every page the class is on.
+- Hide classes and arrows on a page to show less of it: select them and press **Hide** in the style panel. A hidden
+  class takes its arrows along. **Show hidden** in the toolbar draws them faded so you can unhide them again. The SVG
+  image leaves out what is hidden; the OWL, SHACL and Cypher exports always include everything.
 - Your work is autosaved in the browser and comes back when you reload. **Project > Save project** (or Ctrl+S)
   downloads everything, every page and position included, as one `.sketcher.json` file that **Open project** reads
   back; **New project** starts over on an empty page.

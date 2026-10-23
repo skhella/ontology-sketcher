@@ -13,8 +13,9 @@ export const LAYOUT_PROPERTY = 'https://w3id.org/ontology-sketcher#layout'
 export const OLD_LAYOUT_PROPERTY = 'https://github.com/skhella/ontology-sketcher#layout'
 export const LAYOUT_PROPERTIES = new Set([LAYOUT_PROPERTY, OLD_LAYOUT_PROPERTY])
 
-export type SavedNode = { iri: string; x: number; y: number; style?: SketchStyle }
-/** An arrow by its two classes' IRIs, its kind and its label (empty for subClassOf). */
+/** `hidden` marks a class hidden on this page; the class is in the ontology all the same. */
+export type SavedNode = { iri: string; x: number; y: number; style?: SketchStyle; hidden?: boolean }
+/** An arrow by its two classes' IRIs, its kind and its label (empty for subClassOf); `hidden` as on a class. */
 export type SavedEdge = {
   source: string
   kind: EdgeKind
@@ -24,6 +25,7 @@ export type SavedEdge = {
   targetHandle?: string
   style?: SketchStyle
   bend?: Point
+  hidden?: boolean
 }
 /** `class` is the IRI of the class this page is the detail page of. */
 export type SavedPage = { name: string; class?: string; nodes: SavedNode[]; edges: SavedEdge[] }

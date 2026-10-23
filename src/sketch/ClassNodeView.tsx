@@ -45,7 +45,7 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
 
   return (
     <div
-      className={`class-node${oval ? ' oval' : ''}${selected ? ' selected' : ''}${snapSide ? ' snap-target' : ''}`}
+      className={`class-node${oval ? ' oval' : ''}${selected ? ' selected' : ''}${snapSide ? ' snap-target' : ''}${data.hidden ? ' is-hidden' : ''}`}
       style={{ width: WIDTH, minHeight }}
     >
       <svg width={WIDTH} height={height} className="sketch">
