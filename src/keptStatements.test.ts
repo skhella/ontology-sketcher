@@ -72,6 +72,19 @@ describe('keptStatementsOf', () => {
     expect(plain.keptStatements).toEqual([])
   })
 
+  it('keeps nothing for a union the export writes in another order, so the domain is written once', async () => {
+    for (const classes of [':Cat :Dog', ':Dog :Cat']) {
+      const ontology = await importAll(`
+        @prefix owl: <http://www.w3.org/2002/07/owl#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+        @prefix xsd: <http://www.w3.org/2001/XMLSchema#> . @prefix : <${EX}> .
+        <http://example.org/zoo> a owl:Ontology . :Cat a owl:Class . :Dog a owl:Class .
+        :age a owl:DatatypeProperty ; rdfs:domain [ a owl:Class ; owl:unionOf ( ${classes} ) ] ; rdfs:range xsd:integer .`)
+      expect(ontology.keptStatements).toEqual([])
+      const domains = new Parser().parse(await toTurtle(ontology)).filter((q) => q.subject.value === EX + 'age' && q.predicate.value.endsWith('#domain'))
+      expect(domains).toHaveLength(1)
+    }
+  })
+
   it('leaves out statements about a class once it is gone', async () => {
     const ontology = await importAll(source)
     expect(ontology.keptStatements!.find((s) => s.about === EX + 'Pet')?.ntriples).toContain('unionOf')
