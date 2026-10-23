@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { loadCanvas, saveCanvas } from './pages'
-import { AUTOSAVE_KEY, emptyProject, loadAutosave, projectFileName, projectFromJson, projectToJson, sampleProject, writeAutosave } from './project'
+import { AUTOSAVE_KEY, emptyProject, loadAutosave, nameFromFileName, projectFileName, projectFromJson, projectToJson, sampleProject, writeAutosave } from './project'
 
 /** An in-memory stand-in for localStorage. */
 function memoryStorage() {
@@ -71,5 +71,19 @@ describe('project', () => {
     expect(projectFileName('http://example.org/pizza#')).toBe('pizza.sketcher.json')
     expect(projectFileName('https://w3id.org/my-onto/')).toBe('my-onto.sketcher.json')
     expect(projectFileName('')).toBe('ontology.sketcher.json')
+  })
+
+  it('keeps the project name and names the file after it', () => {
+    const project = { ...emptyProject(), name: 'Plant model v2' }
+    expect(projectFromJson(projectToJson(project)).name).toBe('Plant model v2')
+    expect(projectFromJson(projectToJson({ ...project, name: '  ' })).name).toBeUndefined()
+    expect(projectFileName('http://example.org/pizza#', 'Plant model v2')).toBe('Plant model v2.sketcher.json')
+    expect(projectFileName('http://example.org/pizza#', 'a/b: c?')).toBe('a-b- c-.sketcher.json')
+    expect(projectFileName('http://example.org/pizza#', ' ')).toBe('pizza.sketcher.json')
+  })
+
+  it('reads the name of an older project file from its file name', () => {
+    expect(nameFromFileName('Plant model.sketcher.json')).toBe('Plant model')
+    expect(nameFromFileName('pizza.json')).toBe('pizza')
   })
 })

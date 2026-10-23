@@ -42,7 +42,7 @@ import { PropertyHierarchy } from './PropertyHierarchyPanel'
 import { propertyEntries } from './propertyHierarchy'
 import { SampleData } from './SampleData'
 import { addDetailPage, classesNotOn, linkPage, loadCanvas, mergePages, placeClass, removePage, saveCanvas, type Workspace } from './pages'
-import { emptyProject, loadAutosave, projectFileName, projectFromJson, projectToJson, sampleProject, writeAutosave, PROJECT_EXTENSION, type Project } from './project'
+import { defaultProjectName, emptyProject, loadAutosave, nameFromFileName, projectFileName, projectFromJson, projectToJson, sampleProject, writeAutosave, PROJECT_EXTENSION, type Project } from './project'
 import { ClassNodeView } from './sketch/ClassNodeView'
 import { ConnectionLine } from './sketch/ConnectionLine'
 import { RelationEdgeView } from './sketch/RelationEdgeView'
@@ -99,6 +99,8 @@ export default function App() {
   // The project autosaved in this browser comes back on reload; a first visit opens the pizza sample, see project.ts.
   const [initial] = useState(() => loadAutosave() ?? sampleProject())
   const [initialCanvas] = useState(() => loadCanvas(initial.workspace, initial.pageId))
+  // The project's own name, asked for on the first save and used as the project file's name.
+  const [projectName, setProjectName] = useState(initial.name ?? '')
   const [iri, setIri] = useState(initial.iri)
   const [namespaces, setNamespaces] = useState<Namespace[]>(initial.namespaces ?? [])
   // Properties from imported ontologies the canvas doesn't draw; the export writes them back, see KeptProperty.
@@ -525,13 +527,13 @@ export default function App() {
     if (exported) download(zipName, new Blob([zip(exported.map(({ name, text }) => ({ name, text })))], { type: 'application/zip' }))
   }
 
-  const project = (): Project => ({ iri, namespaces, kept, keptStatements, workspace: saved(), pageId })
+  const project = (): Project => ({ ...(projectName && { name: projectName }), iri, namespaces, kept, keptStatements, workspace: saved(), pageId })
 
   // Autosave: shortly after the last change, and when the tab is closed, the whole project is kept in this browser.
   const storageWarned = useRef(false)
   useEffect(() => {
     const autosave = () => {
-      if (writeAutosave({ iri, namespaces, kept, keptStatements, workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }) || storageWarned.current) return
+      if (writeAutosave({ ...(projectName && { name: projectName }), iri, namespaces, kept, keptStatements, workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }) || storageWarned.current) return
       storageWarned.current = true
       setNotice('This browser is not keeping your work (storage is full or blocked). Use Project, Save project to keep a copy.')
     }
@@ -541,7 +543,7 @@ export default function App() {
       clearTimeout(timer)
       window.removeEventListener('pagehide', autosave)
     }
-  }, [iri, namespaces, kept, keptStatements, workspace, pageId, nodes, edges])
+  }, [projectName, iri, namespaces, kept, keptStatements, workspace, pageId, nodes, edges])
 
   // Undo history: the project is noted once changes settle, and never while a mouse button is held,
   // so dragging one class, a whole selection or an edge's curve is one step, see history.ts.
@@ -600,7 +602,23 @@ export default function App() {
     restore(next.present)
   }
 
-  const saveProject = () => download(projectFileName(iri), new Blob([projectToJson(project())], { type: 'application/json' }))
+  // Asks for the project's name, offering the one it has; null when the user cancels.
+  const askProjectName = (): string | null => {
+    const answer = window.prompt('Project name (also the name of the saved file):', projectName || defaultProjectName(iri))
+    if (answer === null) return null
+    const name = answer.trim()
+    setProjectName(name)
+    return name
+  }
+  const renameProject = () => {
+    askProjectName()
+  }
+  // The first save of an unnamed project asks for a name; cancelling it doesn't save.
+  const saveProject = () => {
+    const name = projectName || askProjectName()
+    if (name === null) return
+    download(projectFileName(iri, name), new Blob([projectToJson({ ...project(), ...(name && { name }) })], { type: 'application/json' }))
+  }
 
   const [tool, setTool] = useState<Tool>('select')
   const panning = tool === 'hand'
@@ -640,6 +658,7 @@ export default function App() {
   })
 
   const loadProject = (next: Project) => {
+    setProjectName(next.name ?? '')
     setExported(null)
     setExportPages(null)
     setSampleOpen(false)
@@ -666,7 +685,8 @@ export default function App() {
     try {
       const next = projectFromJson(await file.text())
       if (hasClasses() && !window.confirm(`Open ${file.name}? ${replaceWarning}`)) return
-      loadProject(next)
+      // Files saved before projects had names are named after the file.
+      loadProject({ ...next, name: next.name ?? nameFromFileName(file.name) })
       setNotice(`Opened ${file.name}.`)
     } catch (error) {
       setNotice(`Could not open ${file.name}: ${(error as Error).message}.`)
@@ -681,8 +701,12 @@ export default function App() {
           <strong>Ontology Sketcher</strong>
         </span>
         <details className="menu" onClick={closeMenu}>
-          <summary>Project</summary>
+          <summary title={projectName || undefined}>Project</summary>
           <div className="menu-items">
+            <span className="menu-note menu-name">{projectName || 'Unnamed project'}</span>
+            <button onClick={renameProject} title="Give the project a name; Save project uses it as the file name">
+              Rename project…
+            </button>
             <button onClick={newProject} title="Start over with one empty page">
               New project
             </button>
