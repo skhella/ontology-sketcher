@@ -144,6 +144,15 @@ body,
   font-size: 15px;
 }
 
+/* The toolbar tips can be hidden with the small x and brought back with the ? button. */
+.toolbar .help-toggle {
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 7px;
+  margin-left: 6px;
+  vertical-align: baseline;
+}
+
 .canvas {
   position: relative;
   flex: 1;
