@@ -50,6 +50,7 @@ import { boxOf, snapToClass, toFlowPoint } from './sketch/snap'
 import { StylePanel } from './sketch/StylePanel'
 import { EDGE_DEFAULTS, type SketchStyle } from './sketch/style'
 import { useTheme } from './theme'
+import { useCanvasHelp } from './canvasHelp'
 import { dotEndpoint, sized, toSvg } from './svgExport'
 import { excalifontCss, excalifontMeasure, handleEndpoint } from './svgBrowser'
 import { zip } from './zip'
@@ -138,6 +139,7 @@ export default function App() {
   const shapesInput = useRef<HTMLInputElement>(null)
   const projectInput = useRef<HTMLInputElement>(null)
   const [theme, toggleTheme] = useTheme()
+  const [helpShown, toggleHelp] = useCanvasHelp()
 
   // Between classes a new edge is subClassOf; from a concept it is skos:broader, or skos:topConceptOf into a scheme.
   const onConnect = useCallback(
@@ -806,9 +808,18 @@ export default function App() {
         <button onClick={toggleTheme} aria-pressed={theme === 'dark'} title="Switch between light and dark mode">
           {theme === 'dark' ? '☀ Light' : '☾ Dark'}
         </button>
-        <span className="hint">
-          Drag between boxes to add subClassOf, or broader between concepts. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its middle dot to curve it, or drag either end onto another class to move it. Drag on empty canvas to select several things and move them together; Shift-click adds to the selection. Pan with the hand tool (H), Space+drag or the middle mouse button; V goes back to selecting.
-        </span>
+        {helpShown ? (
+          <span className="hint">
+            Drag between boxes to add subClassOf, or broader between concepts. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its middle dot to curve it, or drag either end onto another class to move it. Drag on empty canvas to select several things and move them together; Shift-click adds to the selection. Pan with the hand tool (H), Space+drag or the middle mouse button; V goes back to selecting.
+            <button className="help-toggle" onClick={toggleHelp} title="Hide these tips" aria-label="Hide tips">
+              ×
+            </button>
+          </span>
+        ) : (
+          <button className="help-toggle" onClick={toggleHelp} title="Show tips on drawing and selecting" aria-label="Show tips">
+            ?
+          </button>
+        )}
       </header>
       <main className={panning ? 'canvas hand-tool' : 'canvas'}>
         <NamespacesContext.Provider value={namespaces}>
