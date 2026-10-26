@@ -1,6 +1,7 @@
 import { DataFactory, Store, type Quad, type Term } from 'n3'
 import { localName, propertyLocalName, type ClassNode, type PropertyConstraint, type RelationEdge } from './model'
 import { dataPropertyIri, entityIri } from './owl'
+import { mergePages, type ClassEntity, type Workspace } from './pages'
 import { constraintValue, SH } from './shacl'
 import { describe, parseTurtle, writeTurtle } from './turtle'
 import { RDF, shortName } from './vocab'
@@ -16,7 +17,7 @@ export type ShapesImport = {
   /** Constraints read into rows, and rules kept as Turtle because the inspector can't edit them. */
   rows: number
   kept: number
-  /** Shapes left out, with why, e.g. "PersonShape (targets Person, not on this page)". */
+  /** Shapes left out, with why, e.g. "PersonShape (targets Person, not in the ontology)". */
   skipped: string[]
 }
 
@@ -30,10 +31,10 @@ const VALUE_PREDICATES = ['pattern', 'in', 'minInclusive', 'maxInclusive', 'minL
 const SHAPE_PREDICATES = new Set([RDF + 'type', SH + 'targetClass', SH + 'property'])
 
 /**
- * Reads a SHACL shapes file (Turtle) onto the classes on the canvas: each node shape targeting a class
+ * Reads a SHACL shapes file (Turtle) onto the given classes (in the editor, every class on every page): each node shape targeting a class
  * becomes Constraints rows on it, for the rules the inspector can edit (counts, value class or datatype, message).
  * Everything else about a shape, such as sh:or, sh:pattern or property paths, is kept as Turtle on the class
- * and exported unchanged, so nothing is lost on a round trip. Shapes targeting no class on the canvas are skipped.
+ * and exported unchanged, so nothing is lost on a round trip. Shapes targeting none of the classes are skipped.
  * Throws the parser's error when the file is not valid Turtle.
  */
 export async function importShapes(turtle: string, base: string, nodes: ClassNode[], edges: RelationEdge[]): Promise<ShapesImport> {
@@ -136,7 +137,7 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
     const name = shape.termType === 'NamedNode' ? shortName(shape.value) : 'An unnamed shape'
     const targets = store.getObjects(shape, namedNode(SH + 'targetClass'), null)
     const onCanvas = targets.filter((t) => classOf.has(t.value))
-    for (const t of targets) if (!classOf.has(t.value)) result.skipped.push(`${name} (targets ${shortName(t.value)}, not on this page)`)
+    for (const t of targets) if (!classOf.has(t.value)) result.skipped.push(`${name} (targets ${shortName(t.value)}, not in the ontology)`)
     if (targets.length === 0) result.skipped.push(`${name} (no sh:targetClass)`)
     if (onCanvas.length === 0) continue
 
@@ -188,6 +189,23 @@ export async function importShapes(turtle: string, base: string, nodes: ClassNod
   // A Store drops the triples two kept parts share, such as a node shape's type and target.
   for (const [classId, quads] of kept) entry(classId).extra = await writeTurtle(new Store(quads).getQuads(null, null, null, null), { sh: SH, ...prefixes })
   return result
+}
+
+/** The shapes from a file, read onto the classes of every page, since all pages are one ontology. */
+export function importShapesToWorkspace(turtle: string, base: string, workspace: Workspace): Promise<ShapesImport> {
+  const { nodes, edges } = mergePages(workspace, workspace.pages.map((p) => p.id), base)
+  return importShapes(turtle, base, nodes, edges)
+}
+
+/** A class's data with an import's shapes in place of its constraints. */
+export function withShapes<T extends ClassEntity>(data: T, shapes: ImportedShapes): T {
+  return { ...data, constraints: shapes.constraints, constraintsClosed: shapes.closed, extraShapes: shapes.extra }
+}
+
+/** The workspace with each imported class's constraints replaced, on whichever page it sits. */
+export function applyShapes(workspace: Workspace, { classes }: ShapesImport): Workspace {
+  const store = Object.fromEntries(Object.entries(workspace.store.classes).map(([id, c]) => [id, classes.has(id) ? withShapes(c, classes.get(id)!) : c]))
+  return { ...workspace, store: { ...workspace.store, classes: store } }
 }
 
 /** One line for the notice after an import. */

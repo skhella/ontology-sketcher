@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { sampleOntology, type ClassNode, type Ontology } from './model'
 import { toShaclTurtle } from './shacl'
-import { describeShapesImport, importShapes } from './shapesImport'
+import { loadCanvas, workspaceFrom } from './pages'
+import { applyShapes, describeShapesImport, importShapes, importShapesToWorkspace } from './shapesImport'
 import { parseTurtle } from './turtle'
 import { validateData } from './validate'
 
@@ -84,8 +85,33 @@ describe('importShapes', () => {
       base.edges,
     )
     expect(describeShapesImport(result)).toBe(
-      "Imported 0 constraints on 1 class. Kept 2 rules the inspector can't edit yet; they export unchanged. Skipped B (targets Person, not on this page), C (no sh:targetClass).",
+      "Imported 0 constraints on 1 class. Kept 2 rules the inspector can't edit yet; they export unchanged. Skipped B (targets Person, not in the ontology), C (no sh:targetClass).",
     )
+  })
+
+  it('reads shapes onto classes on every page, not just the open one', async () => {
+    // Pizza on the first page, Topping placed only on a second page.
+    const first = workspaceFrom('Main', base.nodes.filter((n) => n.id !== 'topping'), [])
+    const topping = base.nodes.find((n) => n.id === 'topping')!
+    const ws = {
+      store: { ...first.workspace.store, classes: { ...first.workspace.store.classes, topping: topping.data } },
+      pages: [...first.workspace.pages, { id: 'second', name: 'Detail', nodes: [{ ...topping, data: {} }], edges: [] }],
+    }
+    const result = await importShapesToWorkspace(
+      HEADER +
+        `ex:A a sh:NodeShape ; sh:targetClass :Pizza ; sh:property [ sh:path :name ; sh:maxCount 1 ] .
+         ex:B a sh:NodeShape ; sh:targetClass :Topping ; sh:closed true .
+         ex:C a sh:NodeShape ; sh:targetClass :Person .`,
+      base.iri,
+      ws,
+    )
+    expect([...result.classes.keys()].sort()).toEqual(['pizza', 'topping'])
+    expect(describeShapesImport(result)).toBe(
+      "Imported 1 constraint on 2 classes. Kept 1 rule the inspector can't edit yet; it exports unchanged. Skipped C (targets Person, not in the ontology).",
+    )
+    const next = applyShapes(ws, result)
+    expect(loadCanvas(next, first.pageId).nodes.find((n) => n.id === 'pizza')!.data.constraints).toEqual([{ path: { type: 'data', name: 'name' }, maxCount: 1 }])
+    expect(loadCanvas(next, 'second').nodes[0].data.extraShapes).toContain('closed')
   })
 
   it('reports Turtle errors', async () => {
