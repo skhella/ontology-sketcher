@@ -28,7 +28,7 @@ import { planImport } from './layout'
 import { exportFiles, exportFilesPerPage, pageFileStems, type ExportFile, type ExportFormat } from './exportFiles'
 import { keptStatementsOf } from './keptStatements'
 import { describeOwlImport, importOwl } from './owlImport'
-import { describeShapesImport, importShapes } from './shapesImport'
+import { applyShapes, describeShapesImport, importShapesToWorkspace, withShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
 import { importedOntologyIri, type ClassNode, type KeptProperty, type KeptStatement, type Namespace, type NodeKind, type RelationEdge } from './model'
 import { NamespacesContext } from './namespaceContext'
@@ -274,21 +274,22 @@ export default function App() {
     return () => document.removeEventListener('pointerdown', closeOthers)
   }, [])
 
-  // Reads a SHACL shapes file onto the classes on this page, replacing their constraints, see shapesImport.ts.
+  // Reads a SHACL shapes file onto the classes on every page, replacing their constraints, see shapesImport.ts.
   const importShapesFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
     try {
-      const result = await importShapes(await file.text(), iri, nodes, edges)
-      const replaced = nodes.filter((n) => result.classes.has(n.id) && (n.data.constraints?.length || n.data.extraShapes || n.data.constraintsClosed))
-      if (replaced.length > 0 && !window.confirm(`Replace the constraints on ${replaced.map((n) => n.data.label).join(', ')} with those in ${file.name}?`)) return
+      const ws = saved()
+      const result = await importShapesToWorkspace(await file.text(), iri, ws)
+      const replaced = Object.entries(ws.store.classes).filter(([id, c]) => result.classes.has(id) && (c.constraints?.length || c.extraShapes || c.constraintsClosed))
+      if (replaced.length > 0 && !window.confirm(`Replace the constraints on ${replaced.map(([, c]) => c.label).join(', ')} with those in ${file.name}?`)) return
+      // Classes on other pages take the shapes in the shared store; those on this page on the canvas too, which saveCanvas writes back.
+      setWorkspace(applyShapes(ws, result))
       setNodes((ns) =>
         ns.map((n) => {
           const imported = result.classes.get(n.id)
-          return imported
-            ? { ...n, data: { ...n.data, constraints: imported.constraints, constraintsClosed: imported.closed, extraShapes: imported.extra } }
-            : n
+          return imported ? { ...n, data: withShapes(n.data, imported) } : n
         }),
       )
       setNotice(describeShapesImport(result))
