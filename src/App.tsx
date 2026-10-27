@@ -31,6 +31,7 @@ import { QuestionsPanel } from './QuestionsPanel'
 import { InferredSuperclasses } from './inspector/InferredSuperclasses'
 import { inferredArrows, inferSuperclasses, type Reasoning } from './reason'
 import { dataPropertyIri, entityIri } from './owl'
+import type { IndividualChoices, ValueProperty } from './inspector/IndividualDetails'
 import { shortName } from './vocab'
 import { diffOntologies, type EntityDiff, type OntologyDiff } from './diff'
 import { canvasDiff, DIFF_COLORS, GHOST, pagesOnlyInFile } from './diffCanvas'
@@ -240,7 +241,7 @@ export default function App() {
     )
   }
 
-  // Adds a class, or with a kind a SKOS concept or scheme, which starts in its own colours.
+  // Adds a class, or with a kind a SKOS concept or scheme or an individual, which starts in its own colours.
   const addNode = (kind?: NodeKind) => {
     const name = NODE_KIND_NAMES[kind ?? 'class']
     const label = window.prompt(`${name} name`, `New ${name}`)
@@ -260,7 +261,7 @@ export default function App() {
   // Double-click an edge: enter a property name to make it an object property, or leave empty for subClassOf.
   // SKOS edges have no name to type; their kind is picked in the inspector.
   const editRelation: EdgeMouseHandler<RelationEdge> = (_, edge) => {
-    if (isSkosEdge(edge.data?.kind)) return
+    if (isSkosEdge(edge.data?.kind) || edge.data?.kind === 'instanceOf') return
     const label = window.prompt('Object property name (leave empty for subClassOf)', edge.data?.label ?? '')
     if (label === null) return
     const kind = label.trim() ? { kind: 'objectProperty' as const, label } : { kind: 'subClassOf' as const, label: '' }
@@ -469,6 +470,25 @@ export default function App() {
 
   // The reasoner runs on the export of every page shortly after edits settle, while inferred arrows are shown or one class is selected.
   const selectedClass = selectedNodes.length === 1 && selectedEdges.length === 0 && !selectedNodes[0].data.kind ? selectedNodes[0] : undefined
+  // For a selected individual, the properties and individuals of the whole project its values can use.
+  const selectedIndividual = selectedNodes.length === 1 && selectedEdges.length === 0 && selectedNodes[0].data.kind === 'individual'
+  const individualChoices = useMemo((): IndividualChoices | undefined => {
+    if (!selectedIndividual) return undefined
+    const { classes, relations } = saveCanvas(workspace, pageId, nodes, edges).store
+    const properties = new Map<string, ValueProperty>()
+    for (const r of Object.values(relations)) {
+      if (r.kind === 'objectProperty' && r.label) properties.set(entityIri(iri, r, propertyLocalName(r.label)), { iri: entityIri(iri, r, propertyLocalName(r.label)), label: r.label, kind: 'object' })
+    }
+    for (const c of Object.values(classes)) {
+      for (const p of c.dataProperties ?? []) if (p.name.trim()) properties.set(dataPropertyIri(iri, p), { iri: dataPropertyIri(iri, p), label: p.name, kind: 'data', datatype: p.datatype })
+    }
+    for (const p of kept) if (!properties.has(p.iri)) properties.set(p.iri, { iri: p.iri, label: p.label || shortName(p.iri), kind: p.kind, ...(p.kind === 'data' && p.ranges?.length === 1 && { datatype: p.ranges[0] }) })
+    const individuals = Object.values(classes)
+      .filter((c) => c.kind === 'individual')
+      .map((c) => ({ iri: entityIri(iri, c, localName(c.label)), label: c.label }))
+    const byLabel = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label)
+    return { properties: [...properties.values()].sort(byLabel), individuals: individuals.sort(byLabel) }
+  }, [selectedIndividual, workspace, pageId, nodes, edges, iri, kept])
   const reasonNow = showInferred || !!selectedClass
   useEffect(() => {
     if (!reasonNow) return
@@ -1012,6 +1032,9 @@ export default function App() {
         <button onClick={() => addNode('scheme')} title="A SKOS concept scheme: the thesaurus or code list concepts belong to">
           + Scheme
         </button>
+        <button onClick={() => addNode('individual')} title="An OWL individual, e.g. one value of a code list; draw an arrow to its class">
+          + Individual
+        </button>
         <details className="menu" onClick={closeMenu}>
           <summary>Import</summary>
           <div className="menu-items">
@@ -1223,6 +1246,7 @@ export default function App() {
               )
             }
             keptElsewhere={keptElsewhere}
+            individualChoices={individualChoices}
             classPages={
               selectedNodes.length === 1 &&
               selectedEdges.length === 0 && (

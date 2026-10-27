@@ -31,16 +31,30 @@ async function hidden() {
 }
 
 describe('hiddenItems', () => {
-  it('lists individuals by class, with their values and links by name', async () => {
-    const { individuals } = await hidden()
+  it('lists kept individuals by class, with their values and links by name', () => {
+    // Individuals are drawn as boxes (see individuals.test.ts); a statement kept about one, e.g. punned with a class, is listed.
+    const ntriples = [
+      `<${EX}tom> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#NamedIndividual> .`,
+      `<${EX}tom> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <${EX}Cat> .`,
+      `<${EX}tom> <http://www.w3.org/2000/01/rdf-schema#label> "Tom" .`,
+      `<${EX}tom> <${EX}likes> <${EX}rex> .`,
+      `<${EX}tom> <${EX}age> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .`,
+      `<${EX}rex> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#NamedIndividual> .`,
+      `<${EX}rex> <http://www.w3.org/2000/01/rdf-schema#label> "Rex" .`,
+    ]
+    const { individuals } = hiddenItems([{ ntriples: ntriples.slice(0, 5).join('\n') }, { ntriples: ntriples.slice(5).join('\n') }], [], shortName)
     expect(individuals.map((g) => [g.typeName, g.entries.map((e) => e.name)])).toEqual([
       ['Cat', ['Tom']],
-      ['Dog', ['Rex']],
+      ['No class', ['Rex']],
     ])
     const tom = individuals[0].entries[0]
     expect(tom.iri).toBe(EX + 'tom')
     expect(tom.lines).toContainEqual({ predicate: 'likes', value: 'Rex', iri: EX + 'rex' })
     expect(tom.lines).toContainEqual({ predicate: 'age', value: '3 (xsd:integer)' })
+  })
+
+  it('has no individuals to list once an import draws them', async () => {
+    expect((await hidden()).individuals).toEqual([])
   })
 
   it('writes class axioms the inspector cannot show in Manchester syntax', async () => {
@@ -55,6 +69,6 @@ describe('hiddenItems', () => {
     expect(aboutDrawn).toEqual([{ iri: EX + 'Dog', name: 'Dog', lines: [{ predicate: 'skos:closeMatch', value: 'Hound', iri: 'http://example.org/other#Hound' }] }])
     expect(other.map((e) => e.name).sort()).toEqual(['Disjoint classes', 'zoo'])
     expect(other.find((e) => e.name === 'Disjoint classes')!.lines).toContainEqual({ predicate: 'owl:members', value: 'Cat, Dog, Keeper' })
-    expect(count).toBe(2 + 1 + 1 + 1 + 2)
+    expect(count).toBe(1 + 1 + 1 + 2)
   })
 })

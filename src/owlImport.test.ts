@@ -131,10 +131,11 @@ describe('importOwl', () => {
       ex:Leo a owl:NamedIndividual , ex:Lion .
     `)
     expect(iri).toBe('http://example.org/zoo/')
-    expect(nodes.map((n) => n.data.label).sort()).toEqual(['Cat', 'Lion'])
+    expect(nodes.map((n) => n.data.label).sort()).toEqual(['Cat', 'Leo', 'Lion'])
     const lion = nodes.find((n) => n.data.label === 'Lion')!
     expect(lion.data.axioms).toEqual([{ kind: 'subClassOf', expression: { type: 'restriction', quantifier: 'some', property: edges.find((e) => e.data?.label === 'eats')!.id } }])
-    expect(summary.skipped).toEqual(['1 class axioms the inspector cannot show (unions, intersections, nested restrictions)', '1 individuals'])
+    expect(summary.skipped).toEqual(['1 class axioms the inspector cannot show (unions, intersections, nested restrictions)'])
+    expect(describeOwlImport(summary)).toContain('1 individual,')
     expect(describeOwlImport(summary)).toContain('Not shown: 1 class axioms')
   })
 

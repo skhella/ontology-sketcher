@@ -1,5 +1,5 @@
 import { DataFactory, type Quad } from 'n3'
-import { localName, type ClassData, type ClassNode, type EdgeKind, type EntityData, type MappingKind, type NodeKind, type Ontology, type RelationEdge, type SkosEdgeKind } from './model'
+import { localName, type ClassData, type ClassNode, type EdgeKind, type EntityData, type MappingKind, type NodeKind, type Ontology, type PropertyValue, type RelationEdge, type SkosEdgeKind } from './model'
 import type { SketchStyle } from './sketch/style'
 import { expandIri, OWL, RDF, SKOS } from './vocab'
 
@@ -21,16 +21,18 @@ export function isSkosEdge(kind: EdgeKind | undefined): kind is SkosEdgeKind {
 }
 
 /** What the canvas calls each kind of node, for buttons, prompts and the inspector. */
-export const NODE_KIND_NAMES: Record<NodeKind | 'class', string> = { class: 'Class', concept: 'Concept', scheme: 'Concept scheme' }
+export const NODE_KIND_NAMES: Record<NodeKind | 'class', string> = { class: 'Class', concept: 'Concept', scheme: 'Concept scheme', individual: 'Individual' }
 
 /** How new concepts and schemes look, so they stand apart from classes whatever shape classes use. */
 export const NODE_KIND_STYLES: Record<NodeKind, SketchStyle> = {
   concept: { fill: '#b2f2bb', stroke: '#2f9e44' },
   scheme: { fill: '#ffec99', stroke: '#f08c00', strokeStyle: 'dashed' },
+  individual: { fill: '#fcc2d7', stroke: '#c2255c' },
 }
 
-/** The edge a new connection makes: SKOS relations between concepts and schemes, subClassOf otherwise. */
+/** The edge a new connection makes: SKOS relations between concepts and schemes, an individual's class, subClassOf otherwise. */
 export function defaultEdge(source: ClassData | undefined, target: ClassData | undefined): { kind: EdgeKind; label: string } {
+  if (source?.kind === 'individual' && !target?.kind) return { kind: 'instanceOf', label: 'type' }
   if (source?.kind === 'concept' && target?.kind === 'concept') return { kind: 'broader', label: 'broader' }
   if (source?.kind === 'concept' && target?.kind === 'scheme') return { kind: 'topConceptOf', label: 'topConceptOf' }
   return { kind: 'subClassOf', label: '' }
@@ -81,6 +83,11 @@ export function conceptSchemes(nodes: ClassNode[], edges: RelationEdge[]): Map<s
   return result
 }
 
+/** A property value as an RDF term: an IRI, or a literal with its language or datatype. */
+export function valueTerm(v: PropertyValue) {
+  return v.kind === 'iri' ? namedNode(v.value) : literal(v.value, v.lang?.trim() || (v.datatype ? namedNode(v.datatype) : undefined))
+}
+
 const PREDICATE: Record<SkosEdgeKind, string> = {
   broader: SKOS + 'broader',
   narrower: SKOS + 'narrower',
@@ -98,7 +105,7 @@ export function skosQuads(
   iriOf: (data: EntityData, local: string) => string,
   annotate: (subject: string, data: EntityData) => Quad[],
 ): { quads: Quad[]; annotationProperties: string[] } {
-  const members = ontology.nodes.filter((n) => n.data.kind)
+  const members = ontology.nodes.filter((n) => n.data.kind === 'concept' || n.data.kind === 'scheme')
   if (members.length === 0) return { quads: [], annotationProperties: [] }
 
   const type = namedNode(RDF + 'type')
@@ -132,9 +139,8 @@ export function skosQuads(
   for (const n of members) {
     for (const v of n.data.values ?? []) {
       if (!v.property.trim() || !v.value.trim()) continue
-      const value = v.kind === 'iri' ? namedNode(v.value) : literal(v.value, v.lang?.trim() || (v.datatype ? namedNode(v.datatype) : undefined))
       if (!relations.has(n.id)) relations.set(n.id, [])
-      relations.get(n.id)!.push(quad(node(n.id), namedNode(v.property), value))
+      relations.get(n.id)!.push(quad(node(n.id), namedNode(v.property), valueTerm(v)))
     }
   }
 

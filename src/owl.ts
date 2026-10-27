@@ -2,7 +2,7 @@ import { DataFactory, Parser, Writer, type NamedNode, type Quad, type Quad_Objec
 import { localName, propertyLocalName, type Characteristic, type ClassExpression, type DataProperty, type EntityData, type Ontology, type Quantifier } from './model'
 import { namespacePrefixes } from './namespaces'
 import { LAYOUT_PROPERTY, type SavedLayout } from './savedLayout'
-import { isSkosEdge, skosQuads } from './skos'
+import { isSkosEdge, skosQuads, valueTerm } from './skos'
 import { BUILT_IN_ANNOTATION_PROPERTIES, expandIri, IRI_VALUED, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS, XSD } from './vocab'
 
 const { literal, namedNode, quad } = DataFactory
@@ -124,6 +124,20 @@ export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<stri
     // An outside class is only declared: its name on the canvas is not a label (see ClassData.outside).
     if (!node.data.outside && hasLabel(node.data.label, node.data, iri)) quads.push(quad(namedNode(iri), label, labelLiteral(node.data.label, node.data)))
     annotate(iri, node.data)
+  }
+
+  // Individuals: declared, labelled, an instance of each class an arrow points at, with their property values.
+  for (const node of ontology.nodes) {
+    if (node.data.kind !== 'individual') continue
+    const iri = entityIri(base, node.data, localName(node.data.label))
+    quads.push(quad(namedNode(iri), type, namedNode(OWL + 'NamedIndividual')))
+    for (const edge of ontology.edges) {
+      const target = edge.source === node.id && edge.data?.kind === 'instanceOf' ? classIri.get(edge.target) : undefined
+      if (target) quads.push(quad(namedNode(iri), type, namedNode(target)))
+    }
+    if (hasLabel(node.data.label, node.data, iri)) quads.push(quad(namedNode(iri), label, labelLiteral(node.data.label, node.data)))
+    annotate(iri, node.data)
+    for (const v of node.data.values ?? []) if (v.property.trim() && v.value.trim()) quads.push(quad(namedNode(iri), namedNode(v.property), valueTerm(v)))
   }
 
   const propertyIri = new Map<string, string>()

@@ -35,6 +35,7 @@ import { ANNOTATION_PROPERTIES, BUILT_IN_ANNOTATION_PROPERTIES, IRI_VALUED, isAb
 export type OwlImportSummary = {
   classes: number
   concepts: number
+  individuals: number
   subClassOf: number
   objectProperties: number
   dataProperties: number
@@ -261,6 +262,15 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     const kind = concepts.has(c) ? 'concept' : 'scheme'
     addNode(c, { label, kind, ...lang, ...iriField(c, localName(label)), style: NODE_KIND_STYLES[kind] })
   }
+  // Individuals other than concepts and schemes; one that is also a class (punning) stays a class.
+  // SKOS relations between them (which make them concepts in SKOS) are kept as statements, not drawn.
+  const individuals = subjectsOfType(OWL + 'NamedIndividual').filter((i) => !nodeId.has(i))
+  const individualSet = new Set(individuals)
+  const isIndividual = (entity: string) => individualSet.has(entity)
+  for (const i of individuals) {
+    const label = labelOf(i)
+    addNode(i, { label, kind: 'individual', ...labelLangOf(i), ...iriField(i, localName(label)), style: NODE_KIND_STYLES.individual })
+  }
 
   // --- Edges ---------------------------------------------------------------------------------------------
   const edges: RelationEdge[] = []
@@ -374,10 +384,19 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     for (const e of propertyEdges.get(p) ?? []) e.data = { ...e.data!, ...links }
   }
 
+  // An individual's classes; a class that isn't drawn stays a kept statement.
+  for (const i of individuals) {
+    for (const t of objects(i, TYPE)) {
+      const target = nodeId.get(t.value)
+      if (target && !nodes.find((n) => n.id === target)!.data.kind) addEdge(nodeId.get(i)!, target, { kind: 'instanceOf', label: 'type' })
+    }
+  }
+
   // Annotation properties asserted between two classes become arrows; see annotationProperty in model.ts.
   for (const ap of subjectsOfType(OWL + 'AnnotationProperty')) {
     for (const q of store.getQuads(null, ap, null, null)) {
       if (q.object.termType !== 'NamedNode' || !nodeId.has(q.subject.value) || !nodeId.has(q.object.value)) continue
+      if (isIndividual(q.subject.value) || isIndividual(q.object.value)) continue
       const label = labelOf(ap)
       addEdge(nodeId.get(q.subject.value)!, nodeId.get(q.object.value)!, { kind: 'annotationProperty', label, ...labelLangOf(ap), ...iriField(ap, propertyLocalName(label)) })
     }
@@ -388,7 +407,7 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
   for (const [predicate, kind] of SKOS_EDGES) {
     for (const q of store.getQuads(null, predicate, null, null)) {
       const [s, o] = [q.subject.value, q.object.value]
-      if (!nodeId.has(s) || !nodeId.has(o)) continue
+      if (!nodeId.has(s) || !nodeId.has(o) || isIndividual(s) || isIndividual(o)) continue
       // owl.ts writes broader/narrower as drawn; a file with both directions would draw each link twice.
       const key = kind === 'narrower' ? `broader ${o} ${s}` : `${kind} ${s} ${o}`
       if (skosPairs.has(key)) continue
@@ -398,7 +417,7 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
   }
   for (const q of store.getQuads(null, SKOS + 'hasTopConcept', null, null)) {
     const [scheme, concept] = [q.subject.value, q.object.value]
-    if (!nodeId.has(scheme) || !nodeId.has(concept) || skosPairs.has(`topConceptOf ${concept} ${scheme}`)) continue
+    if (!nodeId.has(scheme) || !nodeId.has(concept) || isIndividual(scheme) || isIndividual(concept) || skosPairs.has(`topConceptOf ${concept} ${scheme}`)) continue
     skosPairs.add(`topConceptOf ${concept} ${scheme}`)
     addEdge(nodeId.get(concept)!, nodeId.get(scheme)!, { kind: 'topConceptOf', label: 'topConceptOf' })
   }
@@ -476,7 +495,7 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
       if (mappings.length > 0) data.mappings = mappings
     }
 
-    // Values of the ontology's own data and object properties on a concept or scheme, e.g. an ordinal.
+    // Values of the ontology's own data and object properties on a concept, scheme or individual, e.g. an ordinal.
     if (data.kind) {
       const values: PropertyValue[] = []
       for (const q of store.getQuads(entity, null, null, null)) {
@@ -508,8 +527,6 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
   const dataOnly = dataProperties.filter((p) => !dataPropertyCount.has(p))
   for (const p of dataOnly) keep(p, 'data')
   if (dataOnly.length) skip('data properties without a domain class (kept for the export)', dataOnly.length)
-  const individuals = subjectsOfType(OWL + 'NamedIndividual').filter((i) => !concepts.has(i) && !schemes.has(i)).length
-  if (individuals) skip('individuals', individuals)
   const shapes = subjectsOfType('http://www.w3.org/ns/shacl#NodeShape').length
   if (shapes) skip('SHACL shapes', shapes)
 
@@ -524,7 +541,8 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
     ...(layout && { layout }),
     summary: {
       classes: nodes.filter((n) => !n.data.kind).length,
-      concepts: nodes.filter((n) => n.data.kind).length,
+      concepts: nodes.filter((n) => n.data.kind === 'concept' || n.data.kind === 'scheme').length,
+      individuals: individuals.length,
       subClassOf,
       objectProperties: objectProperties.filter((p) => propertyEdge.has(p)).length,
       dataProperties: dataPropertyCount.size,
@@ -554,10 +572,11 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
   }
 }
 
-export function describeOwlImport({ classes, concepts, subClassOf, objectProperties, dataProperties, axioms, skipped }: OwlImportSummary): string {
+export function describeOwlImport({ classes, concepts, individuals, subClassOf, objectProperties, dataProperties, axioms, skipped }: OwlImportSummary): string {
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
   const parts = [plural(classes, 'class', 'classes')]
   if (concepts) parts.push(plural(concepts, 'concept or scheme', 'concepts and schemes'))
+  if (individuals) parts.push(plural(individuals, 'individual', 'individuals'))
   parts.push(`${subClassOf} subClassOf`, plural(objectProperties, 'object property', 'object properties'))
   if (dataProperties) parts.push(plural(dataProperties, 'data property', 'data properties'))
   if (axioms) parts.push(plural(axioms, 'axiom', 'axioms'))

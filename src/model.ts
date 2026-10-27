@@ -101,10 +101,10 @@ export type PropertyConstraint = {
 }
 
 /**
- * What a node stands for besides an OWL class: a SKOS concept or concept scheme, both exported as individuals (see skos.ts).
- * A node without a kind is a class.
+ * What a node stands for besides an OWL class: a SKOS concept or concept scheme, both exported as individuals (see skos.ts),
+ * or a plain OWL individual, an instance of the classes its `instanceOf` arrows point at. A node without a kind is a class.
  */
-export type NodeKind = 'concept' | 'scheme'
+export type NodeKind = 'concept' | 'scheme' | 'individual'
 
 /** SKOS mapping properties, linking a concept to a concept in another scheme or vocabulary. */
 export type MappingKind = 'exactMatch' | 'closeMatch' | 'broadMatch' | 'narrowMatch' | 'relatedMatch'
@@ -119,7 +119,7 @@ export type Mapping = { kind: MappingKind; iri: string }
  * `axioms` adds to the subClassOf edges drawn on the canvas; `constraints` export as a SHACL node shape, see shacl.ts,
  * which `constraintsClosed` closes: instances may then use only the constrained properties (and rdf:type).
  * `inScheme` lists scheme node ids a concept belongs to besides those its hierarchy reaches, see skos.ts.
- * `mappings` link a concept to outside concepts; `values` are other property values on a concept or scheme.
+ * `mappings` link a concept to outside concepts; `values` are other property values on a concept, scheme or individual.
  */
 export type ClassData = EntityData & {
   label: string
@@ -152,7 +152,7 @@ export type ClassNode = Node<ClassData, 'owlClass'>
  * - broader, narrower, related: the SKOS relation between two concepts (source skos:broader target)
  * - topConceptOf: a concept (source) is a top concept of a scheme (target)
  */
-export type EdgeKind = 'subClassOf' | 'objectProperty' | 'annotationProperty' | SkosEdgeKind
+export type EdgeKind = 'subClassOf' | 'objectProperty' | 'annotationProperty' | 'instanceOf' | SkosEdgeKind
 export type SkosEdgeKind = 'broader' | 'narrower' | 'related' | 'topConceptOf'
 
 /** OWL object property characteristics; each exports as rdf:type owl:<Name>Property. */
