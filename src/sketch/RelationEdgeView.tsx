@@ -2,6 +2,7 @@ import { EdgeLabelRenderer, useNodesData, useReactFlow, useStoreApi, type EdgePr
 import { useMemo, type MouseEvent, type PointerEvent } from 'react'
 import type { ClassNode, RelationEdge } from '../model'
 import { bendThrough, edgeLine } from './curve'
+import { DiffBadge } from './DiffBadge'
 import { constraintOnArrow, multiplicity, nearTarget } from './multiplicity'
 import { roughPath, seedFor } from './rough'
 import { toAnchor } from './snap'
@@ -68,6 +69,10 @@ export function RelationEdgeView(props: EdgeProps<RelationEdge>) {
         {/* While selected, the label moves up so the bend handle does not cover it. */}
         <div className={`edge-label${faded}`} style={{ transform: `translate(-50%, ${selected ? '-130%' : '-50%'}) translate(${mid.x}px, ${mid.y}px)` }}>
           {label}
+        </div>
+        {/* While comparing, a changed arrow's tag sits above its label. */}
+        <div className="edge-diff" style={{ transform: `translate(${mid.x}px, ${mid.y}px)` }}>
+          <DiffBadge id={id} what="arrow" />
         </div>
         {counts && (
           <button

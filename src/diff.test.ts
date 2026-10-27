@@ -87,14 +87,19 @@ describe('canvasDiff', () => {
     expect(shown.ghostEdges.map((e) => [e.source, e.target, e.className])).toEqual([[GHOST + P + 'Margherita', 'pizza', 'diff-ghost diff-added']])
   })
 
-  it('keeps what changed on each coloured class and ghost, for its badge', async () => {
+  it('keeps what changed on each coloured class and ghost, for its tag', async () => {
     const before = await exported(sampleOntology)
     const after = await exported(edited)
     const diff = diffOntologies(before.text, after.text, P)
     const shown = canvasDiff(diff, after.workspace, after.pageId, P, { nodes: edited.nodes, edges: edited.edges })
-    expect([...shown.changes.keys()].sort()).toEqual(['cheese', GHOST + P + 'Margherita', 'pizza'].sort())
+    const ghostArrow = shown.ghostEdges[0].id
+    expect([...shown.changes.keys()].sort()).toEqual(['cheese', 'e3', 'e4', GHOST + P + 'Margherita', ghostArrow, 'pizza'].sort())
     expect(shown.changes.get('pizza')).toBe(diff.entities.find((e) => e.label === 'Pizza'))
     expect(shown.changes.get(GHOST + P + 'Margherita')?.status).toBe('removed')
+    // Arrows: a changed property's own changes, and an arrow one version lacks said as the statement it stands for.
+    expect(shown.changes.get('e3')?.status).toBe('changed')
+    expect(shown.changes.get('e4')?.status).toBe('added')
+    expect(shown.changes.get(ghostArrow)).toMatchObject({ label: 'Margherita → Pizza', status: 'removed', changes: [{ sign: '-', text: 'subClassOf Pizza' }] })
   })
 })
 

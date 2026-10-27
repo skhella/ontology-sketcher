@@ -689,7 +689,7 @@ body,
   visibility: hidden;
 }
 
-.class-node .diff-badge {
+.diff-badge {
   position: absolute;
   top: -10px;
   right: -6px;
@@ -702,11 +702,12 @@ body,
   font-size: 12px;
   line-height: 16px;
   cursor: pointer;
+  transform-origin: bottom right;
   /* Removed classes take no clicks, but their badge does. */
   pointer-events: auto;
 }
 
-.class-node .diff-popup {
+.diff-popup {
   position: absolute;
   top: 10px;
   left: calc(100% - 6px);
@@ -724,6 +725,27 @@ body,
   text-align: left;
   cursor: auto;
   pointer-events: auto;
+  transform-origin: top left;
+}
+
+/* An arrow's tag and changes hang from its midpoint, the tag above and right of the label. */
+.edge-diff {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.edge-diff .diff-badge {
+  top: -30px;
+  right: auto;
+  left: 6px;
+  transform-origin: bottom left;
+}
+
+.edge-diff .diff-popup {
+  top: -12px;
+  left: 6px;
 }
 
 .diff-popup-head {
