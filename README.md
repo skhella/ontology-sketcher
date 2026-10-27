@@ -77,6 +77,9 @@ add axioms and data constraints, check a few example instances, and hand the res
   language tags.
 - Class axioms laid out like Protégé's class description: SubClass Of, Equivalent To and Disjoint With, written
   in Manchester order with `some`, `only`, `min`, `max` and `exactly`.
+- **Compare** colours what changed since an earlier Turtle file, such as a previous export or the file you imported:
+  new classes and arrows in green, changed ones in orange, and removed ones drawn dashed in red where the file had
+  them. A list beside the canvas says what changed on each class and property.
 - Object property characteristics (functional, inverse functional, transitive, symmetric, asymmetric, reflexive,
   irreflexive), inverses and super properties.
 - Data properties on classes with an `xsd` datatype.
