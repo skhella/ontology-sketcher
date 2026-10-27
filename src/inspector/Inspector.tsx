@@ -23,10 +23,12 @@ type Props = {
   classPages?: ReactNode
   /** The selected class's inferred superclasses, see InferredSuperclasses. */
   inferred?: ReactNode
+  /** Imported rules kept on other classes, on any page, that also target the selected class. */
+  keptElsewhere?: { label: string; shapes: string[] }[]
 }
 
 /** Protégé-style entity panel for the selected class or edge: IRI, label, annotations, class axioms and SHACL constraints. */
-export function Inspector({ base, namespaces, nodes, edges, selection, onNodeChange, onEdgeChange, classPages, inferred }: Props) {
+export function Inspector({ base, namespaces, nodes, edges, selection, onNodeChange, onEdgeChange, classPages, inferred, keptElsewhere }: Props) {
   if (selection.length !== 1) {
     return (
       <aside className="inspector" aria-label="Inspector">
@@ -78,6 +80,7 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
               constraints={node.data.constraints ?? []}
               closed={!!node.data.constraintsClosed}
               extra={node.data.extraShapes}
+              keptElsewhere={keptElsewhere}
               nodes={classes}
               edges={edges}
               onChange={(constraints) => onNodeChange(node.id, { constraints })}
