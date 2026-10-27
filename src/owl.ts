@@ -53,7 +53,10 @@ function annotationQuads(subject: string, data: EntityData): Quad[] {
   return (data.annotations ?? []).flatMap((a) => {
     const value = a.value.trim()
     if (!value || !a.property) return []
-    const object = IRI_VALUED.has(a.property) && isAbsoluteIri(value) ? namedNode(value) : literal(value, a.lang?.trim() || undefined)
+    const object =
+      (a.iri || IRI_VALUED.has(a.property)) && isAbsoluteIri(value)
+        ? namedNode(value)
+        : literal(value, a.lang?.trim() || (a.datatype ? namedNode(a.datatype) : undefined))
     return [quad(namedNode(subject), namedNode(a.property), object)]
   })
 }

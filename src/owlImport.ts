@@ -20,7 +20,7 @@ import {
 import { LAYOUT_PROPERTY, OLD_LAYOUT_PROPERTY, parseLayout, type SavedLayout } from './savedLayout'
 import { conceptSchemes, MAPPING_KINDS, NODE_KIND_STYLES } from './skos'
 import { suggestPrefix } from './namespaces'
-import { ANNOTATION_PROPERTIES, BUILT_IN_ANNOTATION_PROPERTIES, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS, shortName, SKOS, SKOS_ANNOTATION_PROPERTIES, XSD } from './vocab'
+import { ANNOTATION_PROPERTIES, BUILT_IN_ANNOTATION_PROPERTIES, IRI_VALUED, isAbsoluteIri, OWL, PREFIXES, RDF, RDFS, shortName, SKOS, SKOS_ANNOTATION_PROPERTIES, XSD } from './vocab'
 
 /**
  * Reads an OWL 2 ontology in Turtle (or N-Triples) back into canvas nodes and edges: the reverse of owl.ts and skos.ts.
@@ -544,9 +544,10 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
       if (STRUCTURAL.has(p) && p !== SKOS + 'prefLabel' && p !== LABEL) continue
       if (!declaredAnnotationProperties.has(p)) continue
       if (q.object.termType === 'Literal') {
-        annotations.push({ property: p, value: q.object.value, ...(q.object.language && { lang: q.object.language }) })
+        const { language, datatype } = q.object
+        annotations.push({ property: p, value: q.object.value, ...(language ? { lang: language } : datatype.value !== XSD + 'string' && { datatype: datatype.value }) })
       } else if (q.object.termType === 'NamedNode' && !nodeId.has(q.object.value)) {
-        annotations.push({ property: p, value: q.object.value })
+        annotations.push({ property: p, value: q.object.value, ...(!IRI_VALUED.has(p) && { iri: true }) })
       }
     }
     return annotations.length > 0 ? { annotations } : {}
