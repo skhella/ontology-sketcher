@@ -1,6 +1,7 @@
 import type { OntologyDiff, Status } from './diff'
 import type { CanvasTarget } from './canvasTargets'
 import { DIFF_COLORS } from './diffCanvas'
+import { FloatingPanel } from './FloatingPanel'
 
 
 type Props = {
@@ -33,7 +34,7 @@ export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pa
   const entities = diff?.entities ?? []
   const count = (s: Status) => entities.filter((e) => e.status === s).length
   return (
-    <aside className="property-hierarchy diff-panel" aria-label="Compare with a file">
+    <FloatingPanel name="compare" className="property-hierarchy diff-panel" aria-label="Compare with a file">
       <div className="export-actions">
         <strong>Compare</strong>
         <button onClick={onChooseFile}>{baseline ? 'Other file…' : 'Choose file…'}</button>
@@ -148,6 +149,6 @@ export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pa
           </div>
         </>
       )}
-    </aside>
+    </FloatingPanel>
   )
 }

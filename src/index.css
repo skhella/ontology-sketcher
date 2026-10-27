@@ -1755,3 +1755,58 @@ body,
 .inspector .axioms .add + .add {
   margin-left: 4px;
 }
+
+/* Side panels the user can move and resize, see FloatingPanel.tsx. The title bar is the handle. */
+.floating-panel.movable > .export-actions:first-child {
+  cursor: move;
+}
+
+.floating-panel.movable > .export-actions:first-child button {
+  cursor: pointer;
+}
+
+.panel-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  /* Two short hand-drawn strokes in the corner, like a sketched resize mark. */
+  background:
+    linear-gradient(135deg, transparent 55%, var(--muted) 55%, var(--muted) 62%, transparent 62%, transparent 75%, var(--muted) 75%, var(--muted) 82%, transparent 82%);
+  border-bottom-right-radius: 8px;
+}
+
+/* The inspector stays pinned right and only gets wider, from its left edge. */
+.inspector.floating-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.inspector .panel-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 12px 12px;
+}
+
+.panel-grip-left {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.panel-grip-left:hover {
+  background: color-mix(in srgb, var(--muted) 30%, transparent);
+}
+
+/* While a panel is dragged, the page shouldn't select text under the pointer. */
+body.panel-dragging {
+  user-select: none;
+  cursor: grabbing;
+}

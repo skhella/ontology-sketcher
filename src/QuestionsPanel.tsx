@@ -1,4 +1,5 @@
 import type { CompetencyQuestion, QuestionResult } from './questions'
+import { FloatingPanel } from './FloatingPanel'
 
 type Props = {
   questions: CompetencyQuestion[]
@@ -18,7 +19,7 @@ export function QuestionsPanel({ questions, results, running, error, onChange, o
   const passed = questions.filter((q) => results.get(q.id)?.ok).length
   const ran = questions.filter((q) => results.has(q.id)).length
   return (
-    <aside className="property-hierarchy questions-panel" aria-label="Competency questions">
+    <FloatingPanel name="questions" className="property-hierarchy questions-panel" aria-label="Competency questions">
       <div className="export-actions">
         <strong>Competency questions</strong>
         <button onClick={onRun} disabled={running || questions.length === 0}>
@@ -66,7 +67,7 @@ export function QuestionsPanel({ questions, results, running, error, onChange, o
       <div className="export-actions">
         <button onClick={onAdd}>+ Question</button>
       </div>
-    </aside>
+    </FloatingPanel>
   )
 }
 

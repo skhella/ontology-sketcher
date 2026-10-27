@@ -1,5 +1,6 @@
 import type { Finding, Severity } from './lint'
 import type { CanvasTarget } from './canvasTargets'
+import { FloatingPanel } from './FloatingPanel'
 
 type Props = {
   /** Undefined while the first check runs. */
@@ -18,7 +19,7 @@ const HEADINGS: Record<Severity, string> = { error: 'Errors', warning: 'Warnings
 export function LintPanel({ findings, error, targets, onShow, onClose }: Props) {
   const count = (s: Severity) => findings?.filter((f) => f.severity === s).length ?? 0
   return (
-    <aside className="property-hierarchy lint-panel" aria-label="Ontology check">
+    <FloatingPanel name="lint" className="property-hierarchy lint-panel" aria-label="Ontology check">
       <div className="export-actions">
         <strong>Check ontology</strong>
         <button onClick={onClose}>Close</button>
@@ -69,6 +70,6 @@ export function LintPanel({ findings, error, targets, onShow, onClose }: Props) 
           </div>
         </>
       )}
-    </aside>
+    </FloatingPanel>
   )
 }
