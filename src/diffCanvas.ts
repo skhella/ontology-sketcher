@@ -101,3 +101,16 @@ export function canvasDiff(
     })
   return { nodes, changes, edges, ghostNodes, ghostEdges }
 }
+
+/**
+ * The file's pages that no canvas page shares a name with, holding classes only the file has: their ghosts have
+ * nowhere to show until a page of that name exists. With one page on each side the two pages are matched anyway.
+ */
+export function pagesOnlyInFile(diff: OntologyDiff, ws: Workspace, fileIsNewer = false): string[] {
+  const pages = (fileIsNewer ? diff.newLayout : diff.oldLayout)?.pages ?? []
+  if (pages.length === 1 && ws.pages.length === 1) return []
+  const fileOnly: Status = fileIsNewer ? 'added' : 'removed'
+  const ghosts = new Set(diff.entities.filter((e) => e.status === fileOnly && e.kind === 'class').map((e) => e.iri))
+  const names = new Set(ws.pages.map((p) => p.name))
+  return pages.filter((p) => !names.has(p.name) && p.nodes.some((n) => ghosts.has(n.iri))).map((p) => p.name)
+}
