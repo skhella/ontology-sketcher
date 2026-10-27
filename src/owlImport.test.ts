@@ -156,6 +156,19 @@ describe('layout', () => {
     expect(edges.find((e) => e.id === 'e1')).toMatchObject({ sourceHandle: 'top', targetHandle: 'bottom' })
   })
 
+  it('spreads arrows meeting one class over the dots beside the one they would share', () => {
+    const nodes: ClassNode[] = ['Pizza', 'Margherita', 'Hawaiian', 'Calzone'].map((label, i) => ({ id: `c${i}`, type: 'owlClass', position: { x: 0, y: 0 }, data: { label } }))
+    const edges: RelationEdge[] = [1, 2, 3].map((i) => ({ id: `s${i}`, type: 'relation', source: `c${i}`, target: 'c0', data: { kind: 'subClassOf', label: '' } }))
+    const laid = layoutOntology(nodes, edges)
+    const x = (id: string) => laid.nodes.find((n) => n.id === id)!.position.x
+    const leftToRight = [...edges].sort((a, b) => x(a.source) - x(b.source)).map((e) => laid.edges.find((l) => l.id === e.id)!.targetHandle)
+    expect(leftToRight).toEqual(['bottom-left', 'bottom', 'bottom-right'])
+    expect(laid.edges.every((e) => e.sourceHandle === 'top')).toBe(true)
+    // Arrows that already have dots, as from a saved layout, keep them.
+    const saved = edges.map((e) => ({ ...e, sourceHandle: 'top', targetHandle: 'bottom' }))
+    expect(layoutOntology(nodes, saved).edges.map((e) => e.targetHandle)).toEqual(['bottom', 'bottom', 'bottom'])
+  })
+
   it('lays out several arrows between the same two classes', () => {
     // dagre used to fail on this ("Not possible to find intersection inside of the rectangle").
     const nodes: ClassNode[] = ['Pizza', 'Topping', 'Base'].map((label, i) => ({ id: `c${i}`, type: 'owlClass', position: { x: 0, y: 0 }, data: { label } }))

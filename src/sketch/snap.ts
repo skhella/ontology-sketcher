@@ -1,7 +1,7 @@
 import { Position } from '@xyflow/react'
 import type { Point } from './curve'
 
-/** The four side midpoints. Auto-layout and the Excalidraw import attach edges to these only. */
+/** The four side midpoints. The Excalidraw import attaches edges to these only. */
 export const SIDES = [Position.Top, Position.Right, Position.Bottom, Position.Left] as const
 
 /** The diagonal dots: a box's corners, or the points at 45° round an oval. */
@@ -86,6 +86,60 @@ export function nearestAnchor(box: Box, point: Point): Anchor {
     if (distance < bestDistance) [best, bestDistance] = [anchor, distance]
   }
   return best
+}
+
+/** One end of an arrow: the class it attaches to, its dot, and the point the arrow heads for. `fixed` ends keep their dot. */
+export type ArrowEnd = { nodeId: string; anchor: Anchor; toward: Point; fixed?: boolean }
+
+/**
+ * Arrows sharing a dot move out to the dots either side of it when no other arrow uses those, so several
+ * arrows leaving one side of a class don't all start from one point. They keep the order they head off in,
+ * so the moved arrows don't cross, and never move to a dot facing away from where they head. Returns each
+ * end's dot, in the order given.
+ */
+export function spreadEnds(ends: ArrowEnd[], boxes: Map<string, Box>): Anchor[] {
+  const result = ends.map((e) => e.anchor)
+  const key = (nodeId: string, anchor: Anchor) => `${nodeId} ${anchor}`
+  const used = new Map<string, number>()
+  for (const e of ends) used.set(key(e.nodeId, e.anchor), (used.get(key(e.nodeId, e.anchor)) ?? 0) + 1)
+  const groups = new Map<string, number[]>()
+  ends.forEach((e, i) => {
+    if (!e.fixed) groups.set(key(e.nodeId, e.anchor), [...(groups.get(key(e.nodeId, e.anchor)) ?? []), i])
+  })
+  for (const members of groups.values()) {
+    if (members.length < 2) continue
+    const { nodeId, anchor } = ends[members[0]]
+    const box = boxes.get(nodeId)
+    if (!box) continue
+    const at = ANCHORS.indexOf(anchor)
+    const [before, after] = [ANCHORS[(at + 7) % 8], ANCHORS[(at + 1) % 8]]
+    const free = (a: Anchor) => !used.get(key(nodeId, a))
+    // Dots clockwise, as screen angles grow clockwise (y points down).
+    const slots = [...(free(before) ? [before] : []), anchor, ...(free(after) ? [after] : [])]
+    if (slots.length === 1) continue
+    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+    const facing = (a: Anchor) => {
+      const dot = sidePoint(box, a)
+      return Math.atan2(dot.y - centre.y, dot.x - centre.x)
+    }
+    // How far an arrow heading for `toward` turns away from the way dot `a` faces, clockwise positive.
+    const turn = (i: number, a: Anchor) => {
+      const t = Math.atan2(ends[i].toward.y - centre.y, ends[i].toward.x - centre.x) - facing(a)
+      return Math.atan2(Math.sin(t), Math.cos(t))
+    }
+    const order = [...members].sort((a, b) => turn(a, anchor) - turn(b, anchor))
+    // Two arrows take the dots either side, leaving the middle one empty, rather than one of them staying put.
+    const chosen = order.length === 2 && slots.length === 3 ? [slots[0], slots[2]] : slots
+    order.forEach((i, n) => {
+      const a = chosen[Math.floor((n * chosen.length) / order.length)]
+      // An arrow would loop back from a dot facing away from where it heads; it stays on the shared dot.
+      if (a === anchor || Math.abs(turn(i, a)) > Math.PI / 2) return
+      result[i] = a
+      used.set(key(nodeId, anchor), used.get(key(nodeId, anchor))! - 1)
+      used.set(key(nodeId, a), (used.get(key(nodeId, a)) ?? 0) + 1)
+    })
+  }
+  return result
 }
 
 /**
