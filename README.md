@@ -67,6 +67,9 @@ add axioms and data constraints, check a few example instances, and hand the res
   `skos:Concept`) is drawn as an arrow to a dashed outside box. What the canvas can't draw, such as the ontology
   header, individuals, union axioms, n-ary disjointness or property chains, is kept with the project and written
   back unchanged on export. Entities without a label don't get one made up.
+- **Import > Standard ontology** downloads BFO 2020, PROV-O, OWL-Time, SOSA, SSN, SAREF, W3C Organization, DCAT or
+  Dublin Core Terms onto a page of its own. They keep their IRIs and your ontology keeps its own, so your classes can
+  sit under theirs. The ontology's own header is left out, so the export still describes one ontology.
 - **Import an .excalidraw drawing**: labelled shapes become classes in the same place, and arrows between them become
   `rdfs:subClassOf` (unlabelled, or labelled "SCO" / "subClassOf") or an object property named after the label.
   Colours, fill, stroke, sloppiness, ovals and curved arrows carry over.

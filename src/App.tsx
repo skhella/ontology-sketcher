@@ -27,7 +27,8 @@ import { record, redo, startHistory, undo, type History } from './history'
 import { planImport } from './layout'
 import { exportFiles, exportFilesPerPage, pageFileStems, type ExportFile, type ExportFormat } from './exportFiles'
 import { keptStatementsOf } from './keptStatements'
-import { describeOwlImport, importOwl } from './owlImport'
+import { describeOwlImport, importOwl, type OwlImportResult } from './owlImport'
+import { importIntoProject, LIBRARY, type LibraryEntry } from './library'
 import { applyShapes, describeShapesImport, importShapesToWorkspace, withShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
 import { importedOntologyIri, type ClassNode, type KeptProperty, type KeptStatement, type Namespace, type NodeKind, type RelationEdge } from './model'
@@ -129,6 +130,7 @@ export default function App() {
   // The sample data panel, and the classes whose instances in it break a constraint (outlined on the canvas).
   const [sampleOpen, setSampleOpen] = useState(false)
   const [propertiesOpen, setPropertiesOpen] = useState(false)
+  const [libraryOpen, setLibraryOpen] = useState(false)
   const [problemClasses, setProblemClasses] = useState<string[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   // Whether hidden classes and arrows are drawn (faded) on the canvas and in SVG images; see hidden.ts.
@@ -219,6 +221,53 @@ export default function App() {
   }
 
   // Replaces the canvas with the classes and arrows found in an .excalidraw file, or in an OWL ontology in Turtle.
+  /**
+   * Puts an imported ontology on page `target` of `ws` and shows it; a saved layout or a large ontology adds pages after it.
+   * Returns how many pages it fills.
+   */
+  const placeImport = (result: OwlImportResult, statements: KeptStatement[], start: Workspace, target: string) => {
+    const { pages } = planImport(result, { iri, workspace: start, pageId: target })
+    let ws = saveCanvas(start, target, pages[0].nodes, pages[0].edges)
+    if (pages[0].name) ws = { ...ws, pages: ws.pages.map((p) => (p.id === target ? { ...p, name: pages[0].name! } : p)) }
+    if (pages[0].classId) ws = linkPage(ws, target, pages[0].classId)
+    for (const page of pages.slice(1)) {
+      const id = crypto.randomUUID()
+      ws = saveCanvas({ ...ws, pages: [...ws.pages, { id, name: page.name ?? `Page ${ws.pages.length + 1}`, nodes: [], edges: [] }] }, id, page.nodes, page.edges)
+      if (page.classId) ws = linkPage(ws, id, page.classId)
+    }
+    setIri(result.iri)
+    setNamespaces((current) => mergeNamespaces(current, result.namespaces))
+    setKept((current) => [...current.filter((p) => !result.kept.some((k) => k.iri === p.iri)), ...result.kept])
+    setKeptStatements((current) => [...current.filter((s) => !statements.some((t) => t.ntriples === s.ntriples)), ...statements])
+    show(ws, target, true)
+    return pages.length
+  }
+
+  // A standard ontology from the library, downloaded and put on a new page of its own; the project keeps its IRI.
+  const importFromLibrary = async (entry: LibraryEntry) => {
+    setLibraryOpen(false)
+    setNotice(`Downloading ${entry.name}…`)
+    let text: string
+    try {
+      const response = await fetch(entry.url, { headers: { Accept: 'text/turtle' } })
+      if (!response.ok) throw new Error(`the server answered ${response.status}`)
+      text = await response.text()
+    } catch (error) {
+      setNotice(`Could not download ${entry.name} (${(error as Error).message}). Download ${entry.url} yourself and use Import > Ontology (Turtle).`)
+      return
+    }
+    try {
+      const { result, statements } = await importIntoProject(text, { iri, namespaces }, entry.id)
+      const id = crypto.randomUUID()
+      const start = saved()
+      const pages = placeImport(result, statements, { ...start, pages: [...start.pages, { id, name: entry.name, nodes: [], edges: [] }] }, id)
+      const where = pages > 1 ? `${pages} new pages` : 'a new page'
+      setNotice(`${entry.name} is on ${where}. ${describeOwlImport(result.summary)}`)
+    } catch (error) {
+      setNotice(`Could not import ${entry.name}: ${(error as Error).message}`)
+    }
+  }
+
   const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
@@ -229,22 +278,8 @@ export default function App() {
         const result = importOwl(text)
         const statements = await keptStatementsOf(text, { iri: result.iri, nodes: result.nodes, edges: result.edges, kept: result.kept })
         if (nodes.length > 0 && !window.confirm(`Replace this page with ${file.name}? Classes already on it keep their place.`)) return
-        // The first planned page replaces this one; a saved layout or a large ontology adds more.
-        const { pages } = planImport(result, { iri, workspace: saved(), pageId })
-        let ws = saveCanvas(saved(), pageId, pages[0].nodes, pages[0].edges)
-        if (pages[0].name) ws = { ...ws, pages: ws.pages.map((p) => (p.id === pageId ? { ...p, name: pages[0].name! } : p)) }
-        if (pages[0].classId) ws = linkPage(ws, pageId, pages[0].classId)
-        for (const page of pages.slice(1)) {
-          const id = crypto.randomUUID()
-          ws = saveCanvas({ ...ws, pages: [...ws.pages, { id, name: page.name ?? `Page ${ws.pages.length + 1}`, nodes: [], edges: [] }] }, id, page.nodes, page.edges)
-          if (page.classId) ws = linkPage(ws, id, page.classId)
-        }
-        setIri(result.iri)
-        setNamespaces((current) => mergeNamespaces(current, result.namespaces))
-        setKept((current) => [...current.filter((p) => !result.kept.some((k) => k.iri === p.iri)), ...result.kept])
-        setKeptStatements((current) => [...current.filter((s) => !statements.some((t) => t.ntriples === s.ntriples)), ...statements])
-        show(ws, pageId, true)
-        const added = pages.length > 1 ? ` Added ${pages.length - 1} ${pages.length === 2 ? 'page' : 'pages'}.` : ''
+        const pages = placeImport(result, statements, saved(), pageId)
+        const added = pages > 1 ? ` Added ${pages - 1} ${pages === 2 ? 'page' : 'pages'}.` : ''
         const other = statements.length > 0 ? ` Kept ${statements.length} other ${statements.length === 1 ? 'statement' : 'statements'} the canvas can't show; the export writes them back.` : ''
         setNotice(describeOwlImport(result.summary) + added + other)
         return
@@ -753,6 +788,9 @@ export default function App() {
             <button onClick={() => shapesInput.current?.click()} title="Read a SHACL shapes file (Turtle) into the constraints of the classes on this page">
               SHACL shapes (Turtle)
             </button>
+            <button onClick={() => setLibraryOpen(true)} title="Download a standard ontology such as BFO, PROV-O or OWL-Time onto a new page">
+              Standard ontology…
+            </button>
           </div>
         </details>
         <input ref={fileInput} type="file" accept=".ttl,.nt,.owl,text/turtle" hidden onChange={importFile} />
@@ -972,6 +1010,28 @@ export default function App() {
             onSelectClass={selectClass}
             onClose={() => setSampleOpen(false)}
           />
+        )}
+        {libraryOpen && (
+          <aside className="property-hierarchy" aria-label="Standard ontologies">
+            <div className="export-actions">
+              <strong>Standard ontologies</strong>
+              <button onClick={() => setLibraryOpen(false)}>Close</button>
+            </div>
+            <p className="hint">
+              Each goes onto a new page with its own IRIs; your ontology keeps its IRI. Your browser downloads it from the publisher, so check its
+              licence before you share the result.
+            </p>
+            <ul className="library-list">
+              {LIBRARY.map((entry) => (
+                <li key={entry.id}>
+                  <button onClick={() => importFromLibrary(entry)} title={entry.url}>
+                    {entry.name}
+                  </button>
+                  <span className="muted">{entry.description}</span>
+                </li>
+              ))}
+            </ul>
+          </aside>
         )}
         {exported && (
           <aside className="export">
