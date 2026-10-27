@@ -53,6 +53,8 @@ import { defaultEdge, isSkosEdge, NODE_KIND_NAMES, NODE_KIND_STYLES } from './sk
 import { ClassPages } from './inspector/ClassPages'
 import { Inspector } from './inspector/Inspector'
 import { PropertyHierarchy } from './PropertyHierarchyPanel'
+import { HiddenPanel } from './HiddenPanel'
+import { hiddenItems } from './hiddenItems'
 import type { Finding } from './lint'
 import { LintPanel } from './LintPanel'
 import { lintProject } from './lintProject'
@@ -153,14 +155,18 @@ export default function App() {
   const [questions, setQuestions] = useState<CompetencyQuestion[]>(initial.questions ?? [])
   const [answers, setAnswers] = useState<{ results: Map<string, QuestionResult>; running?: boolean; error?: string }>({ results: new Map() })
   // The panel in the top-left corner of the canvas: one at a time, so opening one closes the other.
-  const [panel, setPanel] = useState<'properties' | 'lint' | 'compare' | 'questions' | 'library' | null>(null)
+  const [panel, setPanel] = useState<'properties' | 'lint' | 'compare' | 'questions' | 'library' | 'hidden' | null>(null)
   const togglePanel = (name: NonNullable<typeof panel>) => setPanel((open) => (open === name ? null : name))
   const closePanel = (name: NonNullable<typeof panel>) => setPanel((open) => (open === name ? null : open))
-  const [propertiesOpen, questionsOpen, libraryOpen, lintOpen, compareOpen] = (['properties', 'questions', 'library', 'lint', 'compare'] as const).map((name) => panel === name)
+  const [propertiesOpen, questionsOpen, libraryOpen, lintOpen, compareOpen, hiddenOpen] = (['properties', 'questions', 'library', 'lint', 'compare', 'hidden'] as const).map(
+    (name) => panel === name,
+  )
   // The ontology check (see lint.ts): its findings, undefined until the first run, or why it could not run.
   const [lint, setLint] = useState<{ findings?: Finding[]; error?: string }>({})
   const [problemClasses, setProblemClasses] = useState<string[]>([])
   const [notice, setNotice] = useState<string | null>(null)
+  // The notice of an import that kept things the canvas can't draw, which offers to list them.
+  const [importNotice, setImportNotice] = useState<string | null>(null)
   // Whether hidden classes and arrows are drawn (faded) on the canvas and in SVG images; see hidden.ts.
   const [showHidden, setShowHidden] = useState(false)
   // Comparing with an earlier file (see diff.ts): the file, the Turtle file imported this session to offer, and the result.
@@ -323,7 +329,9 @@ export default function App() {
         const pages = placeImport(result, statements, saved(), pageId)
         const added = pages > 1 ? ` Added ${pages - 1} ${pages === 2 ? 'page' : 'pages'}.` : ''
         const other = statements.length > 0 ? ` Kept ${statements.length} other ${statements.length === 1 ? 'statement' : 'statements'} the canvas can't show; the export writes them back.` : ''
-        setNotice(describeOwlImport(result.summary) + added + other)
+        const summary = describeOwlImport(result.summary) + added + other
+        setNotice(summary)
+        if (result.kept.length > 0 || statements.length > 0) setImportNotice(summary)
         setLastImport({ name: file.name, text })
         return
       } else {
@@ -668,9 +676,26 @@ export default function App() {
   }, [lintOpen, workspace, pageId, nodes, edges, iri, namespaces, kept, keptStatements])
   // Where each class and property is drawn, for the names the check and compare panels list.
   const targets = useMemo(
-    () => (lintOpen || compareOpen ? canvasTargets(saveCanvas(workspace, pageId, nodes, edges), iri, pageId) : new Map<string, CanvasTarget>()),
-    [lintOpen, compareOpen, workspace, pageId, nodes, edges, iri],
+    () => (lintOpen || compareOpen || hiddenOpen ? canvasTargets(saveCanvas(workspace, pageId, nodes, edges), iri, pageId) : new Map<string, CanvasTarget>()),
+    [lintOpen, compareOpen, hiddenOpen, workspace, pageId, nodes, edges, iri],
   )
+  // What imports kept that no page draws; the toolbar shows how much, the panel names it all.
+  const notDrawnCount = useMemo(() => hiddenItems(keptStatements, kept, shortName).count, [keptStatements, kept])
+  const notDrawn = useMemo(() => {
+    if (!hiddenOpen) return undefined
+    const names = new Map<string, string>()
+    for (const c of Object.values(workspace.store.classes)) {
+      names.set(entityIri(iri, c, localName(c.label)), c.label)
+      for (const p of c.dataProperties ?? []) names.set(dataPropertyIri(iri, p), p.name)
+    }
+    for (const r of Object.values(workspace.store.relations)) if (r.kind !== 'subClassOf' && r.label) names.set(entityIri(iri, r, propertyLocalName(r.label)), r.label)
+    for (const p of kept) names.set(p.iri, p.label)
+    const prefixed = (i: string) => {
+      const ns = namespaces.find((n) => i.startsWith(n.iri) && i.length > n.iri.length)
+      return ns ? `${ns.prefix}:${i.slice(ns.iri.length)}` : i.startsWith(iri) && i.length > iri.length ? i.slice(iri.length) : shortName(i)
+    }
+    return hiddenItems(keptStatements, kept, (i) => names.get(i) ?? prefixed(i))
+  }, [hiddenOpen, workspace, iri, namespaces, kept, keptStatements])
   // Compare can also show the classes only the file has, where their ghosts are drawn on this page.
   const compareTargets = useMemo(() => {
     const ghosts = (onCanvas?.ghostNodes ?? []).filter((g) => !targets.has(g.id.slice(GHOST.length)))
@@ -1074,6 +1099,15 @@ export default function App() {
         >
           Properties
         </button>
+        {(notDrawnCount > 0 || hiddenOpen) && (
+          <button
+            onClick={() => togglePanel('hidden')}
+            aria-pressed={hiddenOpen}
+            title="Individuals, complex axioms, properties without a class and other statements kept from an import that no page draws"
+          >
+            Not on canvas ({notDrawnCount})
+          </button>
+        )}
         <button
           onClick={() => togglePanel('lint')}
           aria-pressed={lintOpen}
@@ -1232,6 +1266,17 @@ export default function App() {
         {notice && (
           <div className="notice" role="status">
             {notice}
+            {notice === importNotice && notDrawnCount > 0 && (
+              <button
+                className="notice-action"
+                onClick={() => {
+                  setPanel('hidden')
+                  setNotice(null)
+                }}
+              >
+                Show what isn't drawn
+              </button>
+            )}
             <button onClick={() => setNotice(null)} aria-label="Dismiss">×</button>
           </div>
         )}
@@ -1286,6 +1331,7 @@ export default function App() {
           />
         )}
         {propertiesOpen && <PropertyHierarchy entries={properties} pageId={pageId} onOpenPage={openPage} onClose={() => closePanel('properties')} />}
+        {notDrawn && <HiddenPanel items={notDrawn} targets={targets} onShow={showTarget} onClose={() => closePanel('hidden')} />}
         {lintOpen && <LintPanel findings={lint.findings} error={lint.error} targets={targets} onShow={showTarget} onClose={() => closePanel('lint')} />}
         {sampleOpen && (
           <SampleData
