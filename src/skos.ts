@@ -98,15 +98,16 @@ const PREDICATE: Record<SkosEdgeKind, string> = {
 /**
  * The SKOS triples for the ontology's concepts and schemes. `iriOf` gives a node's IRI and
  * `annotate` its annotation triples, both as the OWL export makes them for classes.
- * Returns the triples and the annotation properties they use, which the OWL export declares.
+ * Returns the triples, the annotation properties they use, which the OWL export declares, and the SKOS relation
+ * properties they use, so kept statements about those (their declarations) are written back.
  */
 export function skosQuads(
   ontology: Ontology,
   iriOf: (data: EntityData, local: string) => string,
   annotate: (subject: string, data: EntityData) => Quad[],
-): { quads: Quad[]; annotationProperties: string[] } {
+): { quads: Quad[]; annotationProperties: string[]; properties: string[] } {
   const members = ontology.nodes.filter((n) => n.data.kind === 'concept' || n.data.kind === 'scheme')
-  if (members.length === 0) return { quads: [], annotationProperties: [] }
+  if (members.length === 0) return { quads: [], annotationProperties: [], properties: [] }
 
   const type = namedNode(RDF + 'type')
   const iri = new Map(members.map((n) => [n.id, iriOf(n.data, localName(n.data.label))]))
@@ -168,7 +169,13 @@ export function skosQuads(
   const drawn = new Set(ontology.nodes.filter((n) => !n.data.kind).map((n) => iriOf(n.data, localName(n.data.label))))
   if (!drawn.has(SKOS + 'Concept')) declarations.push(quad(namedNode(SKOS + 'Concept'), type, namedNode(OWL + 'Class')))
   if (members.some((n) => n.data.kind === 'scheme') && !drawn.has(SKOS + 'ConceptScheme')) declarations.push(quad(namedNode(SKOS + 'ConceptScheme'), type, namedNode(OWL + 'Class')))
-  for (const p of usedProperties) declarations.push(quad(namedNode(p), type, namedNode(OWL + 'ObjectProperty')))
+  // A property an import already declared (skos:broader as an annotation property, say) keeps that declaration, which the
+  // export writes back with the kept statements; only an undeclared one is declared an object property here.
+  const declared = (p: string) =>
+    (ontology.keptStatements ?? []).some((s) =>
+      [OWL + 'AnnotationProperty', OWL + 'ObjectProperty'].some((t) => s.ntriples.includes(`<${p}> <${RDF}type> <${t}> .`)),
+    )
+  for (const p of usedProperties) if (!declared(p)) declarations.push(quad(namedNode(p), type, namedNode(OWL + 'ObjectProperty')))
 
-  return { quads: [...declarations, ...body], annotationProperties: [SKOS + 'prefLabel'] }
+  return { quads: [...declarations, ...body], annotationProperties: [SKOS + 'prefLabel'], properties: [...usedProperties] }
 }
