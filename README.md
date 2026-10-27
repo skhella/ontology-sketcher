@@ -83,6 +83,9 @@ add axioms and data constraints, check a few example instances, and hand the res
 - **Compare** colours what changed since an earlier Turtle file, such as a previous export or the file you imported:
   new classes and arrows in green, changed ones in orange, and removed ones drawn dashed in red where the file had
   them. A list beside the canvas says what changed on each class and property.
+- **Inferred superclasses**: the inspector lists superclasses that follow from the ontology without being stated
+  (through equivalences, intersections, and property domains reached by `some` restrictions), each with the axioms
+  it rests on. **Show inferred** draws them as dashed violet arrows. A light, explained reasoner, not a full OWL one.
 - Object property characteristics (functional, inverse functional, transitive, symmetric, asymmetric, reflexive,
   irreflexive), inverses and super properties.
 - Data properties on classes with an `xsd` datatype.
