@@ -24,6 +24,8 @@ export type OntologyDiff = {
   arrows: ArrowDiff[]
   /** The earlier file's layout, when it was exported by Ontology Sketcher: where removed classes used to be drawn. */
   oldLayout?: SavedLayout
+  /** The later file's layout, likewise: where added classes are drawn. */
+  newLayout?: SavedLayout
 }
 
 type Version = { store: Store; layout?: SavedLayout }
@@ -176,5 +178,5 @@ export function diffOntologies(before: string, after: string, base: string): Ont
     ...[...is].filter(([k]) => !was.has(k)).map(([key, a]) => ({ key, ...a, status: 'added' as const })),
     ...[...was].filter(([k]) => !is.has(k)).map(([key, a]) => ({ key, ...a, status: 'removed' as const })),
   ]
-  return { entities, arrows: arrowDiffs, ...(old.layout && { oldLayout: old.layout }) }
+  return { entities, arrows: arrowDiffs, ...(old.layout && { oldLayout: old.layout }), ...(now.layout && { newLayout: now.layout }) }
 }
