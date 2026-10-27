@@ -635,6 +635,21 @@ body,
   border-top: 1px dashed var(--muted);
 }
 
+.diff-jump {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.diff-jump:hover {
+  text-decoration-thickness: 2px;
+}
+
 .diff-entity {
   font-size: 15px;
 }
