@@ -95,11 +95,16 @@ export function intoProject<R extends OwlImportResult>(result: R, project: { iri
  * `intoProject` places it, with the statements the canvas can't show kept as an import keeps them. What the file says
  * about itself as an ontology (its header) is left out, so the export still describes one ontology, the project's.
  */
-export async function importIntoProject(text: string, project: { iri: string; namespaces: Namespace[] }, prefix: string): Promise<{ result: OwlImportResult; statements: KeptStatement[] }> {
-  const result = intoProject(importOwl(text), project, prefix)
-  const { store } = parseTurtle(text, result.iri)
+export async function importIntoProject(
+  text: string,
+  project: { iri: string; namespaces: Namespace[] },
+  prefix: string,
+  base?: string,
+): Promise<{ result: OwlImportResult; statements: KeptStatement[] }> {
+  const result = intoProject(importOwl(text, base), project, prefix)
+  const { store } = parseTurtle(text, base ?? result.iri)
   const headers = store.getSubjects(RDF + 'type', OWL + 'Ontology', null).filter((t) => t.termType === 'NamedNode').map((t) => `<${t.value}> `)
-  const statements = (await keptStatementsOf(text, { iri: result.iri, nodes: result.nodes, edges: result.edges, kept: result.kept })).filter(
+  const statements = (await keptStatementsOf(text, { iri: result.iri, nodes: result.nodes, edges: result.edges, kept: result.kept }, base)).filter(
     (s) => !headers.some((h) => s.ntriples.startsWith(h)),
   )
   return { result, statements }
