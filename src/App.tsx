@@ -26,6 +26,8 @@ import { describeImport, importExcalidraw } from './excalidraw'
 import { hiddenOn, withoutHidden } from './hidden'
 import { record, redo, startHistory, undo, type History } from './history'
 import { planImport } from './layout'
+import { newQuestion, runQuestions, type CompetencyQuestion, type QuestionResult } from './questions'
+import { QuestionsPanel } from './QuestionsPanel'
 import { InferredSuperclasses } from './inspector/InferredSuperclasses'
 import { inferredArrows, inferSuperclasses, type Reasoning } from './reason'
 import { entityIri } from './owl'
@@ -143,6 +145,10 @@ export default function App() {
   const [svgPages, setSvgPages] = useState<string[]>([])
   // The sample data panel, and the classes whose instances in it break a constraint (outlined on the canvas).
   const [sampleOpen, setSampleOpen] = useState(false)
+  // Competency questions (see questions.ts), kept with the project, and their answers from the last run.
+  const [questions, setQuestions] = useState<CompetencyQuestion[]>(initial.questions ?? [])
+  const [questionsOpen, setQuestionsOpen] = useState(false)
+  const [answers, setAnswers] = useState<{ results: Map<string, QuestionResult>; running?: boolean; error?: string }>({ results: new Map() })
   const [propertiesOpen, setPropertiesOpen] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
   // The ontology check (see lint.ts): its findings, undefined until the first run, or why it could not run.
@@ -735,13 +741,14 @@ export default function App() {
     if (exported) download(zipName, new Blob([zip(exported.map(({ name, text }) => ({ name, text })))], { type: 'application/zip' }))
   }
 
-  const project = (): Project => ({ ...(projectName && { name: projectName }), iri, namespaces, kept, keptStatements, workspace: saved(), pageId })
+  const project = (): Project => ({ ...(projectName && { name: projectName }), iri, namespaces, kept, keptStatements, ...(questions.length > 0 && { questions }), workspace: saved(), pageId })
 
   // Autosave: shortly after the last change, and when the tab is closed, the whole project is kept in this browser.
   const storageWarned = useRef(false)
   useEffect(() => {
     const autosave = () => {
-      if (writeAutosave({ ...(projectName && { name: projectName }), iri, namespaces, kept, keptStatements, workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }) || storageWarned.current) return
+      const autosaved = { ...(projectName && { name: projectName }), iri, namespaces, kept, keptStatements, ...(questions.length > 0 && { questions }), workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }
+      if (writeAutosave(autosaved) || storageWarned.current) return
       storageWarned.current = true
       setNotice('This browser is not keeping your work (storage is full or blocked). Use Project, Save project to keep a copy.')
     }
@@ -751,7 +758,7 @@ export default function App() {
       clearTimeout(timer)
       window.removeEventListener('pagehide', autosave)
     }
-  }, [projectName, iri, namespaces, kept, keptStatements, workspace, pageId, nodes, edges])
+  }, [projectName, iri, namespaces, kept, keptStatements, questions, workspace, pageId, nodes, edges])
 
   // Undo history: the project is noted once changes settle, and never while a mouse button is held,
   // so dragging one class, a whole selection or an edge's curve is one step, see history.ts.
@@ -875,7 +882,31 @@ export default function App() {
     setNamespaces(next.namespaces ?? [])
     setKept(next.kept ?? [])
     setKeptStatements(next.keptStatements ?? [])
+    setQuestions(next.questions ?? [])
+    setAnswers({ results: new Map() })
     show(next.workspace, next.pageId, true)
+  }
+
+  // Every question runs over the export of every page, as the ontology stands now.
+  const runAllQuestions = async () => {
+    setAnswers((a) => ({ ...a, running: true, error: undefined }))
+    try {
+      const ws = saved()
+      const [owl] = await exportFiles('owl', ws, ws.pages.map((p) => p.id), { iri, namespaces, kept, keptStatements })
+      setAnswers({ results: await runQuestions(questions, owl.text, iri, namespaces) })
+    } catch (error) {
+      setAnswers({ results: new Map(), error: `Could not run the questions: ${(error as Error).message}` })
+    }
+  }
+  // An edited question loses its old answer, so a pass never shows for a query that has not run.
+  const changeQuestions = (next: CompetencyQuestion[]) => {
+    const before = new Map(questions.map((q) => [q.id, q]))
+    setQuestions(next)
+    setAnswers((a) => ({ ...a, results: new Map([...a.results].filter(([id]) => next.some((q) => q.id === id && before.get(id) === q))) }))
+  }
+  const addQuestion = () => {
+    const pick = nodes.find((n) => n.selected && !n.data.kind) ?? nodes.find((n) => !n.data.kind)
+    changeQuestions([...questions, newQuestion(pick && localName(pick.data.label))])
   }
 
   const hasClasses = () => Object.keys(saved().store.classes).length > 0
@@ -1045,6 +1076,9 @@ export default function App() {
             {showHidden ? 'Leave out hidden' : `Show hidden (${hiddenCount})`}
           </button>
         )}
+        <button onClick={() => setQuestionsOpen((open) => !open)} aria-pressed={questionsOpen} title="What the ontology should answer, as SPARQL queries you can run against it">
+          Questions{questions.length > 0 ? ` (${questions.length})` : ''}
+        </button>
         <button onClick={toggleTheme} aria-pressed={theme === 'dark'} title="Switch between light and dark mode">
           {theme === 'dark' ? '☀ Light' : '☾ Dark'}
         </button>
@@ -1210,6 +1244,18 @@ export default function App() {
               <button onClick={() => setExportPages(null)}>Cancel</button>
             </div>
           </div>
+        )}
+        {questionsOpen && (
+          <QuestionsPanel
+            questions={questions}
+            results={answers.results}
+            running={!!answers.running}
+            error={answers.error}
+            onChange={changeQuestions}
+            onAdd={addQuestion}
+            onRun={runAllQuestions}
+            onClose={() => setQuestionsOpen(false)}
+          />
         )}
         {propertiesOpen && <PropertyHierarchy entries={properties} pageId={pageId} onOpenPage={openPage} onClose={() => setPropertiesOpen(false)} />}
         {lintOpen && <LintPanel findings={lint.findings} error={lint.error} targets={lintWhere} onShow={showTarget} onClose={() => setLintOpen(false)} />}

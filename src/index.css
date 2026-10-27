@@ -534,6 +534,65 @@ body,
   color: var(--accent);
 }
 
+.questions {
+  margin: 0;
+  padding: 6px 8px 0 28px;
+  overflow: auto;
+}
+
+.questions li {
+  padding: 4px 0 6px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.question-head {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.question-head input {
+  flex: 1;
+  font: inherit;
+}
+
+.question-mark {
+  width: 14px;
+  color: var(--muted);
+}
+
+.questions li.pass .question-mark {
+  color: #2f9e44;
+}
+
+.questions li.fail .question-mark {
+  color: #e03131;
+}
+
+.questions textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.questions .hint {
+  margin: 2px 0;
+}
+
+.question-answer table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.question-answer th,
+.question-answer td {
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
 .library-list {
   margin: 0;
   padding: 6px 8px 8px;

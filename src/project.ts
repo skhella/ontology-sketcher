@@ -1,13 +1,24 @@
 import { sampleOntology, type KeptProperty, type KeptStatement, type Namespace } from './model'
 import { workspaceFrom, type Workspace } from './pages'
+import { readQuestions, type CompetencyQuestion } from './questions'
 
 /**
  * A project is everything needed to pick the work up again: the ontology IRI, every page with its
  * positions, colours and curves, the other namespaces classes can live in, and the shared store of classes and relations with their axioms,
  * annotations, SHACL constraints and SKOS kinds. The same shape is autosaved in the browser and
- * written to a project file. The name is the user's own; saving uses it as the file name.
+ * written to a project file. The name is the user's own; saving uses it as the file name. The competency questions
+ * travel with the project only, never in the export.
  */
-export type Project = { name?: string; iri: string; namespaces?: Namespace[]; kept?: KeptProperty[]; keptStatements?: KeptStatement[]; workspace: Workspace; pageId: string }
+export type Project = {
+  name?: string
+  iri: string
+  namespaces?: Namespace[]
+  kept?: KeptProperty[]
+  keptStatements?: KeptStatement[]
+  questions?: CompetencyQuestion[]
+  workspace: Workspace
+  pageId: string
+}
 
 /** Marks a project file, so opening some other JSON file fails with a clear message. */
 const FORMAT = 'ontology-sketcher-project'
@@ -61,8 +72,18 @@ export function projectFromJson(text: string): Project {
     : []
   const kept = Array.isArray(p.kept) ? p.kept.filter((k) => k && typeof k.iri === 'string' && (k.kind === 'object' || k.kind === 'data')) : []
   const keptStatements = Array.isArray(p.keptStatements) ? p.keptStatements.filter((s) => s && typeof s.ntriples === 'string') : []
+  const questions = readQuestions(p.questions)
   const name = typeof p.name === 'string' ? p.name.trim() : ''
-  return { ...(name && { name }), iri: p.iri, ...(namespaces.length > 0 && { namespaces }), ...(kept.length > 0 && { kept }), ...(keptStatements.length > 0 && { keptStatements }), workspace: ws, pageId }
+  return {
+    ...(name && { name }),
+    iri: p.iri,
+    ...(namespaces.length > 0 && { namespaces }),
+    ...(kept.length > 0 && { kept }),
+    ...(keptStatements.length > 0 && { keptStatements }),
+    ...(questions.length > 0 && { questions }),
+    workspace: ws,
+    pageId,
+  }
 }
 
 /** The project autosaved in this browser, or null when there is none or it cannot be read. */
