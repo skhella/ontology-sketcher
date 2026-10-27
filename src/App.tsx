@@ -33,7 +33,7 @@ import { inferredArrows, inferSuperclasses, type Reasoning } from './reason'
 import { entityIri } from './owl'
 import { shortName } from './vocab'
 import { diffOntologies, type EntityDiff, type OntologyDiff } from './diff'
-import { canvasDiff, DIFF_COLORS, GHOST } from './diffCanvas'
+import { canvasDiff, DIFF_COLORS, GHOST, pagesOnlyInFile } from './diffCanvas'
 import { canvasTargets, type CanvasTarget } from './canvasTargets'
 import { DiffPanel } from './DiffPanel'
 import { exportFiles, exportFilesPerPage, pageFileStems, type ExportFile, type ExportFormat } from './exportFiles'
@@ -1294,6 +1294,14 @@ export default function App() {
             onFileIsNewer={(newer) => {
               setComparison({})
               setFileIsNewer(newer)
+            }}
+            filePages={comparison.diff ? pagesOnlyInFile(comparison.diff, workspace, fileIsNewer) : []}
+            onAddPage={(name) => {
+              const id = crypto.randomUUID()
+              const ws = saved()
+              show({ ...ws, pages: [...ws.pages, { id, name, nodes: [], edges: [] }] }, id, false)
+              // The ghosts are drawn and measured a moment later; then fit them into view.
+              setTimeout(() => flow?.fitView({ padding: 0.2, duration: 300 }), 300)
             }}
             onChooseFile={() => compareInput.current?.click()}
             onUseImported={() => {

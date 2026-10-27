@@ -17,6 +17,9 @@ type Props = {
   /** Whether the file is a later version than the canvas rather than an earlier one. */
   fileIsNewer: boolean
   onFileIsNewer: (newer: boolean) => void
+  /** Pages only the file has, with classes only the file has on them, see pagesOnlyInFile; and adding an empty page of that name to see them. */
+  filePages: string[]
+  onAddPage: (name: string) => void
   onChooseFile: () => void
   onUseImported: () => void
   onShow: (target: CanvasTarget) => void
@@ -26,7 +29,7 @@ type Props = {
 const HEADINGS: Record<Status, string> = { added: 'Added', changed: 'Changed', removed: 'Removed' }
 
 /** What changed since an earlier file, see diff.ts; the canvas colours the same changes while this is open. */
-export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pageNames, fileIsNewer, onFileIsNewer, onChooseFile, onUseImported, onShow, onClose }: Props) {
+export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pageNames, fileIsNewer, onFileIsNewer, filePages, onAddPage, onChooseFile, onUseImported, onShow, onClose }: Props) {
   const entities = diff?.entities ?? []
   const count = (s: Status) => entities.filter((e) => e.status === s).length
   return (
@@ -86,6 +89,20 @@ export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pa
               drew them, when it was exported from here.
             </span>
           </p>
+          {filePages.length > 0 && (
+            <p className="hint">
+              Only the file has {filePages.length === 1 ? 'the page' : 'the pages'}{' '}
+              {filePages.map((name, i) => (
+                <span key={name}>
+                  {i > 0 && ', '}
+                  <button className="page-chip" title={`Add an empty page "${name}" to see where the file drew its classes`} onClick={() => onAddPage(name)}>
+                    {name} +
+                  </button>
+                </span>
+              ))}
+              . Add an empty page of that name to see its {fileIsNewer ? 'added' : 'removed'} classes there.
+            </p>
+          )}
           <div className="diff-list">
             {(['added', 'changed', 'removed'] as const)
               .filter((s) => count(s) > 0)
