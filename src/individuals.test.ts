@@ -117,4 +117,22 @@ describe('individuals', () => {
     expect(pages[0].nodes.some((n) => n.data.kind === 'individual')).toBe(false)
     expect(pages[1].name).toBe('Individuals: Diet, Size')
   })
+
+  it('adds SKOS concepts a saved layout does not know on vocabulary pages, each scheme with its concepts', async () => {
+    const vocabulary = `
+      :Sizes a skos:ConceptScheme ; skos:prefLabel "Sizes" .
+      :Tiny a skos:Concept ; skos:prefLabel "Tiny" ; skos:inScheme :Sizes .
+      :Huge a skos:Concept ; skos:prefLabel "Huge" ; skos:inScheme :Sizes .
+      :Loose a skos:Concept ; skos:prefLabel "Loose" .
+    `
+    const classesOnly = importOwl(source.replace(/^\s*:(meat|bones|small|large) .*$/gm, ''))
+    const fresh = workspaceFrom('Page 1', [], [])
+    const [page] = planImport(classesOnly, { iri: classesOnly.iri, workspace: fresh.workspace, pageId: fresh.pageId }).pages
+    const ws: Workspace = saveCanvas(fresh.workspace, fresh.pageId, page.nodes, page.edges)
+    const imported = { ...importOwl(source.replace(/^\s*:(meat|bones|small|large) .*$/gm, '') + vocabulary), layout: saveLayout(ws, [fresh.pageId], classesOnly.iri) }
+    const { pages } = planImport(imported, { iri: imported.iri, workspace: workspaceFrom('Page 1', [], []).workspace, pageId: fresh.pageId })
+    expect(pages[0].nodes.some((n) => n.data.kind)).toBe(false)
+    // With one scheme, a concept in none belongs to it (see conceptSchemes).
+    expect(pages.slice(1).map((p) => [p.name, p.nodes.map((n) => n.data.label).sort()])).toEqual([['Vocabulary: Sizes', ['Huge', 'Loose', 'Sizes', 'Tiny']]])
+  })
 })
