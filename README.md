@@ -63,10 +63,18 @@ add axioms and data constraints, check a few example instances, and hand the res
   back onto the canvas with an automatic layout, superclasses above subclasses. Classes already on the page keep
   their place, so re-importing an edited file only adds what is new. A file exported here brings back its pages,
   positions and colours. A large ontology (over 60 classes) opens as an overview page plus a page per branch.
+  Individuals and SKOS vocabularies that the saved layout doesn't place get pages of their own ("Individuals: ..."
+  and "Vocabulary: ..."), so they don't pile up on the first page. Relative IRIs in the file are resolved against
+  the project's IRI.
 - Nothing in an imported file is lost. A property whose range is a class the file doesn't declare (such as
   `skos:Concept`) is drawn as an arrow to a dashed outside box. What the canvas can't draw, such as the ontology
-  header, individuals, union axioms, n-ary disjointness or property chains, is kept with the project and written
-  back unchanged on export. Entities without a label don't get one made up.
+  header, n-ary disjointness or property chains, is kept with the project and written back unchanged on export,
+  annotation datatypes included. Renaming a class carries what was kept about it to its new IRI. Entities without
+  a label don't get one made up.
+- **Not on canvas** in the toolbar shows how many kept items no page draws, and opens a list of them: individuals
+  with their values, class axioms, properties without a class to draw them on, other statements and the ontology
+  header. Names that are drawn somewhere are links to them on the canvas. **Edit** changes, adds or removes plain
+  statements, and edits the label, domain, range and characteristics of a property that has no class to sit on.
 - **Import > Standard ontology** downloads BFO 2020, PROV-O, OWL-Time, SOSA, SSN, SAREF, W3C Organization, DCAT or
   Dublin Core Terms onto a page of its own. They keep their IRIs and your ontology keeps its own, so your classes can
   sit under theirs. The ontology's own header is left out, so the export still describes one ontology.
@@ -80,20 +88,34 @@ add axioms and data constraints, check a few example instances, and hand the res
   language tags.
 - Class axioms laid out like Protégé's class description: SubClass Of, Equivalent To and Disjoint With, written
   in Manchester order with `some`, `only`, `min`, `max` and `exactly`.
+- **Properties** in the toolbar shows the object and data properties as a tree by `rdfs:subPropertyOf`, with their
+  domain, range and the pages they are drawn on.
 - Object property characteristics (functional, inverse functional, transitive, symmetric, asymmetric, reflexive,
   irreflexive), inverses and super properties.
-- Data properties on classes with an `xsd` datatype.
+- Axioms the rows can't hold, such as unions, intersections, complements, value sets and nested restrictions,
+  are listed in the same sections as Manchester syntax text (`likes only (Cat or Dog)`) and can be edited, added and
+  removed there. Text that can't be read is refused with a short reason and changes nothing.
+- Data properties on classes with an `xsd` datatype. Annotations with a datatype, such as `owl:deprecated true`,
+  show it where the language tag would go.
+- **+ Individual** adds an OWL individual, drawn as a pink box; a dashed arrow to a class makes it an instance of
+  that class. The inspector edits its object and data property values. Imported individuals come in the same way.
 
 ### Check, compare and explain
 
-These run on what the export writes, across every page, so they see the ontology as other tools will.
+These run on what the export writes, across every page, so they see the ontology as other tools will. Their panels,
+like Properties, Not on canvas and Sample data, can be moved by their title bar and resized from the corner; the
+inspector can be made wider from its left edge. Each panel remembers its place, and double-clicking its title bar
+puts it back.
 
 - **Check ontology** lists declarations that clash (a class under two disjoint classes, a property both transitive
   and functional), subclass and sub-property cycles, missing labels, domains and ranges, and SHACL rules about
   classes or properties the ontology does not declare. Click a name to jump to it on the canvas.
 - **Compare** colours what changed since an earlier Turtle file, such as a previous export or the file you imported:
   new classes and arrows in green, changed ones in orange, and removed ones drawn dashed in red where the file had
-  them. A list beside the canvas says what changed on each class and property.
+  them. A list beside the canvas says what changed on each class and property, and names you can go to are links.
+  Click the tag on a changed class or arrow to see what changed on it. Choose whether the file is older or newer
+  than the canvas, so additions and removals point the right way. When the file has a page the canvas lacks, click
+  its name to add an empty page of that name and see where the file drew its classes.
 - **Inferred superclasses**: the inspector lists superclasses that follow from the ontology without being stated
   (through equivalences, intersections, and property domains reached by `some` restrictions), each with the axioms
   it rests on. **Show inferred** draws them as dashed violet arrows. A light, explained reasoner, not a full OWL one.
