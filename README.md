@@ -77,6 +77,9 @@ add axioms and data constraints, check a few example instances, and hand the res
   language tags.
 - Class axioms laid out like Protégé's class description: SubClass Of, Equivalent To and Disjoint With, written
   in Manchester order with `some`, `only`, `min`, `max` and `exactly`.
+- **Inferred superclasses**: the inspector lists superclasses that follow from the ontology without being stated
+  (through equivalences, intersections, and property domains reached by `some` restrictions), each with the axioms
+  it rests on. **Show inferred** draws them as dashed violet arrows. A light, explained reasoner, not a full OWL one.
 - Object property characteristics (functional, inverse functional, transitive, symmetric, asymmetric, reflexive,
   irreflexive), inverses and super properties.
 - Data properties on classes with an `xsd` datatype.

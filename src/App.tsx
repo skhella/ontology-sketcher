@@ -25,12 +25,16 @@ import { describeImport, importExcalidraw } from './excalidraw'
 import { hiddenOn, withoutHidden } from './hidden'
 import { record, redo, startHistory, undo, type History } from './history'
 import { planImport } from './layout'
+import { InferredSuperclasses } from './inspector/InferredSuperclasses'
+import { inferredArrows, inferSuperclasses, type Reasoning } from './reason'
+import { entityIri } from './owl'
+import { shortName } from './vocab'
 import { exportFiles, exportFilesPerPage, pageFileStems, type ExportFile, type ExportFormat } from './exportFiles'
 import { keptStatementsOf } from './keptStatements'
 import { describeOwlImport, importOwl } from './owlImport'
 import { applyShapes, describeShapesImport, importShapesToWorkspace, withShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
-import { importedOntologyIri, type ClassNode, type KeptProperty, type KeptStatement, type Namespace, type NodeKind, type RelationEdge } from './model'
+import { importedOntologyIri, localName, type ClassNode, type KeptProperty, type KeptStatement, type Namespace, type NodeKind, type RelationEdge } from './model'
 import { NamespacesContext } from './namespaceContext'
 import { PageLinksContext, type PageLinks } from './pageLinksContext'
 import { mergeNamespaces, renameNamespace } from './namespaces'
@@ -69,6 +73,9 @@ const TOOLS: { tool: Tool; key: string; label: string; icon: string }[] = [
 
 // How the SVG image of the page is drawn; it follows the canvas's light colours unless dark is picked.
 type SvgLook = { dark: boolean; background: boolean }
+
+// Excalidraw's violet, for superclasses the reasoner adds; the inspector uses --inferred to match.
+const INFERRED = '#7048e8'
 
 function markerFor(edge: RelationEdge): RelationEdge {
   const closed = edge.data?.kind === 'subClassOf'
@@ -134,6 +141,9 @@ export default function App() {
   // Whether hidden classes and arrows are drawn (faded) on the canvas and in SVG images; see hidden.ts.
   const [showHidden, setShowHidden] = useState(false)
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
+  // Inferred superclasses (see reason.ts): drawn as arrows when asked, and listed for the selected class.
+  const [showInferred, setShowInferred] = useState(false)
+  const [reasoning, setReasoning] = useState<Reasoning | undefined>(undefined)
   const fileInput = useRef<HTMLInputElement>(null)
   const drawingInput = useRef<HTMLInputElement>(null)
   const shapesInput = useRef<HTMLInputElement>(null)
@@ -323,6 +333,49 @@ export default function App() {
     setNodes((ns) => ns.map((n) => (!!n.selected !== (n.id === id) ? { ...n, selected: n.id === id } : n)))
   }
   const selectedEdges = edges.filter((e) => e.selected)
+
+  // The reasoner runs on the export of every page shortly after edits settle, while inferred arrows are shown or one class is selected.
+  const selectedClass = selectedNodes.length === 1 && selectedEdges.length === 0 && !selectedNodes[0].data.kind ? selectedNodes[0] : undefined
+  const reasonNow = showInferred || !!selectedClass
+  useEffect(() => {
+    if (!reasonNow) return
+    let current = true
+    const timer = setTimeout(() => {
+      const ws = saveCanvas(workspace, pageId, nodes, edges)
+      exportFiles('owl', ws, ws.pages.map((p) => p.id), { iri, namespaces, kept, keptStatements })
+        .then(([owl]) => current && setReasoning(inferSuperclasses(owl.text, iri)))
+        // An export that does not parse leaves nothing to reason about; the export itself reports the problem.
+        .catch(() => current && setReasoning({ inferred: new Map(), stated: new Map() }))
+    }, 300)
+    return () => {
+      current = false
+      clearTimeout(timer)
+    }
+  }, [reasonNow, workspace, pageId, nodes, edges, iri, namespaces, kept, keptStatements])
+  const classIri = useMemo(() => new Map(nodes.map((n) => [n.id, entityIri(iri, n.data, localName(n.data.label))])), [nodes, iri])
+  const inferredEdges = useMemo((): RelationEdge[] => {
+    if (!showInferred || !reasoning) return []
+    const onPage = new Map([...classIri].map(([id, i]) => [i, id]))
+    return nodes.flatMap((n) =>
+      inferredArrows(reasoning, classIri.get(n.id)!)
+        .filter((i) => onPage.has(i.sup))
+        .map((i) =>
+          markerFor({
+            id: `inferred:${n.id}:${onPage.get(i.sup)}`,
+            type: 'relation',
+            source: n.id,
+            target: onPage.get(i.sup)!,
+            sourceHandle: 'top',
+            targetHandle: 'bottom',
+            data: { kind: 'subClassOf', label: '', style: { stroke: INFERRED, strokeStyle: 'dashed' } },
+            className: 'inferred',
+            selectable: false,
+            focusable: false,
+          }),
+        ),
+    )
+  }, [showInferred, reasoning, nodes, classIri])
+  const canvasEdges = useMemo(() => (inferredEdges.length > 0 ? [...shownEdges, ...inferredEdges] : shownEdges), [shownEdges, inferredEdges])
 
   // A selection box takes every arrow touching a class inside it; like Excalidraw, keep only the arrows with both ends inside.
   const keepEdgesInsideSelection = () => {
@@ -788,6 +841,13 @@ export default function App() {
           </div>
         </details>
         <button
+          onClick={() => setShowInferred((shown) => !shown)}
+          aria-pressed={showInferred}
+          title="Draw superclasses that follow from the ontology without being stated, as dashed violet arrows; select a class to see why"
+        >
+          Show inferred
+        </button>
+        <button
           onClick={() => setPropertiesOpen((open) => !open)}
           aria-pressed={propertiesOpen}
           title="Object and data properties as a tree by subPropertyOf, with domain, range and the pages each is on"
@@ -827,7 +887,7 @@ export default function App() {
           <PageLinksContext.Provider value={pageLinks}>
             <ReactFlow
               nodes={shownNodes}
-              edges={shownEdges}
+              edges={canvasEdges}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               onNodesChange={onNodesChange}
@@ -903,6 +963,14 @@ export default function App() {
             selection={[...selectedNodes, ...selectedEdges]}
             onNodeChange={updateNode}
             onEdgeChange={updateEdge}
+            inferred={
+              selectedClass && (
+                <InferredSuperclasses
+                  inferences={reasoning && (reasoning.inferred.get(classIri.get(selectedClass.id) ?? '') ?? [])}
+                  labelOf={(i) => nodes.find((n) => classIri.get(n.id) === i)?.data.label ?? Object.values(workspace.store.classes).find((c) => entityIri(iri, c, localName(c.label)) === i)?.label ?? shortName(i)}
+                />
+              )
+            }
             classPages={
               selectedNodes.length === 1 &&
               selectedEdges.length === 0 && (

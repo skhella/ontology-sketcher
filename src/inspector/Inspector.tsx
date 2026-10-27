@@ -21,10 +21,12 @@ type Props = {
   onEdgeChange: (id: string, patch: Partial<NonNullable<RelationEdge['data']>>) => void
   /** The selected class's detail page and the pages showing it, see ClassPages. */
   classPages?: ReactNode
+  /** The selected class's inferred superclasses, see InferredSuperclasses. */
+  inferred?: ReactNode
 }
 
 /** Protégé-style entity panel for the selected class or edge: IRI, label, annotations, class axioms and SHACL constraints. */
-export function Inspector({ base, namespaces, nodes, edges, selection, onNodeChange, onEdgeChange, classPages }: Props) {
+export function Inspector({ base, namespaces, nodes, edges, selection, onNodeChange, onEdgeChange, classPages, inferred }: Props) {
   if (selection.length !== 1) {
     return (
       <aside className="inspector" aria-label="Inspector">
@@ -69,6 +71,7 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
               edges={edges}
               onChange={(axioms) => onNodeChange(node.id, { axioms })}
             />
+            {inferred}
             <DataProperties properties={node.data.dataProperties ?? []} onChange={(dataProperties) => onNodeChange(node.id, { dataProperties })} />
             <Constraints
               nodeId={node.id}
