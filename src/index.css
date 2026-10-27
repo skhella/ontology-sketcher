@@ -1614,3 +1614,89 @@ body,
   font-size: 12px;
   color: var(--muted);
 }
+
+/* What imports kept but no page draws; shares the property hierarchy's panel. */
+.hidden-filter {
+  margin: 0 8px 4px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.hidden-sections {
+  padding: 4px 8px 8px;
+  overflow: auto;
+}
+
+.hidden-sections h3 {
+  margin: 8px 0 4px;
+  font-size: 15px;
+}
+
+.hidden-sections .muted {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hidden-sections ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hidden-sections li {
+  padding: 4px 0;
+  border-top: 1px dashed var(--muted);
+}
+
+.hidden-sections details > ul {
+  padding-left: 12px;
+}
+
+.hidden-sections summary {
+  cursor: pointer;
+  font-size: 15px;
+}
+
+.hidden-name {
+  font-size: 15px;
+}
+
+.hidden-lines {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0 8px;
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.hidden-lines > div {
+  display: contents;
+}
+
+.hidden-lines dt {
+  color: var(--muted);
+}
+
+.hidden-lines dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.hidden-axiom {
+  display: block;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.notice .notice-action {
+  flex: none;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.hidden-panel .diff-jump {
+  padding: 0;
+  border: none;
+  background: none;
+}
