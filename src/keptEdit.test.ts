@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { editKeptTriple, editNaming, type KeptTriple } from './keptEdit'
+import { keptStatementsOf } from './keptStatements'
+import { editKeptTriple, editNaming, renameInKept, type KeptTriple } from './keptEdit'
+import { toTurtle } from './owl'
+import { importOwl } from './owlImport'
 
 const EX = 'http://example.org/zoo#'
 const CLOSE = 'http://www.w3.org/2004/02/skos/core#closeMatch'
@@ -58,5 +61,27 @@ describe('editNaming', () => {
       'https://example.org/x',
     ])
     expect(naming.resolve('nope:x')).toBeUndefined()
+  })
+})
+
+describe('renameInKept', () => {
+  it('moves what was kept about a class to its new IRI, in the triples and in about', () => {
+    const next = renameInKept(statements, EX + 'Dog', EX + 'Hound')
+    expect(next[0]).toEqual({ ntriples: `<${EX}Hound> <${CLOSE}> <http://example.org/other#Hound> .\n`, about: EX + 'Hound' })
+    expect(next[1]).toBe(statements[1])
+  })
+
+  it('keeps the exported file whole after a rename', async () => {
+    const source = `
+      @prefix owl: <http://www.w3.org/2002/07/owl#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+      @prefix skos: <http://www.w3.org/2004/02/skos/core#> . @prefix : <${EX}> .
+      :Dog a owl:Class ; rdfs:label "Dog" ; skos:closeMatch <http://example.org/other#Hound> .
+    `
+    const result = importOwl(source)
+    const kept = await keptStatementsOf(source, { iri: result.iri, nodes: result.nodes, edges: result.edges, kept: result.kept })
+    const nodes = result.nodes.map((n) => ({ ...n, data: { ...n.data, label: 'Hound' } }))
+    const turtle = await toTurtle({ ...result, nodes, keptStatements: renameInKept(kept, EX + 'Dog', EX + 'Hound') })
+    expect(turtle).toMatch(/:Hound a owl:Class;[^.]*<http:\/\/www\.w3\.org\/2004\/02\/skos\/core#closeMatch> <http:\/\/example\.org\/other#Hound>\./)
+    expect(await toTurtle({ ...result, nodes, keptStatements: kept })).not.toContain('closeMatch')
   })
 })

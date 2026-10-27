@@ -1,7 +1,9 @@
 import { Parser } from 'n3'
 import { describe, expect, it } from 'vitest'
 import { sampleOntology, type ClassNode, type EdgeKind, type NodeKind, type Ontology, type RelationEdge } from './model'
+import { keptStatementsOf } from './keptStatements'
 import { toTurtle } from './owl'
+import { importOwl } from './owlImport'
 import { conceptSchemes, defaultEdge } from './skos'
 
 const P = 'http://example.org/pizza#'
@@ -76,6 +78,22 @@ describe('SKOS export', () => {
     expect(t).toContain(`${SKOS}inScheme ${RDF_TYPE} ${OWL}ObjectProperty`)
     expect(t).toContain(`${SKOS}prefLabel ${RDF_TYPE} ${OWL}AnnotationProperty`)
     expect(await toTurtle(thesaurus)).toContain('@prefix skos: <http://www.w3.org/2004/02/skos/core#>.')
+  })
+
+  it('keeps a SKOS property an imported file declared as an annotation property one, instead of declaring it again', async () => {
+    const source = `
+      @prefix owl: <http://www.w3.org/2002/07/owl#> . @prefix skos: <${SKOS}> . @prefix : <http://example.org/colour#> .
+      <http://example.org/colour> a owl:Ontology .
+      skos:broader a owl:AnnotationProperty .
+      :Red a skos:Concept ; skos:prefLabel "Red" ; skos:broader :Colour .
+      :Colour a skos:Concept ; skos:prefLabel "Colour" .
+    `
+    const result = importOwl(source)
+    const keptStatements = await keptStatementsOf(source, { iri: result.iri, nodes: result.nodes, edges: result.edges, kept: result.kept })
+    const t = await triples({ ...result, keptStatements })
+    expect(t).toContain(`${SKOS}broader ${RDF_TYPE} ${OWL}AnnotationProperty`)
+    expect(t).not.toContain(`${SKOS}broader ${RDF_TYPE} ${OWL}ObjectProperty`)
+    expect(t).toContain(`http://example.org/colour#Red ${SKOS}broader http://example.org/colour#Colour`)
   })
 
   it('leaves the OWL export unchanged when there are no concepts', async () => {
