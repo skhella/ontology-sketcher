@@ -6,6 +6,7 @@ import { isSkosEdge, NODE_KIND_NAMES, SKOS_EDGE_KINDS } from '../skos'
 import { ClassAxioms } from './ClassAxioms'
 import { ConceptMappings, ConceptSchemes, SchemeSummary } from './ConceptDetails'
 import { Constraints } from './Constraints'
+import { IndividualDetails, type IndividualChoices } from './IndividualDetails'
 import { DataProperties, ObjectPropertyDetails } from './PropertyDetails'
 import { ANNOTATION_DESCRIPTIONS, ANNOTATION_PROPERTIES, compactIri, expandIri, RDFS_COMMENT, SKOS_ANNOTATION_PROPERTIES, SKOS_DEFINITION } from '../vocab'
 
@@ -25,10 +26,12 @@ type Props = {
   inferred?: ReactNode
   /** Imported rules kept on other classes, on any page, that also target the selected class. */
   keptElsewhere?: { label: string; shapes: string[] }[]
+  /** For a selected individual: the properties and individuals its values can use. */
+  individualChoices?: IndividualChoices
 }
 
 /** Protégé-style entity panel for the selected class or edge: IRI, label, annotations, class axioms and SHACL constraints. */
-export function Inspector({ base, namespaces, nodes, edges, selection, onNodeChange, onEdgeChange, classPages, inferred, keptElsewhere }: Props) {
+export function Inspector({ base, namespaces, nodes, edges, selection, onNodeChange, onEdgeChange, classPages, inferred, keptElsewhere, individualChoices }: Props) {
   if (selection.length !== 1) {
     return (
       <aside className="inspector" aria-label="Inspector">
@@ -41,6 +44,7 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
   if (item.type === 'owlClass') {
     const node = item as ClassNode
     const kind = node.data.kind
+    const skosNode = kind === 'concept' || kind === 'scheme'
     // Concepts and schemes are individuals, so class axioms and constraints only offer classes.
     const classes = nodes.filter((n) => !n.data.kind)
     return (
@@ -51,9 +55,9 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
           namespaces={namespaces}
           data={node.data}
           label={node.data.label}
-          labelProperty={kind ? 'skos:prefLabel' : 'rdfs:label'}
+          labelProperty={skosNode ? 'skos:prefLabel' : 'rdfs:label'}
           labelLang={kind ? (node.data.labelLang ?? '') : undefined}
-          annotationProperties={kind ? SKOS_ANNOTATION_PROPERTIES : undefined}
+          annotationProperties={skosNode ? SKOS_ANNOTATION_PROPERTIES : undefined}
           derivedLocal={localName(node.data.label)}
           onChange={(patch) => onNodeChange(node.id, patch)}
         />
@@ -64,6 +68,15 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
           </>
         )}
         {kind === 'scheme' && <SchemeSummary node={node} nodes={nodes} edges={edges} />}
+        {kind === 'individual' && (
+          <IndividualDetails
+            node={node}
+            nodes={nodes}
+            edges={edges}
+            choices={individualChoices ?? { properties: [], individuals: [] }}
+            onChange={(values) => onNodeChange(node.id, { values })}
+          />
+        )}
         {!kind && (
           <>
             <ClassAxioms
@@ -102,6 +115,18 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
   // Characteristics, inverse and super property belong to the property, so every edge drawing it gets them.
   const setOnProperty = (patch: Partial<NonNullable<RelationEdge['data']>>) => {
     for (const e of edges) if (e.data?.kind === 'objectProperty' && e.data.label === data.label) onEdgeChange(e.id, patch)
+  }
+
+  if (data.kind === 'instanceOf') {
+    return (
+      <aside className="inspector" aria-label="Inspector">
+        <h2>{EDGE_TITLES[data.kind]}</h2>
+        <p className="axiom">
+          {labelOf(edge.source)} <span className="keyword">rdf:type</span> {labelOf(edge.target)}
+        </p>
+        <p className="muted">The individual is an instance of this class. Delete the arrow to take it out of the class.</p>
+      </aside>
+    )
   }
 
   const setKind = (kind: EdgeKind) => {
@@ -166,6 +191,7 @@ const EDGE_KINDS: Record<EdgeKind, string> = {
   subClassOf: 'subClassOf',
   objectProperty: 'object',
   annotationProperty: 'annotation',
+  instanceOf: 'type',
   broader: 'broader',
   narrower: 'narrower',
   related: 'related',
@@ -181,6 +207,7 @@ const EDGE_TITLES: Record<EdgeKind, string> = {
   subClassOf: 'Subclass axiom',
   objectProperty: 'Object property',
   annotationProperty: 'Annotation property',
+  instanceOf: 'Class of an individual',
   broader: 'Broader concept',
   narrower: 'Narrower concept',
   related: 'Related concept',

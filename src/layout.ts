@@ -237,6 +237,7 @@ export function planImport(
   limit = PAGE_LIMIT,
 ): { pages: PlannedPage[]; kept: number } {
   const { nodes, edges } = matchIds(imported, current)
+  const labelOf = (id: string) => nodes.find((n) => n.id === id)?.data.label
   const iriOf = new Map(nodes.map((n) => [n.id, nodeIri(imported.iri, n)]))
   const idOf = new Map([...iriOf].map(([id, iri]) => [iri, id]))
   const page = current.workspace.pages.find((p) => p.id === current.pageId)
@@ -255,9 +256,11 @@ export function planImport(
       looks: new Map(p.edges.map((e) => [edgeKey(e.source, e.kind, e.label, e.target), e])),
     }))
     const placed = new Set(groups.flatMap((g) => g.ids))
-    groups[0].ids.push(...nodes.filter((n) => !placed.has(n.id)).map((n) => n.id))
+    const unplaced = nodes.filter((n) => !placed.has(n.id))
+    groups[0].ids.push(...unplaced.filter((n) => n.data.kind !== 'individual').map((n) => n.id))
+    groups.push(...individualPages(unplaced, edges, limit, labelOf))
   } else if (nodes.length > limit) {
-    groups = splitByBranch(nodes, edges, limit)
+    groups = [...splitByBranch(nodes.filter((n) => n.data.kind !== 'individual'), edges, limit), ...individualPages(nodes, edges, limit, labelOf)]
   } else {
     const positions = new Map(nodes.filter((n) => onPage.has(n.id)).map((n) => [n.id, onPage.get(n.id)!.position]))
     kept = positions.size
@@ -362,6 +365,32 @@ function matchIds(
  * page per root's branch. Branches bigger than `limit` get a page per child of the root (the root shown
  * on each); small branches share pages. Classes in no hierarchy share the last pages.
  */
+/**
+ * Pages for the individuals among `nodes`, so they don't crowd the class pages: each with its class, a class's
+ * individuals kept together, packed up to `limit` boxes a page and named after the classes: "Individuals: Colour, Size".
+ */
+function individualPages(nodes: ClassNode[], edges: RelationEdge[], limit: number, labelOf: (id: string) => string | undefined): Group[] {
+  const byClass = new Map<string, string[]>()
+  for (const n of nodes) {
+    if (n.data.kind !== 'individual') continue
+    const type = edges.find((e) => e.source === n.id && e.data?.kind === 'instanceOf')?.target ?? ''
+    byClass.set(type, [...(byClass.get(type) ?? []), n.id])
+  }
+  const pages: { classes: string[]; ids: string[] }[] = []
+  for (const [type, ids] of [...byClass].sort((a, b) => b[1].length - a[1].length)) {
+    const bundle = type ? [type, ...ids] : ids
+    const room = pages.find((p) => p.ids.length + bundle.length <= limit)
+    if (room) {
+      room.classes.push(type)
+      room.ids.push(...bundle)
+    } else pages.push({ classes: [type], ids: bundle })
+  }
+  return pages.map((p) => {
+    const names = p.classes.map((c) => (c && labelOf(c)) || 'no class')
+    return { name: `Individuals: ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''}`, ids: p.ids, positions: new Map() }
+  })
+}
+
 function splitByBranch(nodes: ClassNode[], edges: RelationEdge[], limit: number): Group[] {
   const label = new Map(nodes.map((n) => [n.id, n.data.label]))
   const children = new Map<string, string[]>()
