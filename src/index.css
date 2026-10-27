@@ -1700,3 +1700,28 @@ body,
   border: none;
   background: none;
 }
+
+/* An axiom written as Manchester syntax text, see TextAxioms.tsx. */
+.inspector .axiom-row.text-axiom {
+  flex-wrap: wrap;
+}
+
+.inspector .text-axiom input {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+}
+
+.inspector .text-axiom input[aria-invalid='true'] {
+  border-color: #e03131;
+}
+
+.inspector .text-axiom-error {
+  flex-basis: 100%;
+  color: #e03131;
+}
+
+.inspector .axioms .add + .add {
+  margin-left: 4px;
+}

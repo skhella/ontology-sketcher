@@ -462,7 +462,9 @@ function convert(store: Store, prefixes: Record<string, string>): OwlImportResul
           if (o.termType === 'BlankNode' && consumed.has(o.value)) continue
           const expression = expressionOf(o)
           if (expression) classAxioms.push({ kind, expression })
-          else skip('class axioms the inspector cannot show (unions, intersections, nested restrictions)')
+          // Unions, intersections and nested restrictions stay kept statements, which the inspector edits as text.
+          else if (o.termType === 'BlankNode') axioms++
+          else skip('class axioms the inspector cannot show (about a class that is not drawn)')
         }
       }
       if (classAxioms.length > 0) data.axioms = classAxioms

@@ -32,6 +32,8 @@ import { InferredSuperclasses } from './inspector/InferredSuperclasses'
 import { inferredArrows, inferSuperclasses, type Reasoning } from './reason'
 import { dataPropertyIri, entityIri } from './owl'
 import type { IndividualChoices, ValueProperty } from './inspector/IndividualDetails'
+import { projectNames } from './projectNames'
+import { removeTextAxiom, setTextAxiom, textAxioms, type TextAxiom } from './textAxioms'
 import { shortName } from './vocab'
 import { diffOntologies, type EntityDiff, type OntologyDiff } from './diff'
 import { canvasDiff, DIFF_COLORS, GHOST, pagesOnlyInFile } from './diffCanvas'
@@ -43,7 +45,7 @@ import { describeOwlImport, importOwl, type OwlImportResult } from './owlImport'
 import { importIntoProject, LIBRARY, type LibraryEntry } from './library'
 import { applyShapes, describeShapesImport, importShapesToWorkspace, keptShapesTargeting, withShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
-import { importedOntologyIri, localName, propertyLocalName, type ClassNode, type KeptProperty, type KeptStatement, type Namespace, type NodeKind, type RelationEdge } from './model'
+import { importedOntologyIri, localName, propertyLocalName, type AxiomKind, type ClassNode, type KeptProperty, type KeptStatement, type Namespace, type NodeKind, type RelationEdge } from './model'
 import { NamespacesContext } from './namespaceContext'
 import { DiffBadgeContext, type DiffBadges } from './diffBadgeContext'
 import { PageLinksContext, type PageLinks } from './pageLinksContext'
@@ -506,6 +508,22 @@ export default function App() {
     }
   }, [reasonNow, workspace, pageId, nodes, edges, iri, namespaces, kept, keptStatements])
   const classIri = useMemo(() => new Map(nodes.map((n) => [n.id, entityIri(iri, n.data, localName(n.data.label))])), [nodes, iri])
+  // For a selected class, its axioms only text can hold, read and written as Manchester syntax (see textAxioms.ts).
+  const classSelected = !!selectedClass
+  const names = useMemo(
+    () => (classSelected ? projectNames(saveCanvas(workspace, pageId, nodes, edges), iri, namespaces, kept) : undefined),
+    [classSelected, workspace, pageId, nodes, edges, iri, namespaces, kept],
+  )
+  const textAxiomEditing = (() => {
+    const subject = selectedClass && classIri.get(selectedClass.id)
+    if (!subject || !names) return undefined
+    const all = textAxioms(keptStatements, subject, names.name)
+    return (kind: AxiomKind) => ({
+      axioms: all.filter((a) => a.kind === kind),
+      apply: (text: string, replacing?: TextAxiom) => setKeptStatements(setTextAxiom(keptStatements, subject, kind, text, names.resolve, replacing)),
+      remove: (axiom: TextAxiom) => setKeptStatements(removeTextAxiom(keptStatements, subject, axiom)),
+    })
+  })()
   const inferredEdges = useMemo((): RelationEdge[] => {
     if (!showInferred || !reasoning) return []
     const onPage = new Map([...classIri].map(([id, i]) => [i, id]))
@@ -1247,6 +1265,7 @@ export default function App() {
             }
             keptElsewhere={keptElsewhere}
             individualChoices={individualChoices}
+            textAxioms={textAxiomEditing}
             classPages={
               selectedNodes.length === 1 &&
               selectedEdges.length === 0 && (

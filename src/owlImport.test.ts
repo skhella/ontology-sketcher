@@ -134,9 +134,11 @@ describe('importOwl', () => {
     expect(nodes.map((n) => n.data.label).sort()).toEqual(['Cat', 'Leo', 'Lion'])
     const lion = nodes.find((n) => n.data.label === 'Lion')!
     expect(lion.data.axioms).toEqual([{ kind: 'subClassOf', expression: { type: 'restriction', quantifier: 'some', property: edges.find((e) => e.data?.label === 'eats')!.id } }])
-    expect(summary.skipped).toEqual(['1 class axioms the inspector cannot show (unions, intersections, nested restrictions)'])
+    // The union on Cat is an axiom the inspector shows as text, so nothing is left unshown.
+    expect(summary.axioms).toBe(2)
+    expect(summary.skipped).toEqual([])
     expect(describeOwlImport(summary)).toContain('1 individual,')
-    expect(describeOwlImport(summary)).toContain('Not shown: 1 class axioms')
+    expect(describeOwlImport(summary)).not.toContain('Not shown')
   })
 
   it('explains RDF/XML and broken Turtle', () => {

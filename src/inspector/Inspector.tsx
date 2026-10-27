@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { localName, propertyLocalName, type Annotation, type Namespace, type ClassNode, type EdgeKind, type EntityData, type RelationEdge } from '../model'
+import { localName, propertyLocalName, type Annotation, type AxiomKind, type Namespace, type ClassNode, type EdgeKind, type EntityData, type RelationEdge } from '../model'
 import { prefixOf } from '../namespaces'
 import { entityIri } from '../owl'
 import { isSkosEdge, NODE_KIND_NAMES, SKOS_EDGE_KINDS } from '../skos'
@@ -7,6 +7,7 @@ import { ClassAxioms } from './ClassAxioms'
 import { ConceptMappings, ConceptSchemes, SchemeSummary } from './ConceptDetails'
 import { Constraints } from './Constraints'
 import { IndividualDetails, type IndividualChoices } from './IndividualDetails'
+import type { TextAxiomEditing } from './TextAxioms'
 import { DataProperties, ObjectPropertyDetails } from './PropertyDetails'
 import { ANNOTATION_DESCRIPTIONS, ANNOTATION_PROPERTIES, compactIri, expandIri, RDFS_COMMENT, SKOS_ANNOTATION_PROPERTIES, SKOS_DEFINITION } from '../vocab'
 
@@ -28,10 +29,12 @@ type Props = {
   keptElsewhere?: { label: string; shapes: string[] }[]
   /** For a selected individual: the properties and individuals its values can use. */
   individualChoices?: IndividualChoices
+  /** For a selected class, per axiom kind, the axioms only text can hold and their editing (see textAxioms.ts). */
+  textAxioms?: (kind: AxiomKind) => TextAxiomEditing
 }
 
 /** Protégé-style entity panel for the selected class or edge: IRI, label, annotations, class axioms and SHACL constraints. */
-export function Inspector({ base, namespaces, nodes, edges, selection, onNodeChange, onEdgeChange, classPages, inferred, keptElsewhere, individualChoices }: Props) {
+export function Inspector({ base, namespaces, nodes, edges, selection, onNodeChange, onEdgeChange, classPages, inferred, keptElsewhere, individualChoices, textAxioms }: Props) {
   if (selection.length !== 1) {
     return (
       <aside className="inspector" aria-label="Inspector">
@@ -85,6 +88,7 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
               nodes={classes}
               edges={edges}
               onChange={(axioms) => onNodeChange(node.id, { axioms })}
+              text={textAxioms}
             />
             {inferred}
             <DataProperties properties={node.data.dataProperties ?? []} onChange={(dataProperties) => onNodeChange(node.id, { dataProperties })} />

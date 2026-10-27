@@ -1,4 +1,5 @@
 import type { AxiomKind, ClassAxiom, ClassExpression, ClassNode, Quantifier, RelationEdge } from '../model'
+import { TextAxioms, type TextAxiomEditing } from './TextAxioms'
 
 type Props = {
   nodeId: string
@@ -6,6 +7,8 @@ type Props = {
   nodes: ClassNode[]
   edges: RelationEdge[]
   onChange: (axioms: ClassAxiom[]) => void
+  /** Per kind, the axioms only text can hold (see textAxioms.ts); without it, none are offered. */
+  text?: (kind: AxiomKind) => TextAxiomEditing
 }
 
 const SECTIONS: { kind: AxiomKind; title: string }[] = [
@@ -18,7 +21,7 @@ const QUANTIFIERS: Quantifier[] = ['some', 'only', 'min', 'max', 'exactly']
 const isCardinality = (q: Quantifier) => q === 'min' || q === 'max' || q === 'exactly'
 
 /** Protégé's class description: superclasses, equivalent and disjoint classes, as named classes or restrictions. */
-export function ClassAxioms({ nodeId, axioms, nodes, edges, onChange }: Props) {
+export function ClassAxioms({ nodeId, axioms, nodes, edges, onChange, text }: Props) {
   // Edges with the same label are one property; offer each once, by its first edge.
   const properties = edges.filter(
     (e, i) => e.data?.kind === 'objectProperty' && edges.findIndex((f) => f.data?.kind === 'objectProperty' && f.data.label === e.data!.label) === i,
@@ -57,6 +60,7 @@ export function ClassAxioms({ nodeId, axioms, nodes, edges, onChange }: Props) {
               </div>
             ),
           )}
+          {text && <TextAxioms editing={text(kind)} title={title} />}
           <button className="add" onClick={() => add(kind)} disabled={classes.length === 0 && properties.length === 0}>
             + {title}
           </button>
