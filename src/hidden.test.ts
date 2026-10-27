@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { exportFiles } from './exportFiles'
-import { hiddenOn, withoutHidden } from './hidden'
+import { hiddenEntries, hiddenOn, unhideIds, withoutHidden } from './hidden'
 import { planImport, saveLayout } from './layout'
 import type { ClassNode, RelationEdge } from './model'
 import { importOwl } from './owlImport'
@@ -92,3 +92,37 @@ describe('hidden classes and arrows', () => {
 })
 
 const unhide = <T extends ClassNode | RelationEdge>(item: T): T => ({ ...item, data: { ...item.data!, hidden: undefined } })
+
+describe('the list of hidden elements', () => {
+  const nodes = [cls('pump', 'Pump', true), cls('equipment', 'Equipment'), cls('agitator', 'Agitator', true)]
+  const edges: RelationEdge[] = [
+    sco('s', 'pump', 'equipment'),
+    sco('t', 'agitator', 'equipment', true),
+    { id: 'p', type: 'relation', source: 'equipment', target: 'pump', data: { kind: 'objectProperty', label: 'has part', hidden: true } },
+  ]
+
+  it('lists marked classes, then marked arrows, by name, leaving out arrows hidden only with their class', () => {
+    expect(hiddenEntries(nodes, edges)).toEqual([
+      { id: 'agitator', kind: 'class', label: 'Agitator' },
+      { id: 'pump', kind: 'class', label: 'Pump' },
+      { id: 't', kind: 'arrow', label: 'Agitator → subClassOf → Equipment' },
+      { id: 'p', kind: 'arrow', label: 'Equipment → has part → Pump' },
+    ])
+  })
+
+  it('unhides only the chosen ones, leaving everything else as it was', () => {
+    const out = unhideIds(nodes, edges, new Set(['pump', 't', 's']))
+    expect(out.nodes.map((n) => [n.id, n.data.hidden])).toEqual([
+      ['pump', undefined],
+      ['equipment', undefined],
+      ['agitator', true],
+    ])
+    expect(out.edges.map((e) => [e.id, e.data?.hidden])).toEqual([
+      ['s', undefined],
+      ['t', undefined],
+      ['p', true],
+    ])
+    expect(out.edges[0]).toBe(edges[0])
+    expect(out.nodes[1]).toBe(nodes[1])
+  })
+})

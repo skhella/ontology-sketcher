@@ -23,7 +23,8 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
 import { describeImport, importExcalidraw } from './excalidraw'
-import { hiddenOn, withoutHidden } from './hidden'
+import { hiddenEntries, hiddenOn, unhideIds, withoutHidden } from './hidden'
+import { HiddenListPanel } from './HiddenListPanel'
 import { record, redo, startHistory, undo, type History } from './history'
 import { nodeIri, planImport } from './layout'
 import { newQuestion, runQuestions, type CompetencyQuestion, type QuestionResult } from './questions'
@@ -163,12 +164,12 @@ export default function App() {
   const [questions, setQuestions] = useState<CompetencyQuestion[]>(initial.questions ?? [])
   const [answers, setAnswers] = useState<{ results: Map<string, QuestionResult>; running?: boolean; error?: string }>({ results: new Map() })
   // The panel in the top-left corner of the canvas: one at a time, so opening one closes the other.
-  const [panel, setPanel] = useState<'properties' | 'lint' | 'compare' | 'questions' | 'library' | 'hidden' | null>(null)
+  const [panel, setPanel] = useState<'properties' | 'lint' | 'compare' | 'questions' | 'library' | 'hidden' | 'hiddenList' | null>(null)
   const togglePanel = (name: NonNullable<typeof panel>) => setPanel((open) => (open === name ? null : name))
   const closePanel = (name: NonNullable<typeof panel>) => setPanel((open) => (open === name ? null : open))
-  const [propertiesOpen, questionsOpen, libraryOpen, lintOpen, compareOpen, hiddenOpen] = (['properties', 'questions', 'library', 'lint', 'compare', 'hidden'] as const).map(
-    (name) => panel === name,
-  )
+  const [propertiesOpen, questionsOpen, libraryOpen, lintOpen, compareOpen, hiddenOpen, hiddenListOpen] = (
+    ['properties', 'questions', 'library', 'lint', 'compare', 'hidden', 'hiddenList'] as const
+  ).map((name) => panel === name)
   // The ontology check (see lint.ts): its findings, undefined until the first run, or why it could not run.
   const [lint, setLint] = useState<{ findings?: Finding[]; error?: string }>({})
   const [problemClasses, setProblemClasses] = useState<string[]>([])
@@ -640,6 +641,13 @@ export default function App() {
     setNodes((ns) => ns.map((n) => (n.selected ? mark(n) : n)))
     // An arrow of a class that is hidden goes too, without being marked: it comes back with its class.
     setEdges((es) => es.map((e) => (e.selected && e.data ? mark(e) : drop && (ids.has(e.source) || ids.has(e.target)) ? { ...e, selected: false } : e)))
+  }
+
+  // Unhides the classes and arrows picked in the list of hidden elements, on this page only.
+  const unhideListed = (ids: Set<string>) => {
+    const out = unhideIds(nodes, edges, ids)
+    setNodes(out.nodes)
+    setEdges(out.edges)
   }
 
   const toggleShowHidden = () => {
@@ -1205,6 +1213,11 @@ export default function App() {
             {showHidden ? 'Leave out hidden' : `Show hidden (${hiddenCount})`}
           </button>
         )}
+        {(hiddenCount > 0 || hiddenListOpen) && (
+          <button onClick={() => togglePanel('hiddenList')} aria-pressed={hiddenListOpen} title="List what is hidden on this page and unhide several at once">
+            Hidden list
+          </button>
+        )}
         <button onClick={() => togglePanel('questions')} aria-pressed={questionsOpen} title="What the ontology should answer, as SPARQL queries you can run against it">
           Questions{questions.length > 0 ? ` (${questions.length})` : ''}
         </button>
@@ -1294,6 +1307,7 @@ export default function App() {
             edgesOnly={selectedNodes.length === 0}
             bentEdges={selectedEdges.filter((e) => e.data?.bend).length}
             hidden={[...selectedNodes, ...selectedEdges].every((item) => item.data?.hidden)}
+            someHidden={[...selectedNodes, ...selectedEdges].some((item) => item.data?.hidden)}
             onHide={setSelectionHidden}
             onChange={restyle}
             onStraighten={straighten}
@@ -1419,6 +1433,7 @@ export default function App() {
             }
           />
         )}
+        {hiddenListOpen && <HiddenListPanel entries={hiddenEntries(nodes, edges)} onUnhide={unhideListed} onClose={() => closePanel('hiddenList')} />}
         {lintOpen && <LintPanel findings={lint.findings} error={lint.error} targets={targets} onShow={showTarget} onClose={() => closePanel('lint')} />}
         {sampleOpen && (
           <SampleData
