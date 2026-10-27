@@ -77,9 +77,15 @@ add axioms and data constraints, check a few example instances, and hand the res
   language tags.
 - Class axioms laid out like Protégé's class description: SubClass Of, Equivalent To and Disjoint With, written
   in Manchester order with `some`, `only`, `min`, `max` and `exactly`.
+- **Compare** colours what changed since an earlier Turtle file, such as a previous export or the file you imported:
+  new classes and arrows in green, changed ones in orange, and removed ones drawn dashed in red where the file had
+  them. A list beside the canvas says what changed on each class and property.
 - Object property characteristics (functional, inverse functional, transitive, symmetric, asymmetric, reflexive,
   irreflexive), inverses and super properties.
 - Data properties on classes with an `xsd` datatype.
+- **Check ontology** lists declarations that clash (a class under two disjoint classes, a property both transitive
+  and functional), subclass and sub-property cycles, missing labels, domains and ranges, and SHACL rules about
+  classes or properties the ontology does not declare. Click a name to jump to it on the canvas.
 
 ### SHACL constraints, checked as you go
 
@@ -202,3 +208,4 @@ The code is under the [MIT License](LICENSE). The bundled Excalifont is under th
 ([licence text](public/fonts/excalifont/OFL.txt)); Shantell Sans, the fallback font, is also OFL-1.1.
 
 Its style panel options and dark mode follow [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT), and the shapes are drawn with [rough.js](https://roughjs.com) (MIT).
+The ontology checks follow the defects check of [open-ontologies](https://github.com/fabio-rovai/open-ontologies) (MIT).

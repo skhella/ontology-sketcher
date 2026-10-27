@@ -591,6 +591,96 @@ body,
   text-align: left;
 }
 
+/* The compare panel shares the property hierarchy's panel. */
+.diff-list {
+  padding: 4px 8px 8px;
+  overflow: auto;
+}
+
+.diff-list h3 {
+  margin: 8px 0 4px;
+  font-size: 15px;
+}
+
+.diff-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.diff-list li {
+  padding: 4px 0;
+  border-top: 1px dashed var(--muted);
+}
+
+.diff-entity {
+  font-size: 15px;
+}
+
+.diff-entity .muted {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.diff-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+
+.diff-list .diff-changes li {
+  padding: 0 0 0 8px;
+  border: none;
+  font-size: 13px;
+  font-family: ui-monospace, monospace;
+}
+
+.diff-plus {
+  color: #2f9e44;
+}
+
+.diff-minus {
+  color: #e03131;
+}
+
+/* Classes and arrows that are gone are drawn only: they take no clicks. */
+.react-flow__node.diff-removed,
+.react-flow__edge.diff-removed {
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.react-flow__node.diff-removed .react-flow__handle {
+  visibility: hidden;
+}
+
+.react-flow__node.diff-added::after,
+.react-flow__node.diff-changed::after,
+.react-flow__node.diff-removed::after {
+  position: absolute;
+  top: -10px;
+  right: -6px;
+  padding: 0 5px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 12px;
+}
+
+.react-flow__node.diff-added::after {
+  content: 'new';
+  background: #2f9e44;
+}
+
+.react-flow__node.diff-changed::after {
+  content: 'changed';
+  background: #f08c00;
+}
+
+.react-flow__node.diff-removed::after {
+  content: 'removed';
+  background: #e03131;
+}
+
 .sample-problems {
   margin: 0;
   padding: 0 8px 8px;
@@ -1342,4 +1432,55 @@ body,
   display: flex;
   flex-wrap: wrap;
   gap: 4px 8px;
+}
+
+/* The ontology check shares the property hierarchy's panel. */
+.lint-findings {
+  padding: 4px 8px 8px;
+  overflow: auto;
+}
+
+.lint-findings h3 {
+  margin: 8px 0 4px;
+  font-size: 15px;
+}
+
+.lint-findings .lint-error {
+  color: #e03131;
+}
+
+.lint-findings .lint-warning {
+  color: #e8590c;
+}
+
+.lint-findings ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lint-findings li {
+  padding: 4px 0;
+  border-top: 1px dashed var(--muted);
+}
+
+.lint-title {
+  font-size: 15px;
+}
+
+.lint-why {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.lint-entities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.lint-entities .muted {
+  font-size: 12px;
+  color: var(--muted);
 }

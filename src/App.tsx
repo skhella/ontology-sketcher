@@ -16,6 +16,7 @@ import {
   type HandleType,
   type OnConnectEnd,
   type OnReconnect,
+  type NodeChange,
   type NodeMouseHandler,
   type ReactFlowInstance,
 } from '@xyflow/react'
@@ -28,10 +29,13 @@ import { planImport } from './layout'
 import { newQuestion, runQuestions, type CompetencyQuestion, type QuestionResult } from './questions'
 import { QuestionsPanel } from './QuestionsPanel'
 import { localName } from './model'
+import { diffOntologies, type OntologyDiff } from './diff'
+import { canvasDiff, canvasTargets, DIFF_COLORS, GHOST, type CanvasTarget } from './diffCanvas'
+import { DiffPanel } from './DiffPanel'
 import { exportFiles, exportFilesPerPage, pageFileStems, type ExportFile, type ExportFormat } from './exportFiles'
 import { keptStatementsOf } from './keptStatements'
 import { describeOwlImport, importOwl } from './owlImport'
-import { applyShapes, describeShapesImport, importShapesToWorkspace, withShapes } from './shapesImport'
+import { applyShapes, describeShapesImport, importShapesToWorkspace, keptShapesTargeting, withShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
 import { importedOntologyIri, type ClassNode, type KeptProperty, type KeptStatement, type Namespace, type NodeKind, type RelationEdge } from './model'
 import { NamespacesContext } from './namespaceContext'
@@ -42,6 +46,9 @@ import { defaultEdge, isSkosEdge, NODE_KIND_NAMES, NODE_KIND_STYLES } from './sk
 import { ClassPages } from './inspector/ClassPages'
 import { Inspector } from './inspector/Inspector'
 import { PropertyHierarchy } from './PropertyHierarchyPanel'
+import type { Finding } from './lint'
+import { LintPanel } from './LintPanel'
+import { lintProject, lintTargets, type LintTarget } from './lintProject'
 import { propertyEntries } from './propertyHierarchy'
 import { SampleData } from './SampleData'
 import { addDetailPage, classesNotOn, linkPage, loadCanvas, mergePages, placeClass, removePage, saveCanvas, type Workspace } from './pages'
@@ -136,14 +143,25 @@ export default function App() {
   const [questionsOpen, setQuestionsOpen] = useState(false)
   const [answers, setAnswers] = useState<{ results: Map<string, QuestionResult>; running?: boolean; error?: string }>({ results: new Map() })
   const [propertiesOpen, setPropertiesOpen] = useState(false)
+  // The ontology check (see lint.ts): its findings, undefined until the first run, or why it could not run.
+  const [lintOpen, setLintOpen] = useState(false)
+  const [lint, setLint] = useState<{ findings?: Finding[]; error?: string }>({})
   const [problemClasses, setProblemClasses] = useState<string[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   // Whether hidden classes and arrows are drawn (faded) on the canvas and in SVG images; see hidden.ts.
   const [showHidden, setShowHidden] = useState(false)
+  // Comparing with an earlier file (see diff.ts): the file, the Turtle file imported this session to offer, and the result.
+  const [compareOpen, setCompareOpen] = useState(false)
+  const [baseline, setBaseline] = useState<{ name: string; text: string } | null>(null)
+  const [lastImport, setLastImport] = useState<{ name: string; text: string } | null>(null)
+  const [comparison, setComparison] = useState<{ diff?: OntologyDiff; error?: string }>({})
+  // Sizes React Flow measured for ghost classes: they are not in `nodes`, so their measurements are kept here.
+  const [ghostSizes, setGhostSizes] = useState<Record<string, { width: number; height: number }>>({})
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const drawingInput = useRef<HTMLInputElement>(null)
   const shapesInput = useRef<HTMLInputElement>(null)
+  const compareInput = useRef<HTMLInputElement>(null)
   const projectInput = useRef<HTMLInputElement>(null)
   const [theme, toggleTheme] = useTheme()
   const [helpShown, toggleHelp] = useCanvasHelp()
@@ -254,6 +272,7 @@ export default function App() {
         const added = pages.length > 1 ? ` Added ${pages.length - 1} ${pages.length === 2 ? 'page' : 'pages'}.` : ''
         const other = statements.length > 0 ? ` Kept ${statements.length} other ${statements.length === 1 ? 'statement' : 'statements'} the canvas can't show; the export writes them back.` : ''
         setNotice(describeOwlImport(result.summary) + added + other)
+        setLastImport({ name: file.name, text })
         return
       } else {
         const result = importExcalidraw(text)
@@ -308,23 +327,87 @@ export default function App() {
   const selectedNodes = nodes.filter((n) => n.selected)
   const hidden = useMemo(() => hiddenOn(nodes, edges), [nodes, edges])
   const hiddenCount = nodes.filter((n) => n.data.hidden).length + edges.filter((e) => e.data?.hidden).length
+  // While comparing, the export of every page is compared with the earlier file shortly after edits settle; a run
+  // overtaken by a newer one is dropped.
+  useEffect(() => {
+    if (!compareOpen || !baseline) return
+    let current = true
+    const timer = setTimeout(() => {
+      const ws = saveCanvas(workspace, pageId, nodes, edges)
+      exportFiles('owl', ws, ws.pages.map((p) => p.id), { iri, namespaces, kept, keptStatements })
+        .then(([owl]) => current && setComparison({ diff: diffOntologies(baseline.text, owl.text, iri) }))
+        .catch((e: unknown) => current && setComparison({ error: `Could not compare with ${baseline.name}: ${e instanceof Error ? e.message : String(e)}` }))
+    }, 400)
+    return () => {
+      current = false
+      clearTimeout(timer)
+    }
+  }, [compareOpen, baseline, workspace, pageId, nodes, edges, iri, namespaces, kept, keptStatements])
+  const onCanvas = useMemo(
+    () => (compareOpen && comparison.diff ? canvasDiff(comparison.diff, saveCanvas(workspace, pageId, nodes, edges), pageId, iri, { nodes, edges }) : undefined),
+    [compareOpen, comparison, workspace, pageId, nodes, edges, iri],
+  )
+  const compareTargets = useMemo(() => (compareOpen ? canvasTargets(saveCanvas(workspace, pageId, nodes, edges), iri, pageId) : new Map<string, CanvasTarget>()), [compareOpen, workspace, pageId, nodes, edges, iri])
+  const compareWith = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setComparison({})
+    setBaseline({ name: file.name, text: await file.text() })
+  }
+  /** Opens the page a changed class or arrow is on, selects it and brings it into view. */
+  const showChanged = ({ pageId: page, nodeId, edgeId }: CanvasTarget) => {
+    if (page !== pageId) show(saved(), page, false)
+    setNodes((ns) => ns.map((n) => (!!n.selected !== (n.id === nodeId) ? { ...n, selected: n.id === nodeId } : n)))
+    setEdges((es) => es.map((e) => (!!e.selected !== (e.id === edgeId) ? { ...e, selected: e.id === edgeId } : e)))
+    const edge = edgeId ? workspace.store.relations[edgeId] : undefined
+    const ids = nodeId ? [nodeId] : edge ? [edge.source, edge.target] : []
+    // Two frames, so a page just opened has drawn its classes before the view moves to them.
+    requestAnimationFrame(() => requestAnimationFrame(() => flow?.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.6, maxZoom: 1.2, duration: 300 })))
+  }
+
   // Classes whose sample instances break a constraint get an outline, set only on the nodes React Flow draws so it never reaches saved pages.
   // Hidden classes and arrows are left out the same way, unless hidden elements are shown.
-  const shownNodes = useMemo(
-    () =>
-      problemClasses.length === 0 && (showHidden || hidden.nodes.size === 0)
+  // While comparing, changed classes and arrows take the colour of their change, and removed ones are drawn as ghosts.
+  const shownNodes = useMemo(() => {
+    const shown =
+      problemClasses.length === 0 && (showHidden || hidden.nodes.size === 0) && !onCanvas
         ? nodes
         : nodes.map((n) => {
             const problem = problemClasses.includes(n.id)
             const out = !showHidden && hidden.nodes.has(n.id)
-            return problem || out ? { ...n, ...(problem && { className: 'has-problems' }), ...(out && { hidden: true }) } : n
-          }),
-    [nodes, problemClasses, showHidden, hidden],
+            const change = onCanvas?.nodes.get(n.id)
+            return problem || out || change
+              ? {
+                  ...n,
+                  ...(change && { className: `diff-${change}`, data: { ...n.data, style: { ...n.data.style, stroke: DIFF_COLORS[change] } } }),
+                  ...(problem && { className: 'has-problems' }),
+                  ...(out && { hidden: true }),
+                }
+              : n
+          })
+    return onCanvas ? [...shown, ...onCanvas.ghostNodes.map((g) => (ghostSizes[g.id] ? { ...g, measured: ghostSizes[g.id] } : g))] : shown
+  }, [nodes, problemClasses, showHidden, hidden, onCanvas, ghostSizes])
+  const onShownNodesChange = useCallback(
+    (changes: NodeChange<ClassNode>[]) => {
+      const sizes = changes.flatMap((c) => (c.type === 'dimensions' && c.id.startsWith(GHOST) && c.dimensions ? [[c.id, c.dimensions] as const] : []))
+      if (sizes.length > 0) setGhostSizes((current) => ({ ...current, ...Object.fromEntries(sizes) }))
+      onNodesChange(changes.filter((c) => !('id' in c) || !c.id.startsWith(GHOST)))
+    },
+    [onNodesChange],
   )
-  const shownEdges = useMemo(
-    () => (showHidden || hidden.edges.size === 0 ? edges : edges.map((e) => (hidden.edges.has(e.id) ? { ...e, hidden: true } : e))),
-    [edges, showHidden, hidden],
-  )
+  const shownEdges = useMemo(() => {
+    const shown =
+      (showHidden || hidden.edges.size === 0) && !onCanvas
+        ? edges
+        : edges.map((e) => {
+            const out = !showHidden && hidden.edges.has(e.id)
+            const change = onCanvas?.edges.get(e.id)
+            const marked = change && e.data ? markerFor({ ...e, className: `diff-${change}`, data: { ...e.data, style: { ...e.data.style, stroke: DIFF_COLORS[change] } } }) : e
+            return out ? { ...marked, hidden: true } : marked
+          })
+    return onCanvas ? [...shown, ...onCanvas.ghostEdges.map(markerFor)] : shown
+  }, [edges, showHidden, hidden, onCanvas])
   const selectClass = (id: string) => {
     setEdges((es) => es.map((e) => (e.selected ? { ...e, selected: false } : e)))
     setNodes((ns) => ns.map((n) => (!!n.selected !== (n.id === id) ? { ...n, selected: n.id === id } : n)))
@@ -448,11 +531,45 @@ export default function App() {
   // Classes from other pages that can be placed here; placing shares the class, it does not copy it.
   const placeable = useMemo(() => classesNotOn(saveCanvas(workspace, pageId, nodes, edges), pageId), [workspace, pageId, nodes, edges])
 
+  // Imported rules kept on other classes, on any page, that also target the class in the inspector.
+  const keptElsewhere = useMemo(() => {
+    const selected = nodes.filter((n) => n.selected)
+    if (selected.length !== 1 || edges.some((e) => e.selected)) return []
+    return keptShapesTargeting(iri, saveCanvas(workspace, pageId, nodes, edges).store.classes, selected[0].id)
+  }, [iri, workspace, pageId, nodes, edges])
+
   // Every property of the project for the property hierarchy, worked out only while it is open.
   const properties = useMemo(
     () => (propertiesOpen ? propertyEntries(saveCanvas(workspace, pageId, nodes, edges), { iri, kept, keptStatements }) : new Map()),
     [propertiesOpen, workspace, pageId, nodes, edges, iri, kept, keptStatements],
   )
+
+  // The check reruns shortly after edits settle while it is open; a run that finishes after a newer one started is dropped.
+  useEffect(() => {
+    if (!lintOpen) return
+    let current = true
+    const timer = setTimeout(() => {
+      lintProject(saveCanvas(workspace, pageId, nodes, edges), { iri, namespaces, kept, keptStatements })
+        .then((findings) => current && setLint({ findings }))
+        .catch((e: unknown) => current && setLint({ error: `The check could not read the ontology: ${e instanceof Error ? e.message : String(e)}` }))
+    }, 400)
+    return () => {
+      current = false
+      clearTimeout(timer)
+    }
+  }, [lintOpen, workspace, pageId, nodes, edges, iri, namespaces, kept, keptStatements])
+  const lintWhere = useMemo(() => (lintOpen ? lintTargets(saveCanvas(workspace, pageId, nodes, edges), iri, pageId) : new Map()), [lintOpen, workspace, pageId, nodes, edges, iri])
+
+  /** Opens the page a finding's class or arrow is on, selects it and brings it into view. */
+  const showTarget = ({ pageId: page, nodeId, edgeId }: LintTarget) => {
+    if (page !== pageId) show(saved(), page, false)
+    setNodes((ns) => ns.map((n) => (!!n.selected !== (n.id === nodeId) ? { ...n, selected: n.id === nodeId } : n)))
+    setEdges((es) => es.map((e) => (!!e.selected !== (e.id === edgeId) ? { ...e, selected: e.id === edgeId } : e)))
+    const edge = edgeId ? workspace.store.relations[edgeId] : undefined
+    const ids = nodeId ? [nodeId] : edge ? [edge.source, edge.target] : []
+    // Two frames, so a page just opened has drawn its classes before the view moves to them.
+    requestAnimationFrame(() => requestAnimationFrame(() => flow?.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.6, maxZoom: 1.2, duration: 300 })))
+  }
 
   const placeExisting = (event: ChangeEvent<HTMLSelectElement>) => {
     const classId = event.target.value
@@ -790,6 +907,7 @@ export default function App() {
         <input ref={fileInput} type="file" accept=".ttl,.nt,.owl,text/turtle" hidden onChange={importFile} />
         <input ref={drawingInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
         <input ref={shapesInput} type="file" accept=".ttl,text/turtle" hidden onChange={importShapesFile} />
+        <input ref={compareInput} type="file" accept=".ttl,.nt,.owl,text/turtle" hidden onChange={compareWith} />
         {placeable.length > 0 && (
           <select value="" onChange={placeExisting} aria-label="Place a class from another page">
             <option value="">Place existing class…</option>
@@ -820,14 +938,37 @@ export default function App() {
           </div>
         </details>
         <button
-          onClick={() => setPropertiesOpen((open) => !open)}
+          onClick={() => {
+            setPropertiesOpen((open) => !open)
+            setLintOpen(false)
+          }}
           aria-pressed={propertiesOpen}
           title="Object and data properties as a tree by subPropertyOf, with domain, range and the pages each is on"
         >
           Properties
         </button>
+        <button
+          onClick={() => {
+            setLintOpen((open) => !open)
+            setPropertiesOpen(false)
+          }}
+          aria-pressed={lintOpen}
+          title="Look for clashing declarations, subclass cycles, missing labels, domains and ranges, and shapes about missing classes or properties"
+        >
+          Check ontology
+        </button>
         <button onClick={() => setSampleOpen(true)} title="Check example instances against the classes' SHACL constraints">
           Check sample data
+        </button>
+        <button
+          onClick={() => {
+            setCompareOpen((open) => !open)
+            setPropertiesOpen(false)
+          }}
+          aria-pressed={compareOpen}
+          title="Compare the canvas with an earlier Turtle file and colour what was added, changed or removed"
+        >
+          Compare
         </button>
         {(hiddenCount > 0 || showHidden) && (
           <button
@@ -865,7 +1006,7 @@ export default function App() {
               edges={shownEdges}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
-              onNodesChange={onNodesChange}
+              onNodesChange={onShownNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
               onConnectEnd={onConnectEnd}
@@ -938,6 +1079,7 @@ export default function App() {
             selection={[...selectedNodes, ...selectedEdges]}
             onNodeChange={updateNode}
             onEdgeChange={updateEdge}
+            keptElsewhere={keptElsewhere}
             classPages={
               selectedNodes.length === 1 &&
               selectedEdges.length === 0 && (
@@ -1011,6 +1153,7 @@ export default function App() {
           />
         )}
         {propertiesOpen && <PropertyHierarchy entries={properties} pageId={pageId} onOpenPage={openPage} onClose={() => setPropertiesOpen(false)} />}
+        {lintOpen && <LintPanel findings={lint.findings} error={lint.error} targets={lintWhere} onShow={showTarget} onClose={() => setLintOpen(false)} />}
         {sampleOpen && (
           <SampleData
             ontology={() => ({ ...mergePages(saved(), workspace.pages.map((p) => p.id), iri), kept, keptStatements })}
@@ -1018,6 +1161,22 @@ export default function App() {
             onProblemClasses={setProblemClasses}
             onSelectClass={selectClass}
             onClose={() => setSampleOpen(false)}
+          />
+        )}
+        {compareOpen && (
+          <DiffPanel
+            baseline={baseline}
+            imported={lastImport}
+            diff={comparison.diff}
+            error={comparison.error}
+            targets={compareTargets}
+            onChooseFile={() => compareInput.current?.click()}
+            onUseImported={() => {
+              setComparison({})
+              setBaseline(lastImport)
+            }}
+            onShow={showChanged}
+            onClose={() => setCompareOpen(false)}
           />
         )}
         {exported && (
