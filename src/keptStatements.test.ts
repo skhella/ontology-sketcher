@@ -114,4 +114,19 @@ describe('keptStatementsOf', () => {
     // Statements about no single class, such as the disjointness of all three, stay.
     expect(back.some((line) => line.includes('AllDisjointClasses'))).toBe(true)
   })
+
+  it('resolves relative IRIs against the base the file is read with, so kept statements stay valid N-Triples', async () => {
+    const relative = `
+      @prefix owl: <http://www.w3.org/2002/07/owl#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+      <> a owl:Ontology ; rdfs:comment "Relative IRIs" .
+      <#Thing> a owl:Class ; rdfs:label "Thing" .
+    `
+    const base = 'http://example.org/things'
+    const result = importOwl(relative, base)
+    expect(result.iri).toBe(base + '#')
+    const statements = await keptStatementsOf(relative, { iri: result.iri, nodes: result.nodes, edges: result.edges, kept: result.kept }, base)
+    expect(statements.map((s) => s.ntriples)).toEqual([`<${base}> <http://www.w3.org/2000/01/rdf-schema#comment> "Relative IRIs" .\n`])
+    const back = new Parser().parse(await toTurtle({ ...result, keptStatements: statements }))
+    expect(back.some((q) => q.subject.value === base + '#Thing' && q.object.value === 'Thing')).toBe(true)
+  })
 })

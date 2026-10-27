@@ -8,10 +8,11 @@ import { describe } from './turtle'
  * The statements of an imported ontology that the canvas does not stand for, so the export can write them back
  * unchanged (see KeptStatement): whatever exporting the imported canvas leaves out of the file it came from.
  * A statement is a triple with a named subject, or a blank node no triple points at (such as an owl:AllDisjointClasses),
- * each with the blank nodes it uses; statements about the same subject are kept together.
+ * each with the blank nodes it uses; statements about the same subject are kept together. `sourceBase` resolves relative IRIs
+ * in the source, and must be the one the import was read with.
  */
-export async function keptStatementsOf(source: string, imported: Ontology): Promise<KeptStatement[]> {
-  const sourceStore = new Store(new Parser().parse(source))
+export async function keptStatementsOf(source: string, imported: Ontology, sourceBase?: string): Promise<KeptStatement[]> {
+  const sourceStore = new Store(new Parser({ baseIRI: sourceBase }).parse(source))
   const exported = new Store(new Parser().parse(await toTurtle(imported)))
   const written = new Set(statements(exported).map((s) => s.key))
 

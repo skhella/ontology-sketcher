@@ -308,7 +308,7 @@ export default function App() {
       return
     }
     try {
-      const { result, statements } = await importIntoProject(text, { iri, namespaces }, entry.id)
+      const { result, statements } = await importIntoProject(text, { iri, namespaces }, entry.id, entry.url)
       const id = crypto.randomUUID()
       const start = saved()
       const pages = placeImport(result, statements, { ...start, pages: [...start.pages, { id, name: entry.name, nodes: [], edges: [] }] }, id)
@@ -326,8 +326,9 @@ export default function App() {
     try {
       const text = await file.text()
       if (/\.(ttl|nt|owl|rdf)$/i.test(file.name) || !text.trimStart().startsWith('{')) {
-        const result = importOwl(text)
-        const statements = await keptStatementsOf(text, { iri: result.iri, nodes: result.nodes, edges: result.edges, kept: result.kept })
+        // A file read from disk has no URL, so relative IRIs in it (such as <#Thing>) resolve against the project's IRI.
+        const result = importOwl(text, iri)
+        const statements = await keptStatementsOf(text, { iri: result.iri, nodes: result.nodes, edges: result.edges, kept: result.kept }, iri)
         if (nodes.length > 0 && !window.confirm(`Replace this page with ${file.name}? Classes already on it keep their place.`)) return
         const pages = placeImport(result, statements, saved(), pageId)
         const added = pages > 1 ? ` Added ${pages - 1} ${pages === 2 ? 'page' : 'pages'}.` : ''

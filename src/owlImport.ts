@@ -118,15 +118,18 @@ const STRUCTURAL = new Set([
   ...MAPPING_KINDS.map((k) => SKOS + k),
 ])
 
-/** Parses Turtle and converts it, see the module comment. Throws with a readable message on files it cannot read. */
-export function importOwl(text: string): OwlImportResult {
+/**
+ * Parses Turtle and converts it, see the module comment. Throws with a readable message on files it cannot read.
+ * Relative IRIs (such as `<#Thing>`) resolve against `base`, e.g. the URL the file came from.
+ */
+export function importOwl(text: string, base?: string): OwlImportResult {
   if (/^\s*(<\?xml|<rdf:RDF)/.test(text)) {
     throw new Error('This is RDF/XML. Save it as Turtle first (in Protégé: File > Save as > Turtle Syntax).')
   }
   const prefixes: Record<string, string> = {}
   let quads: Quad[]
   try {
-    quads = new Parser().parse(text, null, (prefix, iri) => {
+    quads = new Parser({ baseIRI: base }).parse(text, null, (prefix, iri) => {
       prefixes[prefix] = iri.value
     })
   } catch (error) {
