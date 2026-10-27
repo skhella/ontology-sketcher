@@ -80,6 +80,9 @@ add axioms and data constraints, check a few example instances, and hand the res
 - Object property characteristics (functional, inverse functional, transitive, symmetric, asymmetric, reflexive,
   irreflexive), inverses and super properties.
 - Data properties on classes with an `xsd` datatype.
+- **Check ontology** lists declarations that clash (a class under two disjoint classes, a property both transitive
+  and functional), subclass and sub-property cycles, missing labels, domains and ranges, and SHACL rules about
+  classes or properties the ontology does not declare. Click a name to jump to it on the canvas.
 
 ### SHACL constraints, checked as you go
 
@@ -199,3 +202,4 @@ The code is under the [MIT License](LICENSE). The bundled Excalifont is under th
 ([licence text](public/fonts/excalifont/OFL.txt)); Shantell Sans, the fallback font, is also OFL-1.1.
 
 Its style panel options and dark mode follow [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT), and the shapes are drawn with [rough.js](https://roughjs.com) (MIT).
+The ontology checks follow the defects check of [open-ontologies](https://github.com/fabio-rovai/open-ontologies) (MIT).
