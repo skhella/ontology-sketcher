@@ -25,7 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { describeImport, importExcalidraw } from './excalidraw'
 import { hiddenOn, withoutHidden } from './hidden'
 import { record, redo, startHistory, undo, type History } from './history'
-import { planImport } from './layout'
+import { nodeIri, planImport } from './layout'
 import { newQuestion, runQuestions, type CompetencyQuestion, type QuestionResult } from './questions'
 import { QuestionsPanel } from './QuestionsPanel'
 import { InferredSuperclasses } from './inspector/InferredSuperclasses'
@@ -57,7 +57,7 @@ import { Inspector } from './inspector/Inspector'
 import { PropertyHierarchy } from './PropertyHierarchyPanel'
 import { HiddenPanel } from './HiddenPanel'
 import { hiddenItems } from './hiddenItems'
-import { editKeptTriple, editNaming } from './keptEdit'
+import { editKeptTriple, editNaming, renameInKept } from './keptEdit'
 import type { Finding } from './lint'
 import { LintPanel } from './LintPanel'
 import { lintProject } from './lintProject'
@@ -258,7 +258,7 @@ export default function App() {
 
   const renameClass: NodeMouseHandler<ClassNode> = (_, node) => {
     const label = window.prompt(`${NODE_KIND_NAMES[node.data.kind ?? 'class']} name`, node.data.label)
-    if (label) setNodes((ns) => ns.map((n) => (n.id === node.id ? { ...n, data: { ...n.data, label } } : n)))
+    if (label) updateNode(node.id, { label })
   }
 
   // Double-click an edge: enter a property name to make it an object property, or leave empty for subClassOf.
@@ -563,8 +563,35 @@ export default function App() {
     )
   }
 
-  const updateNode = (id: string, patch: Partial<ClassNode['data']>) =>
+  // Where what an import kept about each box lives: its IRI when the statements last moved, see followRename.
+  const keptAnchors = useRef(new Map<string, string>())
+  /**
+   * Moves what an import kept about a box to its new IRI when a rename (or an IRI or namespace edit) changes it. A name
+   * typed letter by letter can pass through another class's IRI (Cat on the way to Cats); the statements then wait at
+   * the box's last own IRI, so they never mix with that class's.
+   */
+  const followRename = (node: ClassNode, data: ClassNode['data']) => {
+    const before = nodeIri(iri, node)
+    const after = nodeIri(iri, { ...node, data })
+    if (before === after) return
+    const anchor = keptAnchors.current.get(node.id) ?? before
+    const elsewhere = [
+      ...nodes.filter((n) => n.id !== node.id).map((n) => nodeIri(iri, n)),
+      ...Object.entries(workspace.store.classes).filter(([id]) => id !== node.id).map(([, c]) => entityIri(iri, c, localName(c.label))),
+    ]
+    if (elsewhere.includes(after)) {
+      keptAnchors.current.set(node.id, anchor)
+      return
+    }
+    keptAnchors.current.set(node.id, after)
+    if (anchor !== after) setKeptStatements((ks) => renameInKept(ks, anchor, after))
+  }
+
+  const updateNode = (id: string, patch: Partial<ClassNode['data']>) => {
+    const node = nodes.find((n) => n.id === id)
+    if (node) followRename(node, { ...node.data, ...patch })
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
+  }
 
   const updateEdge = (id: string, patch: Partial<NonNullable<RelationEdge['data']>>) =>
     setEdges((es) => es.map((e) => (e.id === id && e.data ? markerFor({ ...e, data: { ...e.data, ...patch } }) : e)))
