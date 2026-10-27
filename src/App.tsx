@@ -36,7 +36,7 @@ import { projectNames } from './projectNames'
 import { removeTextAxiom, setTextAxiom, textAxioms, type TextAxiom } from './textAxioms'
 import { shortName } from './vocab'
 import { diffOntologies, type EntityDiff, type OntologyDiff } from './diff'
-import { canvasDiff, DIFF_COLORS, GHOST, pagesOnlyInFile } from './diffCanvas'
+import { canvasDiff, DIFF_COLORS, focusAround, GHOST, pagesOnlyInFile } from './diffCanvas'
 import { canvasTargets, type CanvasTarget } from './canvasTargets'
 import { DiffPanel } from './DiffPanel'
 import { exportFiles, exportFilesPerPage, pageFileStems, type ExportFile, type ExportFormat } from './exportFiles'
@@ -80,6 +80,10 @@ import { FloatingPanel } from './FloatingPanel'
 
 const nodeTypes = { owlClass: ClassNodeView }
 const NO_CHANGES = new Map<string, EntityDiff>()
+
+/** Classes or arrows not in `focus`, faded while comparing; see focusAround. */
+const fadeOutside = <T extends { id: string; className?: string }>(focus: Set<string> | undefined, items: T[]) =>
+  focus ? items.map((i) => (focus.has(i.id) ? i : { ...i, className: `${i.className ?? ''} diff-unfocused` })) : items
 const edgeTypes = { relation: RelationEdgeView }
 // Shift-click adds a class or arrow to the selection, or takes it out again; Ctrl and Cmd do the same.
 const MULTI_SELECT_KEYS = ['Shift', 'Meta', 'Control']
@@ -412,10 +416,6 @@ export default function App() {
     () => (compareOpen && comparison.diff ? canvasDiff(comparison.diff, saveCanvas(workspace, pageId, nodes, edges), pageId, iri, { nodes, edges }, fileIsNewer) : undefined),
     [compareOpen, comparison, workspace, pageId, nodes, edges, iri, fileIsNewer],
   )
-  const diffBadges = useMemo<DiffBadges>(
-    () => ({ changes: onCanvas?.changes ?? NO_CHANGES, open: openChanges, setOpen: setOpenChanges }),
-    [onCanvas, openChanges],
-  )
   const compareWith = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
@@ -549,7 +549,20 @@ export default function App() {
         ),
     )
   }, [showInferred, reasoning, nodes, classIri])
-  const canvasEdges = useMemo(() => (inferredEdges.length > 0 ? [...shownEdges, ...inferredEdges] : shownEdges), [shownEdges, inferredEdges])
+  // While one class's or arrow's changes are open, everything but it and its first neighbours is faded; see focusAround.
+  const focus = useMemo(
+    () => (onCanvas && openChanges ? focusAround(openChanges, shownNodes, shownEdges) : undefined),
+    [onCanvas, openChanges, shownNodes, shownEdges],
+  )
+  const canvasNodes = useMemo(() => fadeOutside(focus, shownNodes), [shownNodes, focus])
+  const canvasEdges = useMemo(
+    () => fadeOutside(focus, inferredEdges.length > 0 ? [...shownEdges, ...inferredEdges] : shownEdges),
+    [shownEdges, inferredEdges, focus],
+  )
+  const diffBadges = useMemo<DiffBadges>(
+    () => ({ changes: onCanvas?.changes ?? NO_CHANGES, open: openChanges, setOpen: setOpenChanges, focus }),
+    [onCanvas, openChanges, focus],
+  )
 
   // A selection box takes every arrow touching a class inside it; like Excalidraw, keep only the arrows with both ends inside.
   const keepEdgesInsideSelection = () => {
@@ -1211,7 +1224,7 @@ export default function App() {
           <PageLinksContext.Provider value={pageLinks}>
             <DiffBadgeContext.Provider value={diffBadges}>
             <ReactFlow
-              nodes={shownNodes}
+              nodes={canvasNodes}
               edges={canvasEdges}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
@@ -1464,7 +1477,7 @@ export default function App() {
             }}
             onShow={(target) => {
               showTarget(target)
-              setOpenChanges(target.nodeId ?? null)
+              setOpenChanges(target.nodeId ?? target.edgeId ?? null)
             }}
             onClose={() => closePanel('compare')}
           />

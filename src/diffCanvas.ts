@@ -136,3 +136,21 @@ export function pagesOnlyInFile(diff: OntologyDiff, ws: Workspace, fileIsNewer =
   const names = new Set(ws.pages.map((p) => p.name))
   return pages.filter((p) => !names.has(p.name) && p.nodes.some((n) => ghosts.has(n.iri))).map((p) => p.name)
 }
+
+/**
+ * What stays clear while the changes of one class or arrow are open: a class with its arrows and the classes at their
+ * other ends, or an arrow with its two classes. Ghosts count like anything else drawn. Undefined when `id` is not drawn.
+ */
+export function focusAround(id: string, nodes: { id: string }[], edges: { id: string; source: string; target: string }[]): Set<string> | undefined {
+  const edge = edges.find((e) => e.id === id)
+  if (edge) return new Set([edge.id, edge.source, edge.target])
+  if (!nodes.some((n) => n.id === id)) return undefined
+  const focus = new Set([id])
+  for (const e of edges) {
+    if (e.source !== id && e.target !== id) continue
+    focus.add(e.id)
+    focus.add(e.source)
+    focus.add(e.target)
+  }
+  return focus
+}
