@@ -85,8 +85,8 @@ export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pa
               </span>
             ))}
             <span>
-              The open page is coloured; names on other pages say which page. {fileIsNewer ? 'Added' : 'Removed'} classes show dashed where the file
-              drew them, when it was exported from here.
+              Click an underlined name to go to it on the canvas and see what changed there. Only the open page is coloured.{' '}
+              {fileIsNewer ? 'Added' : 'Removed'} classes show dashed where the file drew them, when it was exported from here.
             </span>
           </p>
           {filePages.length > 0 && (
@@ -118,15 +118,18 @@ export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pa
                           <li key={e.iri}>
                             <div className="diff-entity">
                               {target ? (
-                                <button className="page-chip" title={e.iri} onClick={() => onShow(target)}>
-                                  {e.label}
+                                <button className="diff-jump" title={`Go to ${e.label} on the canvas (${e.iri})`} onClick={() => onShow(target)}>
+                                  {e.label} ↗
                                 </button>
                               ) : (
-                                <span title={e.iri}>{e.label}</span>
+                                <span title={`${e.iri}: ${e.status === (fileIsNewer ? 'added' : 'removed') ? 'only in the file' : 'not drawn on any page'}, so there is nothing to go to`}>
+                                  {e.label}
+                                </span>
                               )}{' '}
                               <span className="muted">
                                 {e.kind === 'other' ? '' : e.kind}
                                 {target && target.pageId !== pageId && ` · on ${pageNames.get(target.pageId) ?? 'another page'}`}
+                                {!target && (e.status === (fileIsNewer ? 'added' : 'removed') ? ' · only in the file' : ' · not drawn on any page')}
                               </span>
                             </div>
                             <ul className="diff-changes">
