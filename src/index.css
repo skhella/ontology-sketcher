@@ -534,6 +534,39 @@ body,
   color: var(--accent);
 }
 
+.hidden-list .hidden-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 8px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.hidden-list .hidden-row:first-of-type {
+  margin-top: 6px;
+}
+
+.hidden-list .hidden-row .muted {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.hidden-items {
+  margin: 0;
+  padding: 0 0 0 14px;
+  overflow: auto;
+  list-style: none;
+}
+
+.hidden-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+}
+
 .questions {
   margin: 0;
   padding: 6px 8px 0 28px;

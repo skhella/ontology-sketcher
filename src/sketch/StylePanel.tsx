@@ -21,13 +21,15 @@ type Props = {
   bentEdges: number
   /** True when everything selected is hidden on this page; the button then unhides instead. */
   hidden: boolean
+  /** True when some of what is selected is hidden; a mixed selection gets an Unhide button beside Hide. */
+  someHidden: boolean
   onHide: (hide: boolean) => void
   onChange: (patch: SketchStyle) => void
   onStraighten: () => void
 }
 
 /** Excalidraw-style properties panel for the selected nodes and edges. */
-export function StylePanel({ current, edgesOnly, bentEdges, hidden, onHide, onChange, onStraighten }: Props) {
+export function StylePanel({ current, edgesOnly, bentEdges, hidden, someHidden, onHide, onChange, onStraighten }: Props) {
   const s = { ...(edgesOnly ? EDGE_DEFAULTS : NODE_DEFAULTS), ...current }
 
   return (
@@ -108,6 +110,11 @@ export function StylePanel({ current, edgesOnly, bentEdges, hidden, onHide, onCh
         >
           {hidden ? 'Unhide' : 'Hide'}
         </button>
+        {someHidden && !hidden && (
+          <button className="text-option" onClick={() => onHide(false)} title="Draw the hidden ones among the selection on this page again">
+            Unhide
+          </button>
+        )}
       </Section>
 
       {bentEdges > 0 && (
