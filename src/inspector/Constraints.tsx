@@ -11,6 +11,8 @@ type Props = {
   closed: boolean
   /** Imported shapes the rows can't hold, as Turtle. */
   extra?: string
+  /** Imported rules kept on other classes that also target this one, see keptShapesTargeting. */
+  keptElsewhere?: { label: string; shapes: string[] }[]
   nodes: ClassNode[]
   edges: RelationEdge[]
   onChange: (constraints: PropertyConstraint[]) => void
@@ -22,7 +24,7 @@ type Props = {
  * SHACL constraints on the class: per property, how many values its instances must have and of what type.
  * They export as a node shape targeting this class, see shacl.ts.
  */
-export function Constraints({ nodeId, constraints, closed, extra, nodes, edges, onChange, onClosedChange, onRemoveExtra }: Props) {
+export function Constraints({ nodeId, constraints, closed, extra, keptElsewhere = [], nodes, edges, onChange, onClosedChange, onRemoveExtra }: Props) {
   // The class "Suggest from ontology" last found nothing new for, to say so under the button.
   const [nothingNewFor, setNothingNewFor] = useState<string | null>(null)
   // Edges with the same label are one property; offer each once, by its first edge.
@@ -224,6 +226,19 @@ export function Constraints({ nodeId, constraints, closed, extra, nodes, edges, 
           <button className="remove-extra" onClick={onRemoveExtra}>
             Remove them
           </button>
+        </details>
+      )}
+      {keptElsewhere.length > 0 && (
+        <details className="extra-shapes">
+          <summary>Imported rules kept on another class that also apply here</summary>
+          <p className="muted">They target this class too. Each is kept and exported once, on the class named; edit or remove it there.</p>
+          <ul>
+            {keptElsewhere.map((k) => (
+              <li key={k.label}>
+                {k.shapes.join(', ')} <span className="muted">(on {k.label})</span>
+              </li>
+            ))}
+          </ul>
         </details>
       )}
       <div className="constraint-actions">

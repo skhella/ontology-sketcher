@@ -28,7 +28,7 @@ import { planImport } from './layout'
 import { exportFiles, exportFilesPerPage, pageFileStems, type ExportFile, type ExportFormat } from './exportFiles'
 import { keptStatementsOf } from './keptStatements'
 import { describeOwlImport, importOwl } from './owlImport'
-import { applyShapes, describeShapesImport, importShapesToWorkspace, withShapes } from './shapesImport'
+import { applyShapes, describeShapesImport, importShapesToWorkspace, keptShapesTargeting, withShapes } from './shapesImport'
 import logoSvg from '../docs/logo-light.svg?raw'
 import { importedOntologyIri, type ClassNode, type KeptProperty, type KeptStatement, type Namespace, type NodeKind, type RelationEdge } from './model'
 import { NamespacesContext } from './namespaceContext'
@@ -440,6 +440,13 @@ export default function App() {
 
   // Classes from other pages that can be placed here; placing shares the class, it does not copy it.
   const placeable = useMemo(() => classesNotOn(saveCanvas(workspace, pageId, nodes, edges), pageId), [workspace, pageId, nodes, edges])
+
+  // Imported rules kept on other classes, on any page, that also target the class in the inspector.
+  const keptElsewhere = useMemo(() => {
+    const selected = nodes.filter((n) => n.selected)
+    if (selected.length !== 1 || edges.some((e) => e.selected)) return []
+    return keptShapesTargeting(iri, saveCanvas(workspace, pageId, nodes, edges).store.classes, selected[0].id)
+  }, [iri, workspace, pageId, nodes, edges])
 
   // Every property of the project for the property hierarchy, worked out only while it is open.
   const properties = useMemo(
@@ -903,6 +910,7 @@ export default function App() {
             selection={[...selectedNodes, ...selectedEdges]}
             onNodeChange={updateNode}
             onEdgeChange={updateEdge}
+            keptElsewhere={keptElsewhere}
             classPages={
               selectedNodes.length === 1 &&
               selectedEdges.length === 0 && (

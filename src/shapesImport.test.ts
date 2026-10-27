@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { sampleOntology, type ClassNode, type Ontology } from './model'
 import { toShaclTurtle } from './shacl'
 import { loadCanvas, workspaceFrom } from './pages'
-import { applyShapes, describeShapesImport, importShapes, importShapesToWorkspace } from './shapesImport'
+import { applyShapes, describeShapesImport, importShapes, importShapesToWorkspace, keptShapesTargeting } from './shapesImport'
 import { parseTurtle } from './turtle'
 import { validateData } from './validate'
 
@@ -112,6 +112,24 @@ describe('importShapes', () => {
     const next = applyShapes(ws, result)
     expect(loadCanvas(next, first.pageId).nodes.find((n) => n.id === 'pizza')!.data.constraints).toEqual([{ path: { type: 'data', name: 'name' }, maxCount: 1 }])
     expect(loadCanvas(next, 'second').nodes[0].data.extraShapes).toContain('closed')
+  })
+
+  it('lists a kept shape on every class it targets, not just the one keeping it', async () => {
+    const result = await importShapes(
+      HEADER + `ex:Both a sh:NodeShape ; sh:targetClass :Pizza , :Topping ; sh:severity sh:Warning ; sh:property [ sh:path :name ; sh:minCount 1 ] .`,
+      base.iri,
+      base.nodes,
+      base.edges,
+    )
+    expect(result.kept).toBe(1)
+    const keeper = [...result.classes.keys()][0]
+    const other = keeper === 'pizza' ? 'topping' : 'pizza'
+    const classes = Object.fromEntries(
+      base.nodes.map((n) => [n.id, result.classes.has(n.id) ? { ...n.data, extraShapes: result.classes.get(n.id)!.extra } : n.data]),
+    )
+    const keeperLabel = base.nodes.find((n) => n.id === keeper)!.data.label
+    expect(keptShapesTargeting(base.iri, classes, other)).toEqual([{ label: keeperLabel, shapes: ['Both'] }])
+    expect(keptShapesTargeting(base.iri, classes, keeper)).toEqual([])
   })
 
   it('reports Turtle errors', async () => {
