@@ -76,6 +76,7 @@ import { useCanvasHelp } from './canvasHelp'
 import { dotEndpoint, sized, toSvg } from './svgExport'
 import { excalifontCss, excalifontMeasure, handleEndpoint } from './svgBrowser'
 import { zip } from './zip'
+import { FloatingPanel } from './FloatingPanel'
 
 const nodeTypes = { owlClass: ClassNodeView }
 const NO_CHANGES = new Map<string, EntityDiff>()
@@ -1411,7 +1412,7 @@ export default function App() {
           />
         )}
         {libraryOpen && (
-          <aside className="property-hierarchy" aria-label="Standard ontologies">
+          <FloatingPanel name="library" className="property-hierarchy" aria-label="Standard ontologies">
             <div className="export-actions">
               <strong>Standard ontologies</strong>
               <button onClick={() => closePanel('library')}>Close</button>
@@ -1430,7 +1431,7 @@ export default function App() {
                 </li>
               ))}
             </ul>
-          </aside>
+          </FloatingPanel>
         )}
         {compareOpen && (
           <DiffPanel

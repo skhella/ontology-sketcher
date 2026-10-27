@@ -4,6 +4,7 @@ import { KeptPropertyEditor, StatementsEditor, type Naming } from './HiddenEdito
 import type { HiddenEntry, HiddenItems, HiddenLine } from './hiddenItems'
 import type { KeptTriple } from './keptEdit'
 import type { KeptProperty } from './model'
+import { FloatingPanel } from './FloatingPanel'
 
 type Props = {
   items: HiddenItems
@@ -71,7 +72,7 @@ export function HiddenPanel({ items, targets, onShow, onClose, edit }: Props) {
   const individualCount = individuals.reduce((n, g) => n + g.entries.length, 0)
 
   return (
-    <aside className="property-hierarchy hidden-panel" aria-label="Not on the canvas">
+    <FloatingPanel name="hidden" className="property-hierarchy hidden-panel" aria-label="Not on the canvas">
       <div className="export-actions">
         <strong>Not on the canvas</strong>
         <button onClick={onClose}>Close</button>
@@ -131,7 +132,7 @@ export function HiddenPanel({ items, targets, onShow, onClose, edit }: Props) {
           </div>
         </>
       )}
-    </aside>
+    </FloatingPanel>
   )
 }
 

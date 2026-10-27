@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { propertyTrees, type PropertyEntry, type PropertyTree } from './propertyHierarchy'
+import { FloatingPanel } from './FloatingPanel'
 
 type Props = {
   entries: Map<string, PropertyEntry>
@@ -15,7 +16,7 @@ export function PropertyHierarchy({ entries, pageId, onOpenPage, onClose }: Prop
   const count = (k: PropertyEntry['kind']) => [...entries.values()].filter((e) => e.kind === k && !e.outside).length
 
   return (
-    <aside className="property-hierarchy" aria-label="Property hierarchy">
+    <FloatingPanel name="properties" className="property-hierarchy" aria-label="Property hierarchy">
       <div className="export-actions">
         <strong>Properties</strong>
         <button onClick={onClose}>Close</button>
@@ -39,7 +40,7 @@ export function PropertyHierarchy({ entries, pageId, onOpenPage, onClose }: Prop
           ))}
         </ul>
       )}
-    </aside>
+    </FloatingPanel>
   )
 }
 

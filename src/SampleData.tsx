@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ClassNode, Ontology } from './model'
 import type { ValidationResult } from './validate'
 import { shortName } from './vocab'
+import { FloatingPanel } from './FloatingPanel'
 
 type Props = {
   /** The whole ontology, all pages, at the moment of checking. */
@@ -49,7 +50,7 @@ export function SampleData({ ontology, nodes, onProblemClasses, onSelectClass, o
   const hasRules = nodes.some((n) => !!n.data.constraints?.length)
 
   return (
-    <aside className="sample-data" aria-label="Sample data">
+    <FloatingPanel name="sample-data" className="sample-data" aria-label="Sample data">
       <div className="export-actions">
         <strong>Sample data</strong>
         <button onClick={check} disabled={checking || !text.trim()}>
@@ -77,6 +78,6 @@ export function SampleData({ ontology, nodes, onProblemClasses, onSelectClass, o
           ))}
         </ul>
       )}
-    </aside>
+    </FloatingPanel>
   )
 }

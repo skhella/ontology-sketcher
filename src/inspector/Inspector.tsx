@@ -10,6 +10,7 @@ import { IndividualDetails, type IndividualChoices } from './IndividualDetails'
 import type { TextAxiomEditing } from './TextAxioms'
 import { DataProperties, ObjectPropertyDetails } from './PropertyDetails'
 import { ANNOTATION_DESCRIPTIONS, ANNOTATION_PROPERTIES, compactIri, expandIri, RDFS_COMMENT, SKOS_ANNOTATION_PROPERTIES, SKOS_DEFINITION } from '../vocab'
+import { FloatingPanel } from '../FloatingPanel'
 
 type Props = {
   base: string
@@ -37,9 +38,9 @@ type Props = {
 export function Inspector({ base, namespaces, nodes, edges, selection, onNodeChange, onEdgeChange, classPages, inferred, keptElsewhere, individualChoices, textAxioms }: Props) {
   if (selection.length !== 1) {
     return (
-      <aside className="inspector" aria-label="Inspector">
+      <FloatingPanel name="inspector" mode="width" className="inspector" aria-label="Inspector">
         <p className="muted">{selection.length} items selected. Select one class or edge to edit it.</p>
-      </aside>
+      </FloatingPanel>
     )
   }
 
@@ -51,7 +52,7 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
     // Concepts and schemes are individuals, so class axioms and constraints only offer classes.
     const classes = nodes.filter((n) => !n.data.kind)
     return (
-      <aside className="inspector" aria-label="Inspector">
+      <FloatingPanel name="inspector" mode="width" className="inspector" aria-label="Inspector">
         <h2>{NODE_KIND_NAMES[kind ?? 'class']}</h2>
         <EntityFields
           base={base}
@@ -107,7 +108,7 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
           </>
         )}
         {classPages}
-      </aside>
+      </FloatingPanel>
     )
   }
 
@@ -123,13 +124,13 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
 
   if (data.kind === 'instanceOf') {
     return (
-      <aside className="inspector" aria-label="Inspector">
+      <FloatingPanel name="inspector" mode="width" className="inspector" aria-label="Inspector">
         <h2>{EDGE_TITLES[data.kind]}</h2>
         <p className="axiom">
           {labelOf(edge.source)} <span className="keyword">rdf:type</span> {labelOf(edge.target)}
         </p>
         <p className="muted">The individual is an instance of this class. Delete the arrow to take it out of the class.</p>
-      </aside>
+      </FloatingPanel>
     )
   }
 
@@ -141,7 +142,7 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
   }
 
   return (
-    <aside className="inspector" aria-label="Inspector">
+    <FloatingPanel name="inspector" mode="width" className="inspector" aria-label="Inspector">
       <h2>{EDGE_TITLES[data.kind]}</h2>
       <Field label="Edge type" group>
         <div className="segmented">
@@ -187,7 +188,7 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
           )}
         </>
       )}
-    </aside>
+    </FloatingPanel>
   )
 }
 
