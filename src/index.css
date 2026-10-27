@@ -20,6 +20,7 @@
   --surface: white;
   --hover: #e7f5ff;
   --muted: #6c6c6c;
+  --inferred: #7048e8;
   --line: #d0d0d0;
   --notice: #fff9db;
 }
@@ -39,6 +40,7 @@
   --surface: #232329;
   --hover: #31303b;
   --muted: #a0a0a8;
+  --inferred: #9775fa;
   --line: #4a4a52;
   --notice: #3b3517;
 }
@@ -1135,6 +1137,22 @@ body,
   margin: 8px 0 0;
   padding: 0;
   border: none;
+}
+
+.inspector .axioms.inferred summary {
+  cursor: pointer;
+  color: var(--inferred);
+}
+
+.inspector .axioms.inferred ul {
+  margin: 0 0 4px;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.inspector .axioms.inferred p {
+  margin: 2px 0;
+  font-size: 13px;
 }
 
 .inspector .axioms legend {
