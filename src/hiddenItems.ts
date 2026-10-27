@@ -1,10 +1,14 @@
 import { Parser, Store, type Quad, type Term } from 'n3'
 import { listItems, manchester } from './manchester'
+import type { KeptTriple } from './keptEdit'
 import type { KeptProperty, KeptStatement } from './model'
 import { OWL, RDF, RDFS, XSD, shortName } from './vocab'
 
-/** One statement as the panel writes it: `value` is text, `iri` the IRI it names when there is one to go to. */
-export type HiddenLine = { predicate: string; value: string; iri?: string }
+/**
+ * One statement as the panel writes it: `value` is text, `iri` the IRI it names when there is one to go to.
+ * `edit` is the statement itself, for a plain one (named subject, IRI or literal object) the panel can change.
+ */
+export type HiddenLine = { predicate: string; value: string; iri?: string; edit?: KeptTriple }
 /** A subject the canvas does not show (or not all of): its name, its IRI when it has one, and what is said about it. */
 export type HiddenEntry = { iri?: string; name: string; lines: HiddenLine[] }
 
@@ -107,7 +111,16 @@ const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompar
 function linesOf(store: Store, quads: Quad[], name: (iri: string) => string, all = false): HiddenLine[] {
   return quads
     .filter((q) => all || q.predicate.value !== TYPE || ![OWL + 'NamedIndividual'].includes(q.object.value))
-    .map((q) => ({ predicate: q.predicate.value === TYPE ? 'a' : name(q.predicate.value), ...valueOf(store, q.object, name) }))
+    .map((q) => ({ predicate: q.predicate.value === TYPE ? 'a' : name(q.predicate.value), ...valueOf(store, q.object, name), ...editOf(q) }))
+}
+
+function editOf(q: Quad): { edit?: KeptTriple } {
+  if (q.subject.termType !== 'NamedNode') return {}
+  const base = { subject: q.subject.value, predicate: q.predicate.value }
+  if (q.object.termType === 'NamedNode') return { edit: { ...base, object: { kind: 'iri', value: q.object.value } } }
+  if (q.object.termType !== 'Literal') return {}
+  const { value, language, datatype } = q.object
+  return { edit: { ...base, object: { kind: 'literal', value, ...(language ? { lang: language } : datatype.value !== XSD + 'string' && { datatype: datatype.value }) } } }
 }
 
 function valueOf(store: Store, term: Term, name: (iri: string) => string): { value: string; iri?: string } {
