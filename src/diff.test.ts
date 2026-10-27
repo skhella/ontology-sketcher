@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { diffOntologies } from './diff'
-import { canvasDiff, GHOST } from './diffCanvas'
+import { diffOntologies, type OntologyDiff } from './diff'
+import { canvasDiff, GHOST, pagesOnlyInFile } from './diffCanvas'
 import { saveLayout } from './layout'
 import { sampleOntology, type Ontology } from './model'
 import { toTurtle } from './owl'
-import { workspaceFrom } from './pages'
+import { workspaceFrom, type Workspace } from './pages'
 
 const P = 'http://example.org/pizza#'
 
@@ -95,5 +95,27 @@ describe('canvasDiff', () => {
     expect([...shown.changes.keys()].sort()).toEqual(['cheese', GHOST + P + 'Margherita', 'pizza'].sort())
     expect(shown.changes.get('pizza')).toBe(diff.entities.find((e) => e.label === 'Pizza'))
     expect(shown.changes.get(GHOST + P + 'Margherita')?.status).toBe('removed')
+  })
+})
+
+describe('pagesOnlyInFile', () => {
+  const plant = { iri: P + 'Plant', label: 'Plant', kind: 'class' as const, changes: [] }
+  const layout = {
+    version: 1 as const,
+    pages: [
+      { name: 'Page 1', nodes: [], edges: [] },
+      { name: 'Plants', nodes: [{ iri: P + 'Plant', x: 0, y: 0 }], edges: [] },
+      { name: 'Empty', nodes: [], edges: [] },
+    ],
+  }
+  const ws = { pages: [{ id: 'a', name: 'Page 1', nodes: [], edges: [] }] } as unknown as Workspace
+
+  it('names the file pages the canvas lacks that hold classes only the file has', () => {
+    const older: OntologyDiff = { entities: [{ ...plant, status: 'removed' }], arrows: [], oldLayout: layout }
+    expect(pagesOnlyInFile(older, ws)).toEqual(['Plants'])
+    const newer: OntologyDiff = { entities: [{ ...plant, status: 'added' }], arrows: [], newLayout: layout }
+    expect(pagesOnlyInFile(newer, ws, true)).toEqual(['Plants'])
+    // Read as the older file, there is no earlier layout to draw ghosts from.
+    expect(pagesOnlyInFile(newer, ws)).toEqual([])
   })
 })
