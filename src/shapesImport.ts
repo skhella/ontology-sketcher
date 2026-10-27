@@ -208,6 +208,32 @@ export function applyShapes(workspace: Workspace, { classes }: ShapesImport): Wo
   return { ...workspace, store: { ...workspace.store, classes: store } }
 }
 
+/**
+ * Kept shapes stored on other classes that also target class `classId`, by the class keeping them.
+ * The importer keeps a shape it can't split once, on the first class it targets, so the others list it from here.
+ */
+export function keptShapesTargeting(base: string, classes: Record<string, ClassEntity>, classId: string): { label: string; shapes: string[] }[] {
+  const target = classes[classId]
+  if (!target) return []
+  const iri = namedNode(entityIri(base, target, localName(target.label)))
+  // Turtle that names the class has its IRI's last part in it, so only that is parsed: this runs as the canvas changes.
+  const last = iri.value.split(/[#/]/).pop() || iri.value
+  const found: { label: string; shapes: string[] }[] = []
+  for (const [id, c] of Object.entries(classes)) {
+    if (id === classId || !c.extraShapes?.includes(last)) continue
+    let shapes: string[]
+    try {
+      shapes = parseTurtle(c.extraShapes, base)
+        .store.getSubjects(namedNode(SH + 'targetClass'), iri, null)
+        .map((s) => (s.termType === 'NamedNode' ? shortName(s.value) : 'An unnamed shape'))
+    } catch {
+      continue
+    }
+    if (shapes.length > 0) found.push({ label: c.label, shapes })
+  }
+  return found
+}
+
 /** One line for the notice after an import. */
 export function describeShapesImport({ classes, rows, kept, skipped }: ShapesImport): string {
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
