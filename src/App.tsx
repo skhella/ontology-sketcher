@@ -39,6 +39,9 @@ import { defaultEdge, isSkosEdge, NODE_KIND_NAMES, NODE_KIND_STYLES } from './sk
 import { ClassPages } from './inspector/ClassPages'
 import { Inspector } from './inspector/Inspector'
 import { PropertyHierarchy } from './PropertyHierarchyPanel'
+import type { Finding } from './lint'
+import { LintPanel } from './LintPanel'
+import { lintProject, lintTargets, type LintTarget } from './lintProject'
 import { propertyEntries } from './propertyHierarchy'
 import { SampleData } from './SampleData'
 import { addDetailPage, classesNotOn, linkPage, loadCanvas, mergePages, placeClass, removePage, saveCanvas, type Workspace } from './pages'
@@ -129,6 +132,9 @@ export default function App() {
   // The sample data panel, and the classes whose instances in it break a constraint (outlined on the canvas).
   const [sampleOpen, setSampleOpen] = useState(false)
   const [propertiesOpen, setPropertiesOpen] = useState(false)
+  // The ontology check (see lint.ts): its findings, undefined until the first run, or why it could not run.
+  const [lintOpen, setLintOpen] = useState(false)
+  const [lint, setLint] = useState<{ findings?: Finding[]; error?: string }>({})
   const [problemClasses, setProblemClasses] = useState<string[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   // Whether hidden classes and arrows are drawn (faded) on the canvas and in SVG images; see hidden.ts.
@@ -446,6 +452,33 @@ export default function App() {
     () => (propertiesOpen ? propertyEntries(saveCanvas(workspace, pageId, nodes, edges), { iri, kept, keptStatements }) : new Map()),
     [propertiesOpen, workspace, pageId, nodes, edges, iri, kept, keptStatements],
   )
+
+  // The check reruns shortly after edits settle while it is open; a run that finishes after a newer one started is dropped.
+  useEffect(() => {
+    if (!lintOpen) return
+    let current = true
+    const timer = setTimeout(() => {
+      lintProject(saveCanvas(workspace, pageId, nodes, edges), { iri, namespaces, kept, keptStatements })
+        .then((findings) => current && setLint({ findings }))
+        .catch((e: unknown) => current && setLint({ error: `The check could not read the ontology: ${e instanceof Error ? e.message : String(e)}` }))
+    }, 400)
+    return () => {
+      current = false
+      clearTimeout(timer)
+    }
+  }, [lintOpen, workspace, pageId, nodes, edges, iri, namespaces, kept, keptStatements])
+  const lintWhere = useMemo(() => (lintOpen ? lintTargets(saveCanvas(workspace, pageId, nodes, edges), iri, pageId) : new Map()), [lintOpen, workspace, pageId, nodes, edges, iri])
+
+  /** Opens the page a finding's class or arrow is on, selects it and brings it into view. */
+  const showTarget = ({ pageId: page, nodeId, edgeId }: LintTarget) => {
+    if (page !== pageId) show(saved(), page, false)
+    setNodes((ns) => ns.map((n) => (!!n.selected !== (n.id === nodeId) ? { ...n, selected: n.id === nodeId } : n)))
+    setEdges((es) => es.map((e) => (!!e.selected !== (e.id === edgeId) ? { ...e, selected: e.id === edgeId } : e)))
+    const edge = edgeId ? workspace.store.relations[edgeId] : undefined
+    const ids = nodeId ? [nodeId] : edge ? [edge.source, edge.target] : []
+    // Two frames, so a page just opened has drawn its classes before the view moves to them.
+    requestAnimationFrame(() => requestAnimationFrame(() => flow?.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.6, maxZoom: 1.2, duration: 300 })))
+  }
 
   const placeExisting = (event: ChangeEvent<HTMLSelectElement>) => {
     const classId = event.target.value
@@ -788,11 +821,24 @@ export default function App() {
           </div>
         </details>
         <button
-          onClick={() => setPropertiesOpen((open) => !open)}
+          onClick={() => {
+            setPropertiesOpen((open) => !open)
+            setLintOpen(false)
+          }}
           aria-pressed={propertiesOpen}
           title="Object and data properties as a tree by subPropertyOf, with domain, range and the pages each is on"
         >
           Properties
+        </button>
+        <button
+          onClick={() => {
+            setLintOpen((open) => !open)
+            setPropertiesOpen(false)
+          }}
+          aria-pressed={lintOpen}
+          title="Look for clashing declarations, subclass cycles, missing labels, domains and ranges, and shapes about missing classes or properties"
+        >
+          Check ontology
         </button>
         <button onClick={() => setSampleOpen(true)} title="Check example instances against the classes' SHACL constraints">
           Check sample data
@@ -964,6 +1010,7 @@ export default function App() {
           </div>
         )}
         {propertiesOpen && <PropertyHierarchy entries={properties} pageId={pageId} onOpenPage={openPage} onClose={() => setPropertiesOpen(false)} />}
+        {lintOpen && <LintPanel findings={lint.findings} error={lint.error} targets={lintWhere} onShow={showTarget} onClose={() => setLintOpen(false)} />}
         {sampleOpen && (
           <SampleData
             ontology={() => ({ ...mergePages(saved(), workspace.pages.map((p) => p.id), iri), kept, keptStatements })}
