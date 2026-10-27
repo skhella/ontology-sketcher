@@ -1,5 +1,6 @@
 import type { OntologyDiff, Status } from './diff'
-import { DIFF_COLORS, type CanvasTarget } from './diffCanvas'
+import type { CanvasTarget } from './canvasTargets'
+import { DIFF_COLORS } from './diffCanvas'
 
 
 type Props = {

@@ -81,22 +81,3 @@ export function canvasDiff(diff: OntologyDiff, ws: Workspace, pageId: string, ba
     })
   return { nodes, edges, ghostNodes, ghostEdges }
 }
-
-/** Where a class or object property is drawn: on `pageId` when it is there, else on the first page that has it. */
-export type CanvasTarget = { pageId: string; nodeId?: string; edgeId?: string }
-
-export function canvasTargets(ws: Workspace, base: string, pageId: string): Map<string, CanvasTarget> {
-  const pages = [...ws.pages].sort((a, b) => Number(b.id === pageId) - Number(a.id === pageId))
-  const targets = new Map<string, CanvasTarget>()
-  for (const [id, c] of Object.entries(ws.store.classes)) {
-    const page = pages.find((p) => p.nodes.some((n) => n.id === id))
-    const iri = entityIri(base, c, localName(c.label))
-    if (page && !targets.has(iri)) targets.set(iri, { pageId: page.id, nodeId: id })
-  }
-  for (const [id, r] of Object.entries(ws.store.relations)) {
-    const page = r.kind === 'objectProperty' ? pages.find((p) => p.edges.some((e) => e.id === id)) : undefined
-    const iri = entityIri(base, r, propertyLocalName(r.label))
-    if (page && !targets.has(iri)) targets.set(iri, { pageId: page.id, edgeId: id })
-  }
-  return targets
-}
