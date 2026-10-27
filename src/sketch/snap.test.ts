@@ -1,6 +1,6 @@
 import { Position } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
-import { sidePoint, snapToClass, toAnchor, toFlowPoint } from './snap'
+import { sidePoint, snapToClass, spreadEnds, toAnchor, toFlowPoint } from './snap'
 
 const a = { id: 'a', x: 0, y: 0, width: 180, height: 64 }
 const b = { id: 'b', x: 300, y: 0, width: 180, height: 64 }
@@ -42,5 +42,23 @@ describe('toAnchor', () => {
 describe('toFlowPoint', () => {
   it('undoes the viewport pan and zoom', () => {
     expect(toFlowPoint({ x: 120, y: 60 }, [20, 10, 2])).toEqual({ x: 50, y: 25 })
+  })
+})
+
+describe('spreadEnds', () => {
+  const boxes = new Map([['a', a]])
+  const below = (x: number) => ({ nodeId: 'a', anchor: Position.Bottom, toward: { x, y: 300 } })
+
+  it('moves arrows sharing a dot to the free dots beside it, keeping their left-to-right order', () => {
+    expect(spreadEnds([below(400), below(-200), below(90)], boxes)).toEqual(['bottom-right', 'bottom-left', Position.Bottom])
+    expect(spreadEnds([below(400), below(-200)], boxes)).toEqual(['bottom-right', 'bottom-left'])
+    expect(spreadEnds([below(0), below(100), below(200), below(300)], boxes)).toEqual(['bottom-left', Position.Bottom, 'bottom-right', 'bottom-right'])
+  })
+
+  it('leaves a single arrow, fixed arrows and dots another arrow uses alone', () => {
+    expect(spreadEnds([below(400)], boxes)).toEqual([Position.Bottom])
+    const corner = { nodeId: 'a', anchor: 'bottom-left' as const, toward: { x: -200, y: 300 }, fixed: true }
+    expect(spreadEnds([corner, below(0), below(300)], boxes)).toEqual(['bottom-left', Position.Bottom, 'bottom-right'])
+    expect(spreadEnds([{ ...below(0), fixed: true }, { ...below(300), fixed: true }], boxes)).toEqual([Position.Bottom, Position.Bottom])
   })
 })

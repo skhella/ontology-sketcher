@@ -5,7 +5,8 @@ import { entityIri } from './owl'
 import { conceptSchemes } from './skos'
 import { loadCanvas, type Workspace } from './pages'
 import { edgeKey, type SavedEdge, type SavedLayout, type SavedPage } from './savedLayout'
-import { CLASS_HEIGHT, CLASS_WIDTH, nearestSide } from './sketch/snap'
+import { Position } from '@xyflow/react'
+import { CLASS_HEIGHT, CLASS_WIDTH, nearestAnchor, spreadEnds, toAnchor, type Anchor, type ArrowEnd, type Box } from './sketch/snap'
 import type { SketchStyle } from './sketch/style'
 
 /**
@@ -108,36 +109,49 @@ export function layoutOntology(nodes: ClassNode[], edges: RelationEdge[], keep =
     for (const n of nodes) if (!anchored.has(n.id)) position.set(n.id, { x: laid.get(n.id)!.x, y: bottom + laid.get(n.id)!.y - top })
   }
 
-  const box = (id: string) => ({ id, ...position.get(id)!, width: CLASS_WIDTH, height: CLASS_HEIGHT })
+  const box = (id: string): Box => ({ id, ...position.get(id)!, width: CLASS_WIDTH, height: CLASS_HEIGHT })
   const centre = (id: string) => ({ x: position.get(id)!.x + CLASS_WIDTH / 2, y: position.get(id)!.y + CLASS_HEIGHT / 2 })
   // Hierarchy arrows run from the lower class's top dot to the upper one's bottom dot, as when drawn by hand;
-  // other arrows attach to the dots facing each other.
-  const handles = (e: RelationEdge): { sourceHandle: string; targetHandle: string; bend?: { x: number; y: number } } => {
+  // other arrows attach to the dots, of all eight, facing each other.
+  const handles = (e: RelationEdge): { sourceHandle: Anchor; targetHandle: Anchor; fixed?: boolean; bend?: { x: number; y: number } } => {
     const pair = parentOf(e)
     if (pair && blockOf.has(pair[1])) {
       // A stacked leaf reaches up to its parent from its left dot.
-      return pair[1] === e.source ? { sourceHandle: 'left', targetHandle: 'bottom' } : { sourceHandle: 'bottom', targetHandle: 'left' }
+      const ends = pair[1] === e.source ? { sourceHandle: Position.Left, targetHandle: Position.Bottom } : { sourceHandle: Position.Bottom, targetHandle: Position.Left }
+      return { ...ends, fixed: true }
     }
     const vertical = HIERARCHY.has(e.data?.kind ?? '')
     if (vertical && centre(e.source).y !== centre(e.target).y) {
       const up = centre(e.source).y > centre(e.target).y
-      return { sourceHandle: up ? 'top' : 'bottom', targetHandle: up ? 'bottom' : 'top' }
+      return { sourceHandle: up ? Position.Top : Position.Bottom, targetHandle: up ? Position.Bottom : Position.Top }
     }
     // A long arrow between classes in one row would run through the classes between them: arc it over the row.
     const [from, to] = [centre(e.source), centre(e.target)]
     if (!vertical && Math.abs(from.y - to.y) < CLASS_HEIGHT && Math.abs(from.x - to.x) > CLASS_WIDTH * 1.6) {
       arcs.set(e.source, (arcs.get(e.source) ?? 0) + 1)
-      return { sourceHandle: 'top', targetHandle: 'top', bend: { x: 0, y: -40 - 30 * arcs.get(e.source)! } }
+      return { sourceHandle: Position.Top, targetHandle: Position.Top, bend: { x: 0, y: -40 - 30 * arcs.get(e.source)! } }
     }
-    return { sourceHandle: nearestSide(box(e.source), to), targetHandle: nearestSide(box(e.target), from) }
+    return { sourceHandle: nearestAnchor(box(e.source), to), targetHandle: nearestAnchor(box(e.target), from) }
   }
   const arcs = new Map<string, number>()
+  const placed = edges.map((e) => (e.sourceHandle && e.targetHandle ? undefined : handles(e)))
+  // Arrows that would share a dot spread over the dots beside it; arrows that already have dots keep them.
+  const ends = edges.flatMap((e, i): ArrowEnd[] => {
+    const p = placed[i]
+    const fixed = !p || p.fixed
+    return [
+      { nodeId: e.source, anchor: toAnchor(p?.sourceHandle ?? e.sourceHandle, Position.Top), toward: centre(e.target), fixed },
+      { nodeId: e.target, anchor: toAnchor(p?.targetHandle ?? e.targetHandle, Position.Bottom), toward: centre(e.source), fixed },
+    ]
+  })
+  const spread = spreadEnds(ends, new Map(nodes.map((n) => [n.id, box(n.id)])))
   return {
     nodes: nodes.map((n) => ({ ...n, position: position.get(n.id)! })),
-    edges: edges.map((e) => {
-      if (e.sourceHandle && e.targetHandle) return e
-      const { bend, ...ends } = handles(e)
-      return { ...e, ...ends, ...(bend && !e.data?.bend && { data: { ...e.data!, bend } }) }
+    edges: edges.map((e, i) => {
+      const p = placed[i]
+      if (!p) return e
+      const bend = p.bend
+      return { ...e, sourceHandle: spread[2 * i], targetHandle: spread[2 * i + 1], ...(bend && !e.data?.bend && { data: { ...e.data!, bend } }) }
     }),
   }
 }
