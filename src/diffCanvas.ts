@@ -1,4 +1,4 @@
-import type { EntityDiff, OntologyDiff, Status } from './diff'
+import type { ArrowDiff, EntityDiff, OntologyDiff, Status } from './diff'
 import { localName, propertyLocalName, type ClassNode, type EdgeKind, type RelationEdge } from './model'
 import { entityIri } from './owl'
 import type { Workspace } from './pages'
@@ -13,7 +13,7 @@ export const GHOST = 'diff-ghost:'
 export type CanvasDiff = {
   /** Classes on the page by node id. */
   nodes: Map<string, Status>
-  /** What changed on each coloured class and ghost, by node id. */
+  /** What changed on each coloured class or arrow and each ghost, by node or edge id. */
   changes: Map<string, EntityDiff>
   /** Arrows on the page by edge id: arrows only the canvas has, and arrows of a property that changed. */
   edges: Map<string, Status>
@@ -39,9 +39,22 @@ export function canvasDiff(
   const { classes, relations } = ws.store
   const iriOf = new Map(Object.entries(classes).map(([id, c]) => [id, entityIri(base, c, localName(c.label))]))
   const byIri = new Map(diff.entities.map((e) => [e.iri, e]))
-  const status = new Map(diff.entities.map((e) => [e.iri, e.status]))
   const [canvasOnly, fileOnly]: Status[] = fileIsNewer ? ['removed', 'added'] : ['added', 'removed']
-  const canvasArrows = new Set(diff.arrows.filter((a) => a.status === canvasOnly).map((a) => a.key))
+  const canvasArrows = new Map(diff.arrows.filter((a) => a.status === canvasOnly).map((a) => [a.key, a]))
+  const classLabels = new Map(Object.values(classes).map((c) => [entityIri(base, c, localName(c.label)), c.label]))
+  const labelOf = (iri: string) => byIri.get(iri)?.label ?? classLabels.get(iri) ?? iri
+  // An arrow that only one version has, said as the statement it stands for, with what changed on its property.
+  const arrowChanges = (a: ArrowDiff): EntityDiff => {
+    const property = a.kind === 'objectProperty' ? diff.entities.find((e) => e.kind === 'property' && e.label === a.label) : undefined
+    const says = a.kind === 'objectProperty' || a.kind === 'annotationProperty' ? a.label : a.kind
+    return {
+      iri: a.key,
+      label: `${labelOf(a.source)} → ${labelOf(a.target)}`,
+      kind: 'other',
+      status: a.status,
+      changes: [{ sign: a.status === 'added' ? '+' : '-', text: `${says} ${labelOf(a.target)}` }, ...(property?.changes ?? [])],
+    }
+  }
 
   const nodes = new Map<string, Status>()
   const changes = new Map<string, EntityDiff>()
@@ -57,8 +70,15 @@ export function canvasDiff(
     const r = relations[e.id]
     if (!r) continue
     // The canvas label is what the layout and the triples both name an arrow by.
-    if (canvasArrows.has(edgeKey(iriOf.get(e.source) ?? '', r.kind, r.label, iriOf.get(e.target) ?? ''))) edges.set(e.id, canvasOnly)
-    else if (r.kind === 'objectProperty' && status.get(entityIri(base, r, propertyLocalName(r.label))) === 'changed') edges.set(e.id, 'changed')
+    const arrow = canvasArrows.get(edgeKey(iriOf.get(e.source) ?? '', r.kind, r.label, iriOf.get(e.target) ?? ''))
+    const property = r.kind === 'objectProperty' ? byIri.get(entityIri(base, r, propertyLocalName(r.label))) : undefined
+    if (arrow) {
+      edges.set(e.id, canvasOnly)
+      changes.set(e.id, arrowChanges(arrow))
+    } else if (property?.status === 'changed') {
+      edges.set(e.id, 'changed')
+      changes.set(e.id, property)
+    }
   }
 
   // The earlier file's page with this page's name, or its only page when both versions have one page.
@@ -99,6 +119,8 @@ export function canvasDiff(
         focusable: false,
       }
     })
+  const ghostArrows = new Set(ghostEdges.map((g) => g.id))
+  for (const a of diff.arrows) if (ghostArrows.has(GHOST + a.key)) changes.set(GHOST + a.key, arrowChanges(a))
   return { nodes, changes, edges, ghostNodes, ghostEdges }
 }
 

@@ -44,7 +44,7 @@ import { applyShapes, describeShapesImport, importShapesToWorkspace, keptShapesT
 import logoSvg from '../docs/logo-light.svg?raw'
 import { importedOntologyIri, localName, type ClassNode, type KeptProperty, type KeptStatement, type Namespace, type NodeKind, type RelationEdge } from './model'
 import { NamespacesContext } from './namespaceContext'
-import { DiffBadgeContext } from './diffBadgeContext'
+import { DiffBadgeContext, type DiffBadges } from './diffBadgeContext'
 import { PageLinksContext, type PageLinks } from './pageLinksContext'
 import { mergeNamespaces, renameNamespace } from './namespaces'
 import { NamespacesMenu } from './NamespacesMenu'
@@ -168,6 +168,8 @@ export default function App() {
   const [comparison, setComparison] = useState<{ diff?: OntologyDiff; error?: string }>({})
   // Usually the file is an earlier version of the canvas; it can also be a later one.
   const [fileIsNewer, setFileIsNewer] = useState(false)
+  // The class whose changes are open beside it, by node id: one at a time.
+  const [openChanges, setOpenChanges] = useState<string | null>(null)
   // Sizes React Flow measured for ghost classes: they are not in `nodes`, so their measurements are kept here.
   const [ghostSizes, setGhostSizes] = useState<Record<string, { width: number; height: number }>>({})
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
@@ -396,11 +398,16 @@ export default function App() {
     () => (compareOpen && comparison.diff ? canvasDiff(comparison.diff, saveCanvas(workspace, pageId, nodes, edges), pageId, iri, { nodes, edges }, fileIsNewer) : undefined),
     [compareOpen, comparison, workspace, pageId, nodes, edges, iri, fileIsNewer],
   )
+  const diffBadges = useMemo<DiffBadges>(
+    () => ({ changes: onCanvas?.changes ?? NO_CHANGES, open: openChanges, setOpen: setOpenChanges }),
+    [onCanvas, openChanges],
+  )
   const compareWith = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
     setComparison({})
+    setOpenChanges(null)
     setBaseline({ name: file.name, text: await file.text() })
   }
 
@@ -644,6 +651,11 @@ export default function App() {
     () => (lintOpen || compareOpen ? canvasTargets(saveCanvas(workspace, pageId, nodes, edges), iri, pageId) : new Map<string, CanvasTarget>()),
     [lintOpen, compareOpen, workspace, pageId, nodes, edges, iri],
   )
+  // Compare can also show the classes only the file has, where their ghosts are drawn on this page.
+  const compareTargets = useMemo(() => {
+    const ghosts = (onCanvas?.ghostNodes ?? []).filter((g) => !targets.has(g.id.slice(GHOST.length)))
+    return ghosts.length === 0 ? targets : new Map([...targets, ...ghosts.map((g) => [g.id.slice(GHOST.length), { pageId, nodeId: g.id }] as const)])
+  }, [targets, onCanvas, pageId])
 
   /** Opens the page a class or arrow listed in a panel is on, selects it and brings it into view. */
   const showTarget = ({ pageId: page, nodeId, edgeId }: CanvasTarget) => {
@@ -1087,7 +1099,7 @@ export default function App() {
       <main className={panning ? 'canvas hand-tool' : 'canvas'}>
         <NamespacesContext.Provider value={namespaces}>
           <PageLinksContext.Provider value={pageLinks}>
-            <DiffBadgeContext.Provider value={onCanvas?.changes ?? NO_CHANGES}>
+            <DiffBadgeContext.Provider value={diffBadges}>
             <ReactFlow
               nodes={shownNodes}
               edges={canvasEdges}
@@ -1104,6 +1116,7 @@ export default function App() {
               onReconnectEnd={onReconnectEnd}
               connectionMode={ConnectionMode.Loose}
               connectionLineComponent={ConnectionLine}
+              onPaneClick={() => setOpenChanges(null)}
               onNodeDoubleClick={panning ? undefined : renameClass}
               onEdgeDoubleClick={panning ? undefined : editRelation}
               zoomOnDoubleClick={false}
@@ -1287,12 +1300,13 @@ export default function App() {
             imported={lastImport}
             diff={comparison.diff}
             error={comparison.error}
-            targets={targets}
+            targets={compareTargets}
             pageId={pageId}
             pageNames={new Map(workspace.pages.map((p) => [p.id, p.name]))}
             fileIsNewer={fileIsNewer}
             onFileIsNewer={(newer) => {
               setComparison({})
+              setOpenChanges(null)
               setFileIsNewer(newer)
             }}
             filePages={comparison.diff ? pagesOnlyInFile(comparison.diff, workspace, fileIsNewer) : []}
@@ -1306,9 +1320,13 @@ export default function App() {
             onChooseFile={() => compareInput.current?.click()}
             onUseImported={() => {
               setComparison({})
+              setOpenChanges(null)
               setBaseline(lastImport)
             }}
-            onShow={showTarget}
+            onShow={(target) => {
+              showTarget(target)
+              setOpenChanges(target.nodeId ?? null)
+            }}
             onClose={() => closePanel('compare')}
           />
         )}
