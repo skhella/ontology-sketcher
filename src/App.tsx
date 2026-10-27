@@ -57,6 +57,7 @@ import { Inspector } from './inspector/Inspector'
 import { PropertyHierarchy } from './PropertyHierarchyPanel'
 import { HiddenPanel } from './HiddenPanel'
 import { hiddenItems } from './hiddenItems'
+import { editKeptTriple, editNaming } from './keptEdit'
 import type { Finding } from './lint'
 import { LintPanel } from './LintPanel'
 import { lintProject } from './lintProject'
@@ -714,6 +715,11 @@ export default function App() {
     }
     return hiddenItems(keptStatements, kept, (i) => names.get(i) ?? prefixed(i))
   }, [hiddenOpen, workspace, iri, namespaces, kept, keptStatements])
+  // How the panel's editors name things and read names back.
+  const hiddenNaming = useMemo(
+    () => (hiddenOpen ? editNaming(projectNames(saveCanvas(workspace, pageId, nodes, edges), iri, namespaces, kept)) : undefined),
+    [hiddenOpen, workspace, pageId, nodes, edges, iri, namespaces, kept],
+  )
   // Compare can also show the classes only the file has, where their ghosts are drawn on this page.
   const compareTargets = useMemo(() => {
     const ghosts = (onCanvas?.ghostNodes ?? []).filter((g) => !targets.has(g.id.slice(GHOST.length)))
@@ -1350,7 +1356,22 @@ export default function App() {
           />
         )}
         {propertiesOpen && <PropertyHierarchy entries={properties} pageId={pageId} onOpenPage={openPage} onClose={() => closePanel('properties')} />}
-        {notDrawn && <HiddenPanel items={notDrawn} targets={targets} onShow={showTarget} onClose={() => closePanel('hidden')} />}
+        {notDrawn && (
+          <HiddenPanel
+            items={notDrawn}
+            targets={targets}
+            onShow={showTarget}
+            onClose={() => closePanel('hidden')}
+            edit={
+              hiddenNaming && {
+                kept,
+                naming: hiddenNaming,
+                onTriple: (old, next, about) => setKeptStatements(editKeptTriple(keptStatements, old, next, about)),
+                onProperty: (propertyIri, patch) => setKept(kept.map((p) => (p.iri === propertyIri ? { ...p, ...patch } : p))),
+              }
+            }
+          />
+        )}
         {lintOpen && <LintPanel findings={lint.findings} error={lint.error} targets={targets} onShow={showTarget} onClose={() => closePanel('lint')} />}
         {sampleOpen && (
           <SampleData

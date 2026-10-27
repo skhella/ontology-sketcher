@@ -1,15 +1,6 @@
 import type { Characteristic, ClassNode, DataProperty, RelationData, RelationEdge } from '../model'
 import { compactIri, DATATYPES } from '../vocab'
-
-const CHARACTERISTICS: { key: Characteristic; label: string }[] = [
-  { key: 'functional', label: 'Functional' },
-  { key: 'inverseFunctional', label: 'Inverse functional' },
-  { key: 'transitive', label: 'Transitive' },
-  { key: 'symmetric', label: 'Symmetric' },
-  { key: 'asymmetric', label: 'Asymmetric' },
-  { key: 'reflexive', label: 'Reflexive' },
-  { key: 'irreflexive', label: 'Irreflexive' },
-]
+import { CHARACTERISTICS } from './characteristics'
 
 type ObjectPropertyProps = {
   edge: RelationEdge

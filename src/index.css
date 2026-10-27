@@ -1087,7 +1087,8 @@ body,
   padding: 0 0 4px;
 }
 
-.inspector .annotation {
+.inspector .annotation,
+.hidden-edit .annotation {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 2px 4px;
@@ -1096,27 +1097,32 @@ body,
   border-bottom: 1px dashed var(--line);
 }
 
-.inspector .annotation .property {
+.inspector .annotation .property,
+.hidden-edit .annotation .property {
   align-self: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.inspector .annotation .remove {
+.inspector .annotation .remove,
+.hidden-edit .annotation .remove {
   padding: 0 6px;
   border: none;
 }
 
-.inspector .annotation .value {
+.inspector .annotation .value,
+.hidden-edit .annotation .value {
   grid-column: 1;
 }
 
-.inspector .annotation .lang {
+.inspector .annotation .lang,
+.hidden-edit .annotation .lang {
   width: 56px;
 }
 
-.inspector .annotation .datatype {
+.inspector .annotation .datatype,
+.hidden-edit .annotation .datatype {
   overflow: hidden;
   font-size: 0.8em;
   text-overflow: ellipsis;
@@ -1125,14 +1131,17 @@ body,
   align-self: center;
 }
 
-.inspector .add-annotation {
+.inspector .add-annotation,
+.hidden-edit .add-annotation {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
 
 .inspector .add-annotation select,
-.inspector .add-annotation input {
+.inspector .add-annotation input,
+.hidden-edit .add-annotation select,
+.hidden-edit .add-annotation input {
   flex: 1;
 }
 
@@ -1308,7 +1317,8 @@ body,
   padding: 0 0 4px;
 }
 
-.inspector .characteristics {
+.inspector .characteristics,
+.hidden-edit .characteristics {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 2px 8px;
@@ -1680,6 +1690,26 @@ body,
 .hidden-lines dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.hidden-edit-toggle {
+  margin-left: 6px;
+  font-size: 12px;
+}
+
+.hidden-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.hidden-field {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: center;
+  gap: 6px;
 }
 
 .hidden-axiom {

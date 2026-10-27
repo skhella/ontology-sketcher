@@ -49,8 +49,8 @@ describe('hiddenItems', () => {
     ])
     const tom = individuals[0].entries[0]
     expect(tom.iri).toBe(EX + 'tom')
-    expect(tom.lines).toContainEqual({ predicate: 'likes', value: 'Rex', iri: EX + 'rex' })
-    expect(tom.lines).toContainEqual({ predicate: 'age', value: '3 (xsd:integer)' })
+    expect(tom.lines).toContainEqual(expect.objectContaining({ predicate: 'likes', value: 'Rex', iri: EX + 'rex' }))
+    expect(tom.lines).toContainEqual(expect.objectContaining({ predicate: 'age', value: '3 (xsd:integer)' }))
   })
 
   it('has no individuals to list once an import draws them', async () => {
@@ -66,9 +66,22 @@ describe('hiddenItems', () => {
     expect(properties).toEqual([
       { iri: EX + 'relatedTo', kind: 'object', name: 'related to', lines: [{ predicate: 'domain', value: 'none' }, { predicate: 'range', value: 'none' }] },
     ])
-    expect(aboutDrawn).toEqual([{ iri: EX + 'Dog', name: 'Dog', lines: [{ predicate: 'skos:closeMatch', value: 'Hound', iri: 'http://example.org/other#Hound' }] }])
+    expect(aboutDrawn).toEqual([
+      {
+        iri: EX + 'Dog',
+        name: 'Dog',
+        lines: [
+          {
+            predicate: 'skos:closeMatch',
+            value: 'Hound',
+            iri: 'http://example.org/other#Hound',
+            edit: { subject: EX + 'Dog', predicate: 'http://www.w3.org/2004/02/skos/core#closeMatch', object: { kind: 'iri', value: 'http://example.org/other#Hound' } },
+          },
+        ],
+      },
+    ])
     expect(other.map((e) => e.name).sort()).toEqual(['Disjoint classes', 'zoo'])
-    expect(other.find((e) => e.name === 'Disjoint classes')!.lines).toContainEqual({ predicate: 'owl:members', value: 'Cat, Dog, Keeper' })
+    expect(other.find((e) => e.name === 'Disjoint classes')!.lines).toContainEqual(expect.objectContaining({ predicate: 'owl:members', value: 'Cat, Dog, Keeper' }))
     expect(count).toBe(1 + 1 + 1 + 2)
   })
 })
