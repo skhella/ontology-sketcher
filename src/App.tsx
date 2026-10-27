@@ -33,7 +33,8 @@ import { inferredArrows, inferSuperclasses, type Reasoning } from './reason'
 import { entityIri } from './owl'
 import { shortName } from './vocab'
 import { diffOntologies, type OntologyDiff } from './diff'
-import { canvasDiff, canvasTargets, DIFF_COLORS, GHOST, type CanvasTarget } from './diffCanvas'
+import { canvasDiff, DIFF_COLORS, GHOST } from './diffCanvas'
+import { canvasTargets, type CanvasTarget } from './canvasTargets'
 import { DiffPanel } from './DiffPanel'
 import { exportFiles, exportFilesPerPage, pageFileStems, type ExportFile, type ExportFormat } from './exportFiles'
 import { keptStatementsOf } from './keptStatements'
@@ -52,7 +53,7 @@ import { Inspector } from './inspector/Inspector'
 import { PropertyHierarchy } from './PropertyHierarchyPanel'
 import type { Finding } from './lint'
 import { LintPanel } from './LintPanel'
-import { lintProject, lintTargets, type LintTarget } from './lintProject'
+import { lintProject } from './lintProject'
 import { propertyEntries } from './propertyHierarchy'
 import { SampleData } from './SampleData'
 import { addDetailPage, classesNotOn, linkPage, loadCanvas, mergePages, placeClass, removePage, saveCanvas, type Workspace } from './pages'
@@ -147,19 +148,19 @@ export default function App() {
   const [sampleOpen, setSampleOpen] = useState(false)
   // Competency questions (see questions.ts), kept with the project, and their answers from the last run.
   const [questions, setQuestions] = useState<CompetencyQuestion[]>(initial.questions ?? [])
-  const [questionsOpen, setQuestionsOpen] = useState(false)
   const [answers, setAnswers] = useState<{ results: Map<string, QuestionResult>; running?: boolean; error?: string }>({ results: new Map() })
-  const [propertiesOpen, setPropertiesOpen] = useState(false)
-  const [libraryOpen, setLibraryOpen] = useState(false)
+  // The panel in the top-left corner of the canvas: one at a time, so opening one closes the other.
+  const [panel, setPanel] = useState<'properties' | 'lint' | 'compare' | 'questions' | 'library' | null>(null)
+  const togglePanel = (name: NonNullable<typeof panel>) => setPanel((open) => (open === name ? null : name))
+  const closePanel = (name: NonNullable<typeof panel>) => setPanel((open) => (open === name ? null : open))
+  const [propertiesOpen, questionsOpen, libraryOpen, lintOpen, compareOpen] = (['properties', 'questions', 'library', 'lint', 'compare'] as const).map((name) => panel === name)
   // The ontology check (see lint.ts): its findings, undefined until the first run, or why it could not run.
-  const [lintOpen, setLintOpen] = useState(false)
   const [lint, setLint] = useState<{ findings?: Finding[]; error?: string }>({})
   const [problemClasses, setProblemClasses] = useState<string[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   // Whether hidden classes and arrows are drawn (faded) on the canvas and in SVG images; see hidden.ts.
   const [showHidden, setShowHidden] = useState(false)
   // Comparing with an earlier file (see diff.ts): the file, the Turtle file imported this session to offer, and the result.
-  const [compareOpen, setCompareOpen] = useState(false)
   const [baseline, setBaseline] = useState<{ name: string; text: string } | null>(null)
   const [lastImport, setLastImport] = useState<{ name: string; text: string } | null>(null)
   const [comparison, setComparison] = useState<{ diff?: OntologyDiff; error?: string }>({})
@@ -279,7 +280,7 @@ export default function App() {
 
   // A standard ontology from the library, downloaded and put on a new page of its own; the project keeps its IRI.
   const importFromLibrary = async (entry: LibraryEntry) => {
-    setLibraryOpen(false)
+    closePanel('library')
     setNotice(`Downloading ${entry.name}…`)
     let text: string
     try {
@@ -391,23 +392,12 @@ export default function App() {
     () => (compareOpen && comparison.diff ? canvasDiff(comparison.diff, saveCanvas(workspace, pageId, nodes, edges), pageId, iri, { nodes, edges }) : undefined),
     [compareOpen, comparison, workspace, pageId, nodes, edges, iri],
   )
-  const compareTargets = useMemo(() => (compareOpen ? canvasTargets(saveCanvas(workspace, pageId, nodes, edges), iri, pageId) : new Map<string, CanvasTarget>()), [compareOpen, workspace, pageId, nodes, edges, iri])
   const compareWith = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
     setComparison({})
     setBaseline({ name: file.name, text: await file.text() })
-  }
-  /** Opens the page a changed class or arrow is on, selects it and brings it into view. */
-  const showChanged = ({ pageId: page, nodeId, edgeId }: CanvasTarget) => {
-    if (page !== pageId) show(saved(), page, false)
-    setNodes((ns) => ns.map((n) => (!!n.selected !== (n.id === nodeId) ? { ...n, selected: n.id === nodeId } : n)))
-    setEdges((es) => es.map((e) => (!!e.selected !== (e.id === edgeId) ? { ...e, selected: e.id === edgeId } : e)))
-    const edge = edgeId ? workspace.store.relations[edgeId] : undefined
-    const ids = nodeId ? [nodeId] : edge ? [edge.source, edge.target] : []
-    // Two frames, so a page just opened has drawn its classes before the view moves to them.
-    requestAnimationFrame(() => requestAnimationFrame(() => flow?.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.6, maxZoom: 1.2, duration: 300 })))
   }
 
   // Classes whose sample instances break a constraint get an outline, set only on the nodes React Flow draws so it never reaches saved pages.
@@ -645,10 +635,14 @@ export default function App() {
       clearTimeout(timer)
     }
   }, [lintOpen, workspace, pageId, nodes, edges, iri, namespaces, kept, keptStatements])
-  const lintWhere = useMemo(() => (lintOpen ? lintTargets(saveCanvas(workspace, pageId, nodes, edges), iri, pageId) : new Map()), [lintOpen, workspace, pageId, nodes, edges, iri])
+  // Where each class and property is drawn, for the names the check and compare panels list.
+  const targets = useMemo(
+    () => (lintOpen || compareOpen ? canvasTargets(saveCanvas(workspace, pageId, nodes, edges), iri, pageId) : new Map<string, CanvasTarget>()),
+    [lintOpen, compareOpen, workspace, pageId, nodes, edges, iri],
+  )
 
-  /** Opens the page a finding's class or arrow is on, selects it and brings it into view. */
-  const showTarget = ({ pageId: page, nodeId, edgeId }: LintTarget) => {
+  /** Opens the page a class or arrow listed in a panel is on, selects it and brings it into view. */
+  const showTarget = ({ pageId: page, nodeId, edgeId }: CanvasTarget) => {
     if (page !== pageId) show(saved(), page, false)
     setNodes((ns) => ns.map((n) => (!!n.selected !== (n.id === nodeId) ? { ...n, selected: n.id === nodeId } : n)))
     setEdges((es) => es.map((e) => (!!e.selected !== (e.id === edgeId) ? { ...e, selected: e.id === edgeId } : e)))
@@ -989,7 +983,7 @@ export default function App() {
             <button onClick={() => shapesInput.current?.click()} title="Read a SHACL shapes file (Turtle) into the constraints of the classes on this page">
               SHACL shapes (Turtle)
             </button>
-            <button onClick={() => setLibraryOpen(true)} title="Download a standard ontology such as BFO, PROV-O or OWL-Time onto a new page">
+            <button onClick={() => setPanel('library')} title="Download a standard ontology such as BFO, PROV-O or OWL-Time onto a new page">
               Standard ontology…
             </button>
           </div>
@@ -1035,20 +1029,14 @@ export default function App() {
           Show inferred
         </button>
         <button
-          onClick={() => {
-            setPropertiesOpen((open) => !open)
-            setLintOpen(false)
-          }}
+          onClick={() => togglePanel('properties')}
           aria-pressed={propertiesOpen}
           title="Object and data properties as a tree by subPropertyOf, with domain, range and the pages each is on"
         >
           Properties
         </button>
         <button
-          onClick={() => {
-            setLintOpen((open) => !open)
-            setPropertiesOpen(false)
-          }}
+          onClick={() => togglePanel('lint')}
           aria-pressed={lintOpen}
           title="Look for clashing declarations, subclass cycles, missing labels, domains and ranges, and shapes about missing classes or properties"
         >
@@ -1058,10 +1046,7 @@ export default function App() {
           Check sample data
         </button>
         <button
-          onClick={() => {
-            setCompareOpen((open) => !open)
-            setPropertiesOpen(false)
-          }}
+          onClick={() => togglePanel('compare')}
           aria-pressed={compareOpen}
           title="Compare the canvas with an earlier Turtle file and colour what was added, changed or removed"
         >
@@ -1076,7 +1061,7 @@ export default function App() {
             {showHidden ? 'Leave out hidden' : `Show hidden (${hiddenCount})`}
           </button>
         )}
-        <button onClick={() => setQuestionsOpen((open) => !open)} aria-pressed={questionsOpen} title="What the ontology should answer, as SPARQL queries you can run against it">
+        <button onClick={() => togglePanel('questions')} aria-pressed={questionsOpen} title="What the ontology should answer, as SPARQL queries you can run against it">
           Questions{questions.length > 0 ? ` (${questions.length})` : ''}
         </button>
         <button onClick={toggleTheme} aria-pressed={theme === 'dark'} title="Switch between light and dark mode">
@@ -1254,11 +1239,11 @@ export default function App() {
             onChange={changeQuestions}
             onAdd={addQuestion}
             onRun={runAllQuestions}
-            onClose={() => setQuestionsOpen(false)}
+            onClose={() => closePanel('questions')}
           />
         )}
-        {propertiesOpen && <PropertyHierarchy entries={properties} pageId={pageId} onOpenPage={openPage} onClose={() => setPropertiesOpen(false)} />}
-        {lintOpen && <LintPanel findings={lint.findings} error={lint.error} targets={lintWhere} onShow={showTarget} onClose={() => setLintOpen(false)} />}
+        {propertiesOpen && <PropertyHierarchy entries={properties} pageId={pageId} onOpenPage={openPage} onClose={() => closePanel('properties')} />}
+        {lintOpen && <LintPanel findings={lint.findings} error={lint.error} targets={targets} onShow={showTarget} onClose={() => closePanel('lint')} />}
         {sampleOpen && (
           <SampleData
             ontology={() => ({ ...mergePages(saved(), workspace.pages.map((p) => p.id), iri), kept, keptStatements })}
@@ -1272,7 +1257,7 @@ export default function App() {
           <aside className="property-hierarchy" aria-label="Standard ontologies">
             <div className="export-actions">
               <strong>Standard ontologies</strong>
-              <button onClick={() => setLibraryOpen(false)}>Close</button>
+              <button onClick={() => closePanel('library')}>Close</button>
             </div>
             <p className="hint">
               Each goes onto a new page with its own IRIs; your ontology keeps its IRI. Your browser downloads it from the publisher, so check its
@@ -1296,14 +1281,14 @@ export default function App() {
             imported={lastImport}
             diff={comparison.diff}
             error={comparison.error}
-            targets={compareTargets}
+            targets={targets}
             onChooseFile={() => compareInput.current?.click()}
             onUseImported={() => {
               setComparison({})
               setBaseline(lastImport)
             }}
-            onShow={showChanged}
-            onClose={() => setCompareOpen(false)}
+            onShow={showTarget}
+            onClose={() => closePanel('compare')}
           />
         )}
         {exported && (

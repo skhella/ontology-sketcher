@@ -1,12 +1,12 @@
 import type { Finding, Severity } from './lint'
-import type { LintTarget } from './lintProject'
+import type { CanvasTarget } from './canvasTargets'
 
 type Props = {
   /** Undefined while the first check runs. */
   findings: Finding[] | undefined
   error?: string
-  targets: Map<string, LintTarget>
-  onShow: (target: LintTarget) => void
+  targets: Map<string, CanvasTarget>
+  onShow: (target: CanvasTarget) => void
   onClose: () => void
 }
 
