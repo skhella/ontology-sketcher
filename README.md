@@ -33,7 +33,7 @@ add axioms and data constraints, check a few example instances, and hand the res
 
 | Sketch | Model | Validate | Ship |
 | --- | --- | --- | --- |
-| Draw classes and arrows on a hand-drawn canvas, or import a Turtle ontology or an `.excalidraw` file. | Annotations, class axioms and property characteristics in a Protégé-style inspector. | SHACL constraints per class, checked against sample data right in the app. | `ontology.ttl`, `shapes.ttl`, a Cypher script for Neo4j and an SVG image. |
+| Draw classes and arrows on a hand-drawn canvas, or import a Turtle ontology or an `.excalidraw` file. | Annotations, class axioms and property characteristics in a Protégé-style inspector. | SHACL constraints per class, checked against sample data right in the app, plus ontology checks, a visual compare, explained inferences and competency questions. | `ontology.ttl`, `shapes.ttl`, a Cypher script for Neo4j and an SVG image. |
 
 ## Features
 
@@ -80,18 +80,25 @@ add axioms and data constraints, check a few example instances, and hand the res
   language tags.
 - Class axioms laid out like Protégé's class description: SubClass Of, Equivalent To and Disjoint With, written
   in Manchester order with `some`, `only`, `min`, `max` and `exactly`.
+- Object property characteristics (functional, inverse functional, transitive, symmetric, asymmetric, reflexive,
+  irreflexive), inverses and super properties.
+- Data properties on classes with an `xsd` datatype.
+
+### Check, compare and explain
+
+These run on what the export writes, across every page, so they see the ontology as other tools will.
+
+- **Check ontology** lists declarations that clash (a class under two disjoint classes, a property both transitive
+  and functional), subclass and sub-property cycles, missing labels, domains and ranges, and SHACL rules about
+  classes or properties the ontology does not declare. Click a name to jump to it on the canvas.
 - **Compare** colours what changed since an earlier Turtle file, such as a previous export or the file you imported:
   new classes and arrows in green, changed ones in orange, and removed ones drawn dashed in red where the file had
   them. A list beside the canvas says what changed on each class and property.
 - **Inferred superclasses**: the inspector lists superclasses that follow from the ontology without being stated
   (through equivalences, intersections, and property domains reached by `some` restrictions), each with the axioms
   it rests on. **Show inferred** draws them as dashed violet arrows. A light, explained reasoner, not a full OWL one.
-- Object property characteristics (functional, inverse functional, transitive, symmetric, asymmetric, reflexive,
-  irreflexive), inverses and super properties.
-- Data properties on classes with an `xsd` datatype.
-- **Check ontology** lists declarations that clash (a class under two disjoint classes, a property both transitive
-  and functional), subclass and sub-property cycles, missing labels, domains and ranges, and SHACL rules about
-  classes or properties the ontology does not declare. Click a name to jump to it on the canvas.
+- **Questions** keeps competency questions with the project: what the ontology should answer, each as a SPARQL
+  query. Run all checks them against the export and shows the answers, so you can see when an edit breaks one.
 
 ### SHACL constraints, checked as you go
 
@@ -114,8 +121,6 @@ add axioms and data constraints, check a few example instances, and hand the res
 - Counts show on the arrows UML style, such as `1` or `1..*`, next to the arrowhead.
 - **Check sample data**: paste a few instances in Turtle and the app validates them against the shapes, lists each
   problem in plain words, and outlines the classes whose instances break a rule in red.
-- **Questions** keeps competency questions with the project: what the ontology should answer, each as a SPARQL
-  query. Run all checks them against the export and shows the answers, so you can see when an edit breaks one.
 
 ### SKOS vocabularies next to the ontology
 
@@ -214,4 +219,5 @@ The code is under the [MIT License](LICENSE). The bundled Excalifont is under th
 ([licence text](public/fonts/excalifont/OFL.txt)); Shantell Sans, the fallback font, is also OFL-1.1.
 
 Its style panel options and dark mode follow [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT), and the shapes are drawn with [rough.js](https://roughjs.com) (MIT).
-The ontology checks follow the defects check of [open-ontologies](https://github.com/fabio-rovai/open-ontologies) (MIT).
+Check ontology, Compare, the standard ontology list, the explained inferences and the competency questions follow ideas
+from [open-ontologies](https://github.com/fabio-rovai/open-ontologies) (MIT); the code here is new.
