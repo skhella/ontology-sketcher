@@ -36,7 +36,7 @@ import { projectNames } from './projectNames'
 import { removeTextAxiom, setTextAxiom, textAxioms, type TextAxiom } from './textAxioms'
 import { shortName } from './vocab'
 import { diffOntologies, type EntityDiff, type OntologyDiff } from './diff'
-import { canvasDiff, DIFF_COLORS, focusAround, GHOST, pagesOnlyInFile } from './diffCanvas'
+import { canvasDiff, DIFF_COLORS, focusAround, GHOST, onlyStatus, pagesOnlyInFile, type DiffShow } from './diffCanvas'
 import { canvasTargets, type CanvasTarget } from './canvasTargets'
 import { DiffPanel } from './DiffPanel'
 import { exportFiles, exportFilesPerPage, pageFileStems, type ExportFile, type ExportFormat } from './exportFiles'
@@ -183,6 +183,8 @@ export default function App() {
   const [comparison, setComparison] = useState<{ diff?: OntologyDiff; error?: string }>({})
   // Usually the file is an earlier version of the canvas; it can also be a later one.
   const [fileIsNewer, setFileIsNewer] = useState(false)
+  // Compare's filter: every change, or only the added, changed or removed ones, in the panel and on the canvas.
+  const [diffShow, setDiffShow] = useState<DiffShow>('all')
   // The class whose changes are open beside it, by node id: one at a time.
   const [openChanges, setOpenChanges] = useState<string | null>(null)
   // Sizes React Flow measured for ghost classes: they are not in `nodes`, so their measurements are kept here.
@@ -413,8 +415,11 @@ export default function App() {
     }
   }, [compareOpen, baseline, fileIsNewer, workspace, pageId, nodes, edges, iri, namespaces, kept, keptStatements])
   const onCanvas = useMemo(
-    () => (compareOpen && comparison.diff ? canvasDiff(comparison.diff, saveCanvas(workspace, pageId, nodes, edges), pageId, iri, { nodes, edges }, fileIsNewer) : undefined),
-    [compareOpen, comparison, workspace, pageId, nodes, edges, iri, fileIsNewer],
+    () =>
+      compareOpen && comparison.diff
+        ? onlyStatus(canvasDiff(comparison.diff, saveCanvas(workspace, pageId, nodes, edges), pageId, iri, { nodes, edges }, fileIsNewer), diffShow)
+        : undefined,
+    [compareOpen, comparison, workspace, pageId, nodes, edges, iri, fileIsNewer, diffShow],
   )
   const compareWith = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -1456,6 +1461,11 @@ export default function App() {
             pageId={pageId}
             pageNames={new Map(workspace.pages.map((p) => [p.id, p.name]))}
             fileIsNewer={fileIsNewer}
+            show={diffShow}
+            onShowOnly={(show) => {
+              setOpenChanges(null)
+              setDiffShow(show)
+            }}
             onFileIsNewer={(newer) => {
               setComparison({})
               setOpenChanges(null)

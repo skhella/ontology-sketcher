@@ -154,3 +154,19 @@ export function focusAround(id: string, nodes: { id: string }[], edges: { id: st
   }
   return focus
 }
+
+/** Which changes Compare shows: all of them, or only the added, changed or removed ones. */
+export type DiffShow = 'all' | Status
+
+/** `cd` with only the classes, arrows and ghosts of one status coloured and drawn, for the Compare filter. */
+export function onlyStatus(cd: CanvasDiff, show: DiffShow): CanvasDiff {
+  if (show === 'all') return cd
+  const nodes = new Map([...cd.nodes].filter(([, s]) => s === show))
+  const edges = new Map([...cd.edges].filter(([, s]) => s === show))
+  const ghostNodes = cd.ghostNodes.filter((g) => cd.changes.get(g.id)?.status === show)
+  // Ghost arrows have the status of the ghost classes they may end on, so none is left hanging.
+  const ghostEdges = cd.ghostEdges.filter((g) => cd.changes.get(g.id)?.status === show)
+  const kept = new Set([...nodes.keys(), ...edges.keys(), ...ghostNodes.map((g) => g.id), ...ghostEdges.map((g) => g.id)])
+  const changes = new Map([...cd.changes].filter(([id]) => kept.has(id)))
+  return { nodes, changes, edges, ghostNodes, ghostEdges }
+}
