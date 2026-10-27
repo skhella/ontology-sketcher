@@ -21,7 +21,7 @@ export function manchester(store: Store, term: Term, name: (iri: string) => stri
   return write(term, new Set(), false)
 
   function write(t: Term, seen: Set<string>, nested: boolean): string {
-    if (t.termType === 'NamedNode') return name(t.value)
+    if (t.termType === 'NamedNode') return quoteName(name(t.value))
     if (t.termType === 'Literal') return JSON.stringify(t.value)
     if (t.termType !== 'BlankNode' || seen.has(t.value)) return '[…]'
     const inner = new Set([...seen, t.value])
@@ -80,6 +80,13 @@ export function manchester(store: Store, term: Term, name: (iri: string) => stri
     return '[…]'
   }
 }
+
+/** A name as Manchester syntax writes it: in single quotes when it has a space or other character a name can't, e.g. 'has part'. */
+export function quoteName(name: string): string {
+  return /^[\p{L}\p{N}_:.#/-]+$/u.test(name) && !KEYWORDS.has(name) ? name : `'${name.replace(/'/g, "\\'")}'`
+}
+
+export const KEYWORDS = new Set(['and', 'or', 'not', 'some', 'only', 'value', 'min', 'max', 'exactly', 'Self', 'inverse', 'that'])
 
 /** The items of a well-formed RDF list; undefined for any other node. */
 export function listItems(store: Store, head: Term): Term[] | undefined {

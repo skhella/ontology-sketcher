@@ -65,7 +65,7 @@ export function HiddenPanel({ items, targets, onShow, onClose }: Props) {
                 </details>
               ))}
             </Section>
-            <Section title="Class axioms the inspector can't show" count={axioms.length}>
+            <Section title="Class axioms (edit them as text in the inspector)" count={axioms.length}>
               <ul>
                 {axioms.map((a, i) => (
                   <li key={`${a.about}-${i}`}>
