@@ -306,7 +306,7 @@ export function toTurtle(ontology: Ontology, layout?: SavedLayout): Promise<stri
   }
 
   // Statements from an import the canvas doesn't show, as they came in, unless what they describe is gone.
-  const present = new Set([...declared, ...ontology.nodes.map((n) => entityIri(base, n.data, localName(n.data.label)))])
+  const present = new Set([...declared, ...skos.properties, ...ontology.nodes.map((n) => entityIri(base, n.data, localName(n.data.label)))])
   for (const s of ontology.keptStatements ?? []) {
     if (s.about && !present.has(s.about)) continue
     writer.addQuads(new Parser({ format: 'N-Triples' }).parse(s.ntriples))
