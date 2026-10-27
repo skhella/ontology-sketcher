@@ -75,4 +75,25 @@ describe('canvasDiff', () => {
     expect(shown.ghostNodes.map((n) => [n.id, n.data.label, n.position])).toEqual([[GHOST + P + 'Margherita', 'Margherita', { x: 80, y: 260 }]])
     expect(shown.ghostEdges.map((e) => [e.source, e.target, e.data?.kind])).toEqual([[GHOST + P + 'Margherita', 'pizza', 'subClassOf']])
   })
+
+  it('reads the file as the newer version: its extra classes are added ghosts, and the canvas extras are removed', async () => {
+    const older = await exported(sampleOntology)
+    const newer = await exported(edited)
+    const diff = diffOntologies(newer.text, older.text, P)
+    const shown = canvasDiff(diff, newer.workspace, newer.pageId, P, { nodes: edited.nodes, edges: edited.edges }, true)
+    expect(Object.fromEntries(shown.nodes)).toEqual({ pizza: 'changed', cheese: 'removed' })
+    expect(Object.fromEntries(shown.edges)).toEqual({ e3: 'changed', e4: 'removed' })
+    expect(shown.ghostNodes.map((n) => [n.id, n.className])).toEqual([[GHOST + P + 'Margherita', 'diff-ghost diff-added']])
+    expect(shown.ghostEdges.map((e) => [e.source, e.target, e.className])).toEqual([[GHOST + P + 'Margherita', 'pizza', 'diff-ghost diff-added']])
+  })
+
+  it('keeps what changed on each coloured class and ghost, for its badge', async () => {
+    const before = await exported(sampleOntology)
+    const after = await exported(edited)
+    const diff = diffOntologies(before.text, after.text, P)
+    const shown = canvasDiff(diff, after.workspace, after.pageId, P, { nodes: edited.nodes, edges: edited.edges })
+    expect([...shown.changes.keys()].sort()).toEqual(['cheese', GHOST + P + 'Margherita', 'pizza'].sort())
+    expect(shown.changes.get('pizza')).toBe(diff.entities.find((e) => e.label === 'Pizza'))
+    expect(shown.changes.get(GHOST + P + 'Margherita')?.status).toBe('removed')
+  })
 })

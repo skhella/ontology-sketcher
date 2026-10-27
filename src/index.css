@@ -665,42 +665,88 @@ body,
   color: #e03131;
 }
 
-/* Classes and arrows that are gone are drawn only: they take no clicks. */
-.react-flow__node.diff-removed,
-.react-flow__edge.diff-removed {
+.diff-direction {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 4px 8px 0;
+  font-size: 14px;
+}
+
+/* Classes and arrows only the file has are drawn only: they take no clicks. */
+.react-flow__node.diff-ghost,
+.react-flow__edge.diff-ghost {
   pointer-events: none;
+}
+
+.react-flow__edge.diff-ghost,
+.react-flow__node.diff-ghost .sketch,
+.react-flow__node.diff-ghost .label {
   opacity: 0.75;
 }
 
-.react-flow__node.diff-removed .react-flow__handle {
+.react-flow__node.diff-ghost .react-flow__handle {
   visibility: hidden;
 }
 
-.react-flow__node.diff-added::after,
-.react-flow__node.diff-changed::after,
-.react-flow__node.diff-removed::after {
+.class-node .diff-badge {
   position: absolute;
   top: -10px;
   right: -6px;
+  z-index: 2;
   padding: 0 5px;
+  border: none;
   border-radius: 8px;
   color: #fff;
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+  /* Removed classes take no clicks, but their badge does. */
+  pointer-events: auto;
+}
+
+.class-node .diff-popup {
+  position: absolute;
+  top: 10px;
+  left: calc(100% - 6px);
+  z-index: 3;
+  width: max-content;
+  max-width: 320px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 4px 8px 6px;
+  border: 2px solid;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px;
+  text-align: left;
+  cursor: auto;
+  pointer-events: auto;
+}
+
+.diff-popup-head {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.diff-popup-head .remove {
+  margin-left: auto;
+}
+
+.diff-popup .diff-changes {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: ui-monospace, monospace;
   font-size: 12px;
 }
 
-.react-flow__node.diff-added::after {
-  content: 'new';
-  background: #2f9e44;
-}
-
-.react-flow__node.diff-changed::after {
-  content: 'changed';
-  background: #f08c00;
-}
-
-.react-flow__node.diff-removed::after {
-  content: 'removed';
-  background: #e03131;
+/* A class with its changes open is drawn above the classes around it. */
+.react-flow__node:has(.diff-popup) {
+  z-index: 1000 !important;
 }
 
 .sample-problems {

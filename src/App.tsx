@@ -32,7 +32,7 @@ import { InferredSuperclasses } from './inspector/InferredSuperclasses'
 import { inferredArrows, inferSuperclasses, type Reasoning } from './reason'
 import { entityIri } from './owl'
 import { shortName } from './vocab'
-import { diffOntologies, type OntologyDiff } from './diff'
+import { diffOntologies, type EntityDiff, type OntologyDiff } from './diff'
 import { canvasDiff, DIFF_COLORS, GHOST } from './diffCanvas'
 import { canvasTargets, type CanvasTarget } from './canvasTargets'
 import { DiffPanel } from './DiffPanel'
@@ -44,6 +44,7 @@ import { applyShapes, describeShapesImport, importShapesToWorkspace, keptShapesT
 import logoSvg from '../docs/logo-light.svg?raw'
 import { importedOntologyIri, localName, type ClassNode, type KeptProperty, type KeptStatement, type Namespace, type NodeKind, type RelationEdge } from './model'
 import { NamespacesContext } from './namespaceContext'
+import { DiffBadgeContext } from './diffBadgeContext'
 import { PageLinksContext, type PageLinks } from './pageLinksContext'
 import { mergeNamespaces, renameNamespace } from './namespaces'
 import { NamespacesMenu } from './NamespacesMenu'
@@ -71,6 +72,7 @@ import { excalifontCss, excalifontMeasure, handleEndpoint } from './svgBrowser'
 import { zip } from './zip'
 
 const nodeTypes = { owlClass: ClassNodeView }
+const NO_CHANGES = new Map<string, EntityDiff>()
 const edgeTypes = { relation: RelationEdgeView }
 // Shift-click adds a class or arrow to the selection, or takes it out again; Ctrl and Cmd do the same.
 const MULTI_SELECT_KEYS = ['Shift', 'Meta', 'Control']
@@ -164,6 +166,8 @@ export default function App() {
   const [baseline, setBaseline] = useState<{ name: string; text: string } | null>(null)
   const [lastImport, setLastImport] = useState<{ name: string; text: string } | null>(null)
   const [comparison, setComparison] = useState<{ diff?: OntologyDiff; error?: string }>({})
+  // Usually the file is an earlier version of the canvas; it can also be a later one.
+  const [fileIsNewer, setFileIsNewer] = useState(false)
   // Sizes React Flow measured for ghost classes: they are not in `nodes`, so their measurements are kept here.
   const [ghostSizes, setGhostSizes] = useState<Record<string, { width: number; height: number }>>({})
   const [flow, setFlow] = useState<ReactFlowInstance<ClassNode, RelationEdge> | null>(null)
@@ -380,17 +384,17 @@ export default function App() {
     const timer = setTimeout(() => {
       const ws = saveCanvas(workspace, pageId, nodes, edges)
       exportFiles('owl', ws, ws.pages.map((p) => p.id), { iri, namespaces, kept, keptStatements })
-        .then(([owl]) => current && setComparison({ diff: diffOntologies(baseline.text, owl.text, iri) }))
+        .then(([owl]) => current && setComparison({ diff: fileIsNewer ? diffOntologies(owl.text, baseline.text, iri) : diffOntologies(baseline.text, owl.text, iri) }))
         .catch((e: unknown) => current && setComparison({ error: `Could not compare with ${baseline.name}: ${e instanceof Error ? e.message : String(e)}` }))
     }, 400)
     return () => {
       current = false
       clearTimeout(timer)
     }
-  }, [compareOpen, baseline, workspace, pageId, nodes, edges, iri, namespaces, kept, keptStatements])
+  }, [compareOpen, baseline, fileIsNewer, workspace, pageId, nodes, edges, iri, namespaces, kept, keptStatements])
   const onCanvas = useMemo(
-    () => (compareOpen && comparison.diff ? canvasDiff(comparison.diff, saveCanvas(workspace, pageId, nodes, edges), pageId, iri, { nodes, edges }) : undefined),
-    [compareOpen, comparison, workspace, pageId, nodes, edges, iri],
+    () => (compareOpen && comparison.diff ? canvasDiff(comparison.diff, saveCanvas(workspace, pageId, nodes, edges), pageId, iri, { nodes, edges }, fileIsNewer) : undefined),
+    [compareOpen, comparison, workspace, pageId, nodes, edges, iri, fileIsNewer],
   )
   const compareWith = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -1083,6 +1087,7 @@ export default function App() {
       <main className={panning ? 'canvas hand-tool' : 'canvas'}>
         <NamespacesContext.Provider value={namespaces}>
           <PageLinksContext.Provider value={pageLinks}>
+            <DiffBadgeContext.Provider value={onCanvas?.changes ?? NO_CHANGES}>
             <ReactFlow
               nodes={shownNodes}
               edges={canvasEdges}
@@ -1139,6 +1144,7 @@ export default function App() {
                 <Controls style={{ position: 'static', margin: 0 }} />
               </Panel>
             </ReactFlow>
+            </DiffBadgeContext.Provider>
           </PageLinksContext.Provider>
         </NamespacesContext.Provider>
         {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
@@ -1282,6 +1288,13 @@ export default function App() {
             diff={comparison.diff}
             error={comparison.error}
             targets={targets}
+            pageId={pageId}
+            pageNames={new Map(workspace.pages.map((p) => [p.id, p.name]))}
+            fileIsNewer={fileIsNewer}
+            onFileIsNewer={(newer) => {
+              setComparison({})
+              setFileIsNewer(newer)
+            }}
             onChooseFile={() => compareInput.current?.click()}
             onUseImported={() => {
               setComparison({})
