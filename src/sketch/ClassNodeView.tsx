@@ -1,11 +1,10 @@
 import { Handle, useConnection, useInternalNode, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
 import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { DIFF_COLORS } from '../diffCanvas'
-import { DiffBadgeContext } from '../diffBadgeContext'
 import type { ClassNode } from '../model'
 import { NamespacesContext } from '../namespaceContext'
 import { PageLinksContext } from '../pageLinksContext'
 import { prefixOf } from '../namespaces'
+import { DiffBadge } from './DiffBadge'
 import { breakPoints } from './label'
 import { roughEllipse, roughRect, seedFor } from './rough'
 import { ANCHORS, boxOf, CLASS_HEIGHT as HEIGHT, CLASS_WIDTH as WIDTH, cornerFraction, handlePosition, isCorner, snapToClass, type Anchor } from './snap'
@@ -18,9 +17,6 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
   const prefix = prefixOf(useContext(NamespacesContext), data.namespace)
   const links = useContext(PageLinksContext)
   const detail = links.detail.get(id)
-  // While comparing, a coloured class carries a badge that opens what changed on it.
-  const change = useContext(DiffBadgeContext).get(id)
-  const [changesOpen, setChangesOpen] = useState(false)
 
   // An oval only holds text inside its inscribed rectangle, which is 1/√2 of its height,
   // so it grows taller than the label (the label's side padding covers the width).
@@ -105,37 +101,7 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
           page ↗
         </button>
       )}
-      {change && (
-        <button
-          className="diff-badge nodrag"
-          style={{ background: DIFF_COLORS[change.status] }}
-          aria-expanded={changesOpen}
-          title="What changed on this class"
-          onClick={(event) => {
-            event.stopPropagation()
-            setChangesOpen((open) => !open)
-          }}
-        >
-          {BADGE[change.status]}
-        </button>
-      )}
-      {change && changesOpen && (
-        <div className="diff-popup nodrag nowheel" style={{ borderColor: DIFF_COLORS[change.status] }} onClick={(event) => event.stopPropagation()}>
-          <div className="diff-popup-head">
-            <strong>{change.label}</strong> <span style={{ color: DIFF_COLORS[change.status] }}>{change.status}</span>
-            <button className="remove" aria-label="Close" onClick={() => setChangesOpen(false)}>
-              ×
-            </button>
-          </div>
-          <ul className="diff-changes">
-            {change.changes.map((c, i) => (
-              <li key={i} className={c.sign === '+' ? 'diff-plus' : 'diff-minus'}>
-                {c.sign} {c.text}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <DiffBadge id={id} what="class" />
       {/* Eight dots: one per side and one per corner. With ConnectionMode.Loose any dot can start or end an edge; the id is the anchor. */}
       {ANCHORS.map((anchor) => (
         <Handle
@@ -150,8 +116,6 @@ export function ClassNodeView({ id, data, selected }: NodeProps<ClassNode>) {
     </div>
   )
 }
-
-const BADGE = { added: 'new', changed: 'changed', removed: 'removed' } as const
 
 /** A corner dot sits on the box's corner or at 45° on the oval, centred on that point. */
 function cornerStyle(anchor: Anchor, oval: boolean) {
