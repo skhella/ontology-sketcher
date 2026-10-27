@@ -73,6 +73,12 @@ describe('project', () => {
     expect(projectFileName('')).toBe('ontology.sketcher.json')
   })
 
+  it('keeps competency questions with the project', () => {
+    const questions = [{ id: 'q1', question: 'What kinds of pizza are there?', sparql: 'SELECT ?k WHERE { ?k rdfs:subClassOf :Pizza }' }]
+    expect(projectFromJson(projectToJson({ ...emptyProject(), questions })).questions).toEqual(questions)
+    expect(projectFromJson(projectToJson(emptyProject())).questions).toBeUndefined()
+  })
+
   it('keeps the project name and names the file after it', () => {
     const project = { ...emptyProject(), name: 'Plant model v2' }
     expect(projectFromJson(projectToJson(project)).name).toBe('Plant model v2')

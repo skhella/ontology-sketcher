@@ -102,6 +102,8 @@ add axioms and data constraints, check a few example instances, and hand the res
 - Counts show on the arrows UML style, such as `1` or `1..*`, next to the arrowhead.
 - **Check sample data**: paste a few instances in Turtle and the app validates them against the shapes, lists each
   problem in plain words, and outlines the classes whose instances break a rule in red.
+- **Questions** keeps competency questions with the project: what the ontology should answer, each as a SPARQL
+  query. Run all checks them against the export and shows the answers, so you can see when an edit breaks one.
 
 ### SKOS vocabularies next to the ontology
 
@@ -182,7 +184,8 @@ Everything runs in the browser: there is no server, and nothing leaves your mach
 
 [React Flow](https://reactflow.dev) for the graph canvas, [rough.js](https://roughjs.com) for the hand-drawn shapes,
 [Excalifont](https://plus.excalidraw.com/excalifont) for the lettering, [N3.js](https://github.com/rdfjs/N3.js)
-for Turtle and [shacl-engine](https://github.com/rdf-ext/shacl-engine) for validation. Vite, React and TypeScript underneath.
+for Turtle, [shacl-engine](https://github.com/rdf-ext/shacl-engine) for validation and [Oxigraph](https://github.com/oxigraph/oxigraph)
+(MIT or Apache-2.0) for SPARQL, loaded only when you run a question. Vite, React and TypeScript underneath.
 
 ## Develop
 
