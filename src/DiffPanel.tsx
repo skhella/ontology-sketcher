@@ -1,6 +1,6 @@
 import type { OntologyDiff, Status } from './diff'
 import type { CanvasTarget } from './canvasTargets'
-import { DIFF_COLORS } from './diffCanvas'
+import { DIFF_COLORS, type DiffShow } from './diffCanvas'
 import { FloatingPanel } from './FloatingPanel'
 
 
@@ -18,6 +18,9 @@ type Props = {
   /** Whether the file is a later version than the canvas rather than an earlier one. */
   fileIsNewer: boolean
   onFileIsNewer: (newer: boolean) => void
+  /** Which changes are listed and coloured on the canvas: all, or only one kind. */
+  show: DiffShow
+  onShowOnly: (show: DiffShow) => void
   /** Pages only the file has, with classes only the file has on them, see pagesOnlyInFile; and adding an empty page of that name to see them. */
   filePages: string[]
   onAddPage: (name: string) => void
@@ -30,7 +33,7 @@ type Props = {
 const HEADINGS: Record<Status, string> = { added: 'Added', changed: 'Changed', removed: 'Removed' }
 
 /** What changed since an earlier file, see diff.ts; the canvas colours the same changes while this is open. */
-export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pageNames, fileIsNewer, onFileIsNewer, filePages, onAddPage, onChooseFile, onUseImported, onShow, onClose }: Props) {
+export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pageNames, fileIsNewer, onFileIsNewer, show, onShowOnly, filePages, onAddPage, onChooseFile, onUseImported, onShow, onClose }: Props) {
   const entities = diff?.entities ?? []
   const count = (s: Status) => entities.filter((e) => e.status === s).length
   return (
@@ -79,18 +82,27 @@ export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pa
               ? 'no changes to the ontology.'
               : `${count('added')} added, ${count('changed')} changed, ${count('removed')} removed.`}
           </p>
-          <p className="hint diff-legend">
-            {(['added', 'changed', 'removed'] as const).map((s) => (
-              <span key={s} style={{ color: DIFF_COLORS[s] }}>
-                ■ {s}
-              </span>
+          <div className="segmented diff-filter" role="radiogroup" aria-label="Which changes to show">
+            {(['all', 'added', 'changed', 'removed'] as const).map((s) => (
+              <button
+                key={s}
+                role="radio"
+                aria-checked={show === s}
+                className={show === s ? 'active' : undefined}
+                title={s === 'all' ? 'Show every change' : `Show only ${s} classes and properties, here and on the canvas`}
+                onClick={() => onShowOnly(s)}
+              >
+                {s === 'all' ? 'All' : <><span style={{ color: DIFF_COLORS[s] }}>■</span> {HEADINGS[s]} {count(s)}</>}
+              </button>
             ))}
+          </div>
+          <p className="hint diff-legend">
             <span>
               Click an underlined name to go to it on the canvas and see what changed there. Only the open page is coloured.{' '}
               {fileIsNewer ? 'Added' : 'Removed'} classes show dashed where the file drew them, when it was exported from here.
             </span>
           </p>
-          {filePages.length > 0 && (
+          {filePages.length > 0 && (show === 'all' || show === (fileIsNewer ? 'added' : 'removed')) && (
             <p className="hint">
               Only the file has {filePages.length === 1 ? 'the page' : 'the pages'}{' '}
               {filePages.map((name, i) => (
@@ -104,9 +116,10 @@ export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pa
               . Add an empty page of that name to see its {fileIsNewer ? 'added' : 'removed'} classes there.
             </p>
           )}
+          {show !== 'all' && count(show) === 0 && <p className="hint">Nothing {show}.</p>}
           <div className="diff-list">
             {(['added', 'changed', 'removed'] as const)
-              .filter((s) => count(s) > 0)
+              .filter((s) => count(s) > 0 && (show === 'all' || show === s))
               .map((s) => (
                 <section key={s}>
                   <h3 style={{ color: DIFF_COLORS[s] }}>{HEADINGS[s]}</h3>

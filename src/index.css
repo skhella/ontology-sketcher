@@ -688,6 +688,16 @@ body,
   font-size: 14px;
 }
 
+/* The file's name and the buttons wrap onto more lines when the panel is narrow, rather than spill out of it. */
+.diff-panel .segmented {
+  flex-wrap: wrap;
+}
+
+.diff-direction .muted {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Classes and arrows only the file has are drawn only: they take no clicks. */
 .react-flow__node.diff-ghost,
 .react-flow__edge.diff-ghost {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { diffOntologies, type OntologyDiff } from './diff'
-import { canvasDiff, focusAround, GHOST, pagesOnlyInFile } from './diffCanvas'
+import { canvasDiff, focusAround, GHOST, onlyStatus, pagesOnlyInFile } from './diffCanvas'
 import { saveLayout } from './layout'
 import { sampleOntology, type Ontology } from './model'
 import { toTurtle } from './owl'
@@ -100,6 +100,26 @@ describe('canvasDiff', () => {
     expect(shown.changes.get('e3')?.status).toBe('changed')
     expect(shown.changes.get('e4')?.status).toBe('added')
     expect(shown.changes.get(ghostArrow)).toMatchObject({ label: 'Margherita → Pizza', status: 'removed', changes: [{ sign: '-', text: 'subClassOf Pizza' }] })
+  })
+})
+
+describe('onlyStatus', () => {
+  it('keeps only the classes, arrows, ghosts and tags of one kind of change, or everything for all', async () => {
+    const before = await exported(sampleOntology)
+    const after = await exported(edited)
+    const diff = diffOntologies(before.text, after.text, P)
+    const shown = canvasDiff(diff, after.workspace, after.pageId, P, { nodes: edited.nodes, edges: edited.edges })
+    expect(onlyStatus(shown, 'all')).toBe(shown)
+    const added = onlyStatus(shown, 'added')
+    expect([Object.fromEntries(added.nodes), Object.fromEntries(added.edges), added.ghostNodes, added.ghostEdges]).toEqual([{ cheese: 'added' }, { e4: 'added' }, [], []])
+    expect([...added.changes.keys()].sort()).toEqual(['cheese', 'e4'])
+    const changed = onlyStatus(shown, 'changed')
+    expect([Object.fromEntries(changed.nodes), Object.fromEntries(changed.edges), changed.ghostNodes.length]).toEqual([{ pizza: 'changed' }, { e3: 'changed' }, 0])
+    const removed = onlyStatus(shown, 'removed')
+    expect([removed.nodes.size, removed.edges.size]).toEqual([0, 0])
+    expect(removed.ghostNodes.map((n) => n.id)).toEqual([GHOST + P + 'Margherita'])
+    expect(removed.ghostEdges.map((e) => [e.source, e.target])).toEqual([[GHOST + P + 'Margherita', 'pizza']])
+    expect(removed.changes.size).toBe(2)
   })
 })
 
