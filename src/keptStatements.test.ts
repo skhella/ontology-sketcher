@@ -85,6 +85,26 @@ describe('keptStatementsOf', () => {
     }
   })
 
+  it('writes typed and IRI annotation values back as they were, not as a second text value', async () => {
+    const ontology = await importAll(`
+      @prefix owl: <http://www.w3.org/2002/07/owl#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+      @prefix xsd: <http://www.w3.org/2001/XMLSchema#> . @prefix : <${EX}> .
+      <http://example.org/zoo> a owl:Ontology . :Cat a owl:Class ; owl:deprecated true ; :since "2026-10-27"^^xsd:date ; :source <http://example.org/book> .
+      :since a owl:AnnotationProperty . :source a owl:AnnotationProperty .`)
+    const cat = ontology.nodes.find((n) => n.data.label === 'Cat')!
+    expect(cat.data.annotations).toEqual([
+      { property: 'http://www.w3.org/2002/07/owl#deprecated', value: 'true', datatype: 'http://www.w3.org/2001/XMLSchema#boolean' },
+      { property: EX + 'since', value: '2026-10-27', datatype: 'http://www.w3.org/2001/XMLSchema#date' },
+      { property: EX + 'source', value: 'http://example.org/book', iri: true },
+    ])
+    const about = new Parser().parse(await toTurtle(ontology)).filter((q) => q.subject.value === EX + 'Cat' && !q.predicate.value.endsWith('#type'))
+    expect(about.map((q) => [q.predicate.value, q.object.termType, q.object.termType === 'Literal' ? q.object.datatype.value : ''])).toEqual([
+      ['http://www.w3.org/2002/07/owl#deprecated', 'Literal', 'http://www.w3.org/2001/XMLSchema#boolean'],
+      [EX + 'since', 'Literal', 'http://www.w3.org/2001/XMLSchema#date'],
+      [EX + 'source', 'NamedNode', ''],
+    ])
+  })
+
   it('leaves out statements about a class once it is gone', async () => {
     const ontology = await importAll(source)
     expect(ontology.keptStatements!.find((s) => s.about === EX + 'Pet')?.ntriples).toContain('unionOf')

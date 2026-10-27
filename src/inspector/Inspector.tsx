@@ -315,13 +315,20 @@ function AnnotationTable({
               ×
             </button>
             <input className="value" value={a.value} placeholder="value" onChange={(e) => update(i, { value: e.target.value })} />
-            <input
-              className="lang"
-              value={a.lang ?? ''}
-              placeholder="lang"
-              title="Language tag, e.g. en"
-              onChange={(e) => update(i, { lang: e.target.value || undefined })}
-            />
+            {/* A typed or IRI value from an import has no language; its type is shown where the tag would be. */}
+            {a.datatype || a.iri ? (
+              <span className="lang datatype" title={a.datatype ?? 'The value is an IRI'}>
+                {a.datatype ? compactIri(a.datatype) : 'IRI'}
+              </span>
+            ) : (
+              <input
+                className="lang"
+                value={a.lang ?? ''}
+                placeholder="lang"
+                title="Language tag, e.g. en"
+                onChange={(e) => update(i, { lang: e.target.value || undefined })}
+              />
+            )}
           </div>
         ),
       )}

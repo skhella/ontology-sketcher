@@ -5,8 +5,10 @@ import type { SketchStyle } from './sketch/style'
 /**
  * An annotation assertion on a class or property, e.g. skos:definition "…"@en.
  * `property` is a full IRI; `lang` is an optional language tag for literal values.
+ * `datatype` is the full IRI of a typed literal's datatype other than xsd:string, e.g. owl:deprecated true (xsd:boolean);
+ * `iri` marks a value that is an IRI rather than text. Both come from an import, so the export writes the value as it was.
  */
-export type Annotation = { property: string; value: string; lang?: string }
+export type Annotation = { property: string; value: string; lang?: string; datatype?: string; iri?: boolean }
 
 /**
  * What a class or property carries besides its label.
