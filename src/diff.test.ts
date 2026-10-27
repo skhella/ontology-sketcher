@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { diffOntologies, type OntologyDiff } from './diff'
-import { canvasDiff, GHOST, pagesOnlyInFile } from './diffCanvas'
+import { canvasDiff, focusAround, GHOST, pagesOnlyInFile } from './diffCanvas'
 import { saveLayout } from './layout'
 import { sampleOntology, type Ontology } from './model'
 import { toTurtle } from './owl'
@@ -122,5 +122,28 @@ describe('pagesOnlyInFile', () => {
     expect(pagesOnlyInFile(newer, ws, true)).toEqual(['Plants'])
     // Read as the older file, there is no earlier layout to draw ghosts from.
     expect(pagesOnlyInFile(newer, ws)).toEqual([])
+  })
+})
+
+describe('focusAround', () => {
+  const nodes = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }, { id: GHOST + 'g' }]
+  const edges = [
+    { id: 'ab', source: 'a', target: 'b' },
+    { id: 'ca', source: 'c', target: 'a' },
+    { id: 'cd', source: 'c', target: 'd' },
+    { id: GHOST + 'ag', source: 'a', target: GHOST + 'g' },
+  ]
+
+  it('keeps a class, its arrows either way, and the classes at their other ends, ghosts included', () => {
+    expect(focusAround('a', nodes, edges)).toEqual(new Set(['a', 'ab', 'b', 'ca', 'c', GHOST + 'ag', GHOST + 'g']))
+  })
+
+  it('keeps an arrow and its two classes only', () => {
+    expect(focusAround('cd', nodes, edges)).toEqual(new Set(['cd', 'c', 'd']))
+    expect(focusAround(GHOST + 'ag', nodes, edges)).toEqual(new Set([GHOST + 'ag', 'a', GHOST + 'g']))
+  })
+
+  it('keeps nothing in focus for something not drawn', () => {
+    expect(focusAround('x', nodes, edges)).toBeUndefined()
   })
 })

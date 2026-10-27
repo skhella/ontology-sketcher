@@ -1,7 +1,8 @@
 import { EdgeLabelRenderer, useNodesData, useReactFlow, useStoreApi, type EdgeProps } from '@xyflow/react'
-import { useMemo, type MouseEvent, type PointerEvent } from 'react'
+import { useContext, useMemo, type MouseEvent, type PointerEvent } from 'react'
 import type { ClassNode, RelationEdge } from '../model'
 import { bendThrough, edgeLine } from './curve'
+import { DiffBadgeContext } from '../diffBadgeContext'
 import { DiffBadge } from './DiffBadge'
 import { constraintOnArrow, multiplicity, nearTarget } from './multiplicity'
 import { roughPath, seedFor } from './rough'
@@ -16,6 +17,9 @@ export function RelationEdgeView(props: EdgeProps<RelationEdge>) {
   const targetClass = useNodesData<ClassNode>(targetId)
   // Drawn at all only while hidden elements are shown, then faded; hiding either class hides the arrow too.
   const faded = data?.hidden || sourceClass?.data.hidden || targetClass?.data.hidden ? ' is-hidden' : ''
+  // While comparing, the labels of arrows away from the class or arrow whose changes are open fade with them.
+  const { focus } = useContext(DiffBadgeContext)
+  const unfocused = focus && !focus.has(id) ? ' diff-unfocused' : ''
   const source = { x: sourceX, y: sourceY }
   const target = { x: targetX, y: targetY }
 
@@ -67,16 +71,16 @@ export function RelationEdgeView(props: EdgeProps<RelationEdge>) {
       <path d={d} fill="none" stroke="transparent" strokeWidth={14} className="react-flow__edge-interaction" />
       <EdgeLabelRenderer>
         {/* While selected, the label moves up so the bend handle does not cover it. */}
-        <div className={`edge-label${faded}`} style={{ transform: `translate(-50%, ${selected ? '-130%' : '-50%'}) translate(${mid.x}px, ${mid.y}px)` }}>
+        <div className={`edge-label${faded}${unfocused}`} style={{ transform: `translate(-50%, ${selected ? '-130%' : '-50%'}) translate(${mid.x}px, ${mid.y}px)` }}>
           {label}
         </div>
         {/* While comparing, a changed arrow's tag sits above its label. */}
-        <div className="edge-diff" style={{ transform: `translate(${mid.x}px, ${mid.y}px)` }}>
+        <div className={`edge-diff${unfocused}`} style={{ transform: `translate(${mid.x}px, ${mid.y}px)` }}>
           <DiffBadge id={id} what="arrow" />
         </div>
         {counts && (
           <button
-            className={`edge-multiplicity nodrag nopan${faded}`}
+            className={`edge-multiplicity nodrag nopan${faded}${unfocused}`}
             title={`SHACL: each ${sourceClass?.data.label ?? 'instance'} needs ${counts} "${data?.label}" values. Click to edit the constraint.`}
             style={{ transform: `translate(-50%, -50%) translate(${countsAt.x}px, ${countsAt.y}px)` }}
             onClick={openConstraint}

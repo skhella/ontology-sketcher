@@ -781,6 +781,14 @@ body,
   font-size: 12px;
 }
 
+/* While one class's or arrow's changes are open, what is not next to it fades back. */
+.react-flow__node.diff-unfocused,
+.react-flow__edge.diff-unfocused,
+.diff-unfocused {
+  opacity: 0.15;
+  transition: opacity 0.15s;
+}
+
 /* A class with its changes open is drawn above the classes around it. */
 .react-flow__node:has(.diff-popup) {
   z-index: 1000 !important;
