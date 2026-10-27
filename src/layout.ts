@@ -2,6 +2,7 @@ import dagre from '@dagrejs/dagre'
 import type { ClassNode, RelationEdge } from './model'
 import { localName } from './model'
 import { entityIri } from './owl'
+import { conceptSchemes } from './skos'
 import { loadCanvas, type Workspace } from './pages'
 import { edgeKey, type SavedEdge, type SavedLayout, type SavedPage } from './savedLayout'
 import { CLASS_HEIGHT, CLASS_WIDTH, nearestSide } from './sketch/snap'
@@ -257,8 +258,9 @@ export function planImport(
     }))
     const placed = new Set(groups.flatMap((g) => g.ids))
     const unplaced = nodes.filter((n) => !placed.has(n.id))
-    groups[0].ids.push(...unplaced.filter((n) => n.data.kind !== 'individual').map((n) => n.id))
-    groups.push(...individualPages(unplaced, edges, limit, labelOf))
+    // Classes the layout doesn't know join its first page; individuals and SKOS vocabularies get pages of their own.
+    groups[0].ids.push(...unplaced.filter((n) => !n.data.kind).map((n) => n.id))
+    groups.push(...individualPages(unplaced, edges, limit, labelOf), ...vocabularyPages(unplaced, edges, limit, labelOf))
   } else if (nodes.length > limit) {
     groups = [...splitByBranch(nodes.filter((n) => n.data.kind !== 'individual'), edges, limit), ...individualPages(nodes, edges, limit, labelOf)]
   } else {
@@ -376,18 +378,40 @@ function individualPages(nodes: ClassNode[], edges: RelationEdge[], limit: numbe
     const type = edges.find((e) => e.source === n.id && e.data?.kind === 'instanceOf')?.target ?? ''
     byClass.set(type, [...(byClass.get(type) ?? []), n.id])
   }
-  const pages: { classes: string[]; ids: string[] }[] = []
-  for (const [type, ids] of [...byClass].sort((a, b) => b[1].length - a[1].length)) {
-    const bundle = type ? [type, ...ids] : ids
+  return packPages(byClass, limit, 'Individuals', (c) => (c && labelOf(c)) || 'no class')
+}
+
+/**
+ * Pages for the SKOS concepts and schemes among `nodes` that a saved layout doesn't place, so they don't crowd its
+ * first page: each scheme with its concepts, packed like individuals and named "Vocabulary: Colours, Sizes".
+ */
+function vocabularyPages(nodes: ClassNode[], edges: RelationEdge[], limit: number, labelOf: (id: string) => string | undefined): Group[] {
+  const ids = new Set(nodes.map((n) => n.id))
+  const schemesOf = conceptSchemes(nodes, edges)
+  const byScheme = new Map<string, string[]>()
+  for (const n of nodes) if (n.data.kind === 'scheme') byScheme.set(n.id, [])
+  for (const n of nodes) {
+    if (n.data.kind !== 'concept') continue
+    const scheme = [...(schemesOf.get(n.id) ?? [])].find((s) => ids.has(s)) ?? ''
+    byScheme.set(scheme, [...(byScheme.get(scheme) ?? []), n.id])
+  }
+  return packPages(byScheme, limit, 'Vocabulary', (s) => (s && labelOf(s)) || 'no scheme')
+}
+
+/** Packs groups of boxes, each led by its key's box when it has one, onto pages of up to `limit`, largest groups first. */
+function packPages(groups: Map<string, string[]>, limit: number, title: string, nameOf: (key: string) => string): Group[] {
+  const pages: { keys: string[]; ids: string[] }[] = []
+  for (const [key, ids] of [...groups].sort((a, b) => b[1].length - a[1].length)) {
+    const bundle = key ? [key, ...ids] : ids
     const room = pages.find((p) => p.ids.length + bundle.length <= limit)
     if (room) {
-      room.classes.push(type)
+      room.keys.push(key)
       room.ids.push(...bundle)
-    } else pages.push({ classes: [type], ids: bundle })
+    } else pages.push({ keys: [key], ids: bundle })
   }
   return pages.map((p) => {
-    const names = p.classes.map((c) => (c && labelOf(c)) || 'no class')
-    return { name: `Individuals: ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''}`, ids: p.ids, positions: new Map() }
+    const names = p.keys.map(nameOf)
+    return { name: `${title}: ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''}`, ids: p.ids, positions: new Map() }
   })
 }
 
