@@ -692,6 +692,12 @@ body,
   color: var(--muted);
 }
 
+.diff-rename {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted);
+}
+
 .diff-legend {
   display: flex;
   flex-wrap: wrap;
