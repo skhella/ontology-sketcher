@@ -420,3 +420,27 @@ describe('importOwl keeps what the canvas does not draw', () => {
     expect(canonical(await toTurtle({ iri: again.iri, nodes: again.nodes, edges: again.edges, kept: again.kept }))).toEqual(back)
   })
 })
+
+describe('labels in several languages', () => {
+  it('keeps the name label language on a plain class and every other label, through import and export', async () => {
+    const turtle = `@prefix : <http://ex.org/o#> . @prefix owl: <http://www.w3.org/2002/07/owl#> .
+      @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> . @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+      <http://ex.org/o> a owl:Ontology .
+      :Pump a owl:Class ; rdfs:label "Pump"@en, "Pumpe"@de ; skos:prefLabel "Pompe"@fr .`
+    const imported = importOwl(turtle)
+    const pump = imported.nodes[0]
+    expect(pump.data).toMatchObject({ label: 'Pump', labelLang: 'en' })
+    expect(pump.data.annotations).toEqual([
+      { property: 'http://www.w3.org/2000/01/rdf-schema#label', value: 'Pumpe', lang: 'de' },
+      { property: 'http://www.w3.org/2004/02/skos/core#prefLabel', value: 'Pompe', lang: 'fr' },
+    ])
+
+    // The inspector edits the name label's language on a plain class too.
+    const edited = { ...imported, nodes: [{ ...pump, data: { ...pump.data, labelLang: 'en-GB' } }] }
+    const labels = new Parser()
+      .parse(await toTurtle(edited))
+      .filter((q) => q.subject.value === 'http://ex.org/o#Pump' && q.object.termType === 'Literal')
+      .map((q) => `${q.object.value}@${(q.object as { language: string }).language}`)
+    expect(labels.sort()).toEqual(['Pompe@fr', 'Pump@en-gb', 'Pumpe@de'])
+  })
+})

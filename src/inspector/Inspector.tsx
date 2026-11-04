@@ -60,7 +60,7 @@ export function Inspector({ base, namespaces, nodes, edges, selection, onNodeCha
           data={node.data}
           label={node.data.label}
           labelProperty={skosNode ? 'skos:prefLabel' : 'rdfs:label'}
-          labelLang={kind ? (node.data.labelLang ?? '') : undefined}
+          labelLang={node.data.labelLang ?? ''}
           annotationProperties={skosNode ? SKOS_ANNOTATION_PROPERTIES : undefined}
           derivedLocal={localName(node.data.label)}
           onChange={(patch) => onNodeChange(node.id, patch)}
