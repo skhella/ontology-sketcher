@@ -46,6 +46,46 @@ describe('lintOntology', () => {
     expect(findings.map((f) => [f.kind, f.entities.map((e) => e.label)])).toEqual([
       ['subclass_cycle', ['A', 'B', 'C']],
       ['sub_property_cycle', ['p', 'q']],
+      ['undeclared_term', ['p', 'q']],
+    ])
+  })
+
+  it('reports terms the axioms use but never declare, and deprecated terms still in use', () => {
+    const findings = lintOntology(
+      head +
+        `:A a owl:Class ; rdfs:label "A" ; rdfs:subClassOf :Missing, [ a owl:Restriction ; owl:onProperty :hasPart ; owl:someValuesFrom :Old ] ; rdfs:seeAlso :Elsewhere .
+         :Old a owl:Class ; rdfs:label "Old" ; owl:deprecated true .
+         :Older a owl:Class ; rdfs:label "Older" ; owl:deprecated true ; rdfs:subClassOf :Old .
+         :size a owl:DatatypeProperty ; rdfs:label "size" ; rdfs:domain :A ; rdfs:range xsd:integer .`,
+      null,
+      P,
+    )
+    expect(findings.map((f) => [f.kind, f.severity, f.title, f.entities.map((e) => e.label)])).toEqual([
+      ['undeclared_term', 'warning', '2 terms are used but never declared', ['Missing', 'hasPart']],
+      ['deprecated_in_use', 'warning', '1 deprecated term is still in use', ['Old']],
+    ])
+  })
+
+  it('reports redundant subclasses, several inverses, name case under its own IRI and untagged labels', () => {
+    const findings = lintOntology(
+      head +
+        `:Pizza a owl:Class ; rdfs:label "Pizza"@en ; owl:equivalentClass :Pie ; rdfs:subClassOf :Pie .
+         :Pie a owl:Class ; rdfs:label "Pie" .
+         :pizza_base a owl:Class ; rdfs:label "base"@en .
+         :BFO_0000001 a owl:Class ; rdfs:label "entity"@en .
+         <http://other.org/o#reused_name> a owl:Class ; rdfs:label "reused"@en .
+         :HasTopping a owl:ObjectProperty ; rdfs:label "has topping"@en ; rdfs:domain :Pizza ; rdfs:range :Pie ; owl:inverseOf :toppingOf, :onPizza .
+         :toppingOf a owl:ObjectProperty ; rdfs:label "topping of"@en ; rdfs:domain :Pie ; rdfs:range :Pizza .
+         :onPizza a owl:ObjectProperty ; rdfs:label "on pizza"@en ; rdfs:domain :Pie ; rdfs:range :Pizza .`,
+      null,
+      P,
+    )
+    expect(findings.map((f) => [f.kind, f.entities.map((e) => e.label)])).toEqual([
+      ['redundant_subclass', ['Pizza']],
+      ['several_inverses', ['has topping']],
+      ['class_name_case', ['base']],
+      ['property_name_case', ['has topping']],
+      ['label_without_language', ['Pie']],
     ])
   })
 

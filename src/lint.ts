@@ -11,6 +11,8 @@ import { OWL, RDF, RDFS, SKOS, XSD, shortName } from './vocab'
  *
  * The declaration checks and their severities follow open-ontologies' defects check
  * (https://github.com/fabio-rovai/open-ontologies, MIT, Copyright (c) 2026 Fabio Rovai).
+ * The reference and style checks follow ontology-quality-suite's check registry
+ * (https://github.com/pwin/consolidated-ontology-quality-suite-python, MIT OR Apache-2.0, Copyright (c) 2026 pwin).
  */
 
 /** `error`: something can have no instances. `warning`: contradictions once data arrives, or a check that says nothing. `info`: only a reader is left uninformed. */
@@ -41,7 +43,7 @@ type Options = {
 export function lintOntology(owl: string, shapes: string | null, base: string, { outside = new Set() }: Options = {}): Finding[] {
   const { store } = parseTurtle(owl, base)
   const label = labeller(store)
-  const findings = [...declarationChecks(store, label), ...gapChecks(store, label, outside)]
+  const findings = [...declarationChecks(store, label), ...gapChecks(store, label, outside), ...referenceChecks(store, label), ...styleChecks(store, label, outside, base)]
   if (shapes) findings.push(...shapeChecks(store, parseTurtle(shapes, base).store, label))
   const rank: Record<Severity, number> = { error: 0, warning: 1, info: 2 }
   return findings.sort((a, b) => rank[a.severity] - rank[b.severity])
@@ -241,6 +243,110 @@ function gapChecks(store: Store, label: (iri: string) => LintEntity, outside: Se
     ...group('missing_label', unlabelled, unlabelled.length === 1 ? 'class or property has no label' : 'classes or properties have no label', 'Without rdfs:label, other tools show only the IRI.'),
     ...group('missing_domain', without(RDFS + 'domain'), without(RDFS + 'domain').length === 1 ? 'property has no domain' : 'properties have no domain', 'The property may be used on anything. Fine on purpose, but often a forgotten arrow end.'),
     ...group('missing_range', without(RDFS + 'range'), without(RDFS + 'range').length === 1 ? 'property has no range' : 'properties have no range', 'The property may point at anything. Fine on purpose, but often a forgotten arrow end.'),
+  ]
+}
+
+/** Predicates whose object is a class, property or datatype the statement relies on, as opposed to an annotation. */
+const REFERENCING = [
+  RDF + 'type',
+  RDFS + 'subClassOf',
+  RDFS + 'subPropertyOf',
+  RDFS + 'domain',
+  RDFS + 'range',
+  OWL + 'equivalentClass',
+  OWL + 'equivalentProperty',
+  OWL + 'disjointWith',
+  OWL + 'propertyDisjointWith',
+  OWL + 'inverseOf',
+  OWL + 'onProperty',
+  OWL + 'someValuesFrom',
+  OWL + 'allValuesFrom',
+  OWL + 'onClass',
+  OWL + 'onDataRange',
+  OWL + 'complementOf',
+  RDF + 'first',
+]
+
+/** Grouped findings of one kind, listing every entity it applies to; see gapChecks. */
+function grouped(label: (iri: string) => LintEntity, severity: Severity, kind: string, iris: string[], one: string, many: string, explanation: string): Finding[] {
+  return iris.length === 0 ? [] : [{ kind, severity, title: `${iris.length} ${iris.length === 1 ? one : many}`, explanation, entities: iris.slice(0, MAX_LISTED).map(label) }]
+}
+
+/**
+ * Terms the axioms rely on that the file never declares, and deprecated terms still relied on. Both look at the objects
+ * of subClassOf, domain, range, restrictions, lists in class expressions, rdf:type and the like, never at annotations.
+ */
+function referenceChecks(store: Store, label: (iri: string) => LintEntity): Finding[] {
+  const deprecated = new Set(named(store.getSubjects(OWL + 'deprecated', null, null)).filter((d) => store.getObjects(d, OWL + 'deprecated', null).some((o) => o.value === 'true')))
+  const undeclared = new Set<string>()
+  const stillUsed = new Set<string>()
+  for (const p of REFERENCING) {
+    for (const q of store.getQuads(null, p, null, null)) {
+      const o = q.object
+      if (o.termType !== 'NamedNode' || isStandard(o.value)) continue
+      if (store.countQuads(o, RDF + 'type', null, null) === 0) undeclared.add(o.value)
+      if (deprecated.has(o.value) && !deprecated.has(q.subject.value)) stillUsed.add(o.value)
+    }
+  }
+  const imports = store.countQuads(null, OWL + 'imports', null, null) > 0
+  return [
+    ...grouped(
+      label,
+      'warning',
+      'undeclared_term',
+      [...undeclared].sort(),
+      'term is used but never declared',
+      'terms are used but never declared',
+      `An axiom refers to it, but nothing says whether it is a class, a property or a datatype: a typo, a renamed term, or one from another ontology${imports ? ' (perhaps an imported one)' : ' that is not imported'}. Other tools may guess its kind or reject the file.`,
+    ),
+    ...grouped(
+      label,
+      'warning',
+      'deprecated_in_use',
+      [...stillUsed].sort(),
+      'deprecated term is still in use',
+      'deprecated terms are still in use',
+      'It is marked owl:deprecated, yet other classes or properties still rely on it. Point them at its replacement.',
+    ),
+  ]
+}
+
+/** Equivalent classes also stated as subclasses, properties with several inverses, and names or labels that break the house style. */
+function styleChecks(store: Store, label: (iri: string) => LintEntity, outside: Set<string>, base: string): Finding[] {
+  const own = (iris: string[]) => [...new Set(iris)].filter((i) => !isStandard(i) && !outside.has(i)).sort()
+  const redundant = new Set<string>()
+  for (const q of store.getQuads(null, OWL + 'equivalentClass', null, null)) {
+    if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode') continue
+    if (store.countQuads(q.subject, RDFS + 'subClassOf', q.object, null) > 0) redundant.add(q.subject.value)
+    if (store.countQuads(q.object, RDFS + 'subClassOf', q.subject, null) > 0) redundant.add(q.object.value)
+  }
+  const inverses = new Map<string, Set<string>>()
+  for (const q of store.getQuads(null, OWL + 'inverseOf', null, null)) {
+    if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode' || q.subject.value === q.object.value) continue
+    for (const [a, b] of [[q.subject.value, q.object.value], [q.object.value, q.subject.value]]) inverses.set(a, (inverses.get(a) ?? new Set()).add(b))
+  }
+  const manyInverses = own([...inverses].filter(([, of]) => of.size > 1).map(([p]) => p))
+
+  // Only names this ontology gives, under its own IRI: terms reused from another ontology keep that one's style.
+  // Opaque identifiers such as BFO_0000001 have no case to follow.
+  const homes = [base, ...named(store.getSubjects(RDF + 'type', OWL + 'Ontology', null))].map((iri) => iri.replace(/[#/]$/, ''))
+  const local = (iri: string) => (homes.some((h) => iri.startsWith(h + '#') || iri.startsWith(h + '/')) ? iri.replace(/^.*[#/]/, '') : '')
+  const opaque = (name: string) => /^[A-Za-z]*_?\d+$/.test(name)
+  const classes = own(typed(store, OWL + 'Class'))
+  const properties = own([...typed(store, OWL + 'ObjectProperty'), ...typed(store, OWL + 'DatatypeProperty')])
+  const badClassNames = classes.filter((c) => local(c) && !opaque(local(c)) && !/^[A-Z][A-Za-z0-9]*$/.test(local(c)))
+  const badPropertyNames = properties.filter((p) => local(p) && !opaque(local(p)) && !/^[a-z][A-Za-z0-9]*$/.test(local(p)))
+
+  // Labels without a language tag only matter in an ontology whose other labels have one.
+  const labels = [...classes, ...properties].flatMap((i) => store.getObjects(i, RDFS + 'label', null).map((l) => ({ i, tagged: l.termType === 'Literal' && !!l.language })))
+  const untagged = labels.some((l) => l.tagged) ? own(labels.filter((l) => !l.tagged).map((l) => l.i)) : []
+
+  return [
+    ...grouped(label, 'info', 'redundant_subclass', [...redundant].sort(), 'class is stated as both equivalent to and a subclass of the same class', 'classes are stated as both equivalent to and a subclass of the same class', 'Equivalence already makes each class a subclass of the other, so the subClassOf says nothing more. Keep one of the two.'),
+    ...grouped(label, 'info', 'several_inverses', manyInverses, 'property has more than one inverse', 'properties have more than one inverse', 'Its inverses are then all the same property. Usually one inverse was meant, or the others should be sub-properties.'),
+    ...grouped(label, 'info', 'class_name_case', badClassNames, 'class name is not in UpperCamelCase', 'class names are not in UpperCamelCase', 'Class local names usually start with a capital and have no spaces or separators, e.g. PizzaTopping. Only the IRI is meant; the label can be anything.'),
+    ...grouped(label, 'info', 'property_name_case', badPropertyNames, 'property name is not in lowerCamelCase', 'property names are not in lowerCamelCase', 'Property local names usually start with a small letter and have no separators, e.g. hasTopping. Only the IRI is meant; the label can be anything.'),
+    ...grouped(label, 'info', 'label_without_language', untagged, 'label has no language tag', 'labels have no language tag', 'Other labels in this ontology have a language tag, such as @en. Without one, tools cannot tell which language this label is in.'),
   ]
 }
 
