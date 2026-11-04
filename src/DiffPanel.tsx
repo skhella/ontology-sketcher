@@ -1,4 +1,4 @@
-import type { OntologyDiff, Status } from './diff'
+import { renameNote, type OntologyDiff, type Status } from './diff'
 import type { CanvasTarget } from './canvasTargets'
 import { DIFF_COLORS, type DiffShow } from './diffCanvas'
 import { FloatingPanel } from './FloatingPanel'
@@ -36,6 +36,7 @@ const HEADINGS: Record<Status, string> = { added: 'Added', changed: 'Changed', r
 export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pageNames, fileIsNewer, onFileIsNewer, show, onShowOnly, filePages, onAddPage, onChooseFile, onUseImported, onShow, onClose }: Props) {
   const entities = diff?.entities ?? []
   const count = (s: Status) => entities.filter((e) => e.status === s).length
+  const renamed = entities.filter((e) => e.renamedFrom).length
   return (
     <FloatingPanel name="compare" className="property-hierarchy diff-panel" aria-label="Compare with a file">
       <div className="export-actions">
@@ -80,7 +81,7 @@ export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pa
             )}
             {entities.length === 0 && diff.arrows.length === 0
               ? 'no changes to the ontology.'
-              : `${count('added')} added, ${count('changed')} changed, ${count('removed')} removed.`}
+              : `${count('added')} added, ${count('changed')} changed, ${count('removed')} removed${renamed ? `, of which ${renamed} probably renamed` : ''}.`}
           </p>
           <div className="segmented diff-filter" role="radiogroup" aria-label="Which changes to show">
             {(['all', 'added', 'changed', 'removed'] as const).map((s) => (
@@ -146,6 +147,11 @@ export function DiffPanel({ baseline, imported, diff, error, targets, pageId, pa
                                 {!target && (e.status === (fileIsNewer ? 'added' : 'removed') ? ' · only in the file' : ' · not drawn on any page')}
                               </span>
                             </div>
+                            {renameNote(e) && (
+                              <div className="diff-rename" title={`${e.renamedFrom?.iri ?? e.renamedTo?.iri}: an IRI only in one version that looks like the same ${e.kind}`}>
+                                {renameNote(e)}
+                              </div>
+                            )}
                             <ul className="diff-changes">
                               {e.changes.map((c, i) => (
                                 <li key={i} className={c.sign === '+' ? 'diff-plus' : 'diff-minus'}>

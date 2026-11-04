@@ -1,5 +1,6 @@
 import { useStore } from '@xyflow/react'
 import { useContext } from 'react'
+import { renameNote } from '../diff'
 import { DIFF_COLORS } from '../diffCanvas'
 import { DiffBadgeContext } from '../diffBadgeContext'
 
@@ -37,6 +38,7 @@ export function DiffBadge({ id, what }: { id: string; what: 'class' | 'arrow' })
               ×
             </button>
           </div>
+          {renameNote(change) && <div className="diff-rename">{renameNote(change)}</div>}
           <ul className="diff-changes">
             {change.changes.map((c, i) => (
               <li key={i} className={c.sign === '+' ? 'diff-plus' : 'diff-minus'}>

@@ -1,7 +1,7 @@
 import type { Quad, Store, Term } from 'n3'
 import { LAYOUT_PROPERTIES, edgeKey, parseLayout, type SavedLayout } from './savedLayout'
 import { parseTurtle } from './turtle'
-import { OWL, RDF, RDFS, SKOS, shortName } from './vocab'
+import { DCTERMS, OWL, RDF, RDFS, SKOS, shortName } from './vocab'
 
 /**
  * What changed between two versions of an ontology, read from their Turtle: an earlier file and the canvas's export.
@@ -14,7 +14,20 @@ export type Status = 'added' | 'removed' | 'changed'
 /** One statement about an entity, as a reader would say it, e.g. "subClassOf Animal" or "label "Dog"@en". */
 export type StatementChange = { sign: '+' | '-'; text: string }
 
-export type EntityDiff = { iri: string; label: string; kind: 'class' | 'property' | 'other'; status: Status; changes: StatementChange[] }
+/** The other half of a probable rename, and why it is thought one: see findRenames. */
+export type RenameLink = { iri: string; label: string; why: string }
+
+export type EntityDiff = {
+  iri: string
+  label: string
+  kind: 'class' | 'property' | 'other'
+  status: Status
+  changes: StatementChange[]
+  /** On an added entity: the removed (or replaced) one it probably is, under its new name. */
+  renamedFrom?: RenameLink
+  /** On a removed or replaced entity: the added one it probably became. */
+  renamedTo?: RenameLink
+}
 
 /** An arrow between two classes, by edgeKey (see savedLayout.ts). */
 export type ArrowDiff = { key: string; source: string; kind: string; label: string; target: string; status: 'added' | 'removed' }
@@ -148,6 +161,81 @@ function arrows(version: Version, useLayout: boolean): Map<string, Omit<ArrowDif
   return found
 }
 
+/** Statements that say one term replaces another, as [predicate, its name, true when the subject is the old term]. */
+const REPLACED: [string, string, boolean][] = [
+  [DCTERMS + 'isReplacedBy', 'dcterms:isReplacedBy', true],
+  ['http://purl.obolibrary.org/obo/IAO_0100001', 'term replaced by', true],
+  [DCTERMS + 'replaces', 'dcterms:replaces', false],
+]
+const EQUIVALENT = [OWL + 'equivalentClass', OWL + 'equivalentProperty']
+
+/** A name compared loosely: lower case, without separators, so "has_topping" and "hasTopping" are the same. */
+const loose = (name: string) => name.toLowerCase().replace(/[\s_\-.]/g, '')
+
+/** How alike two names are, from 0 to 1, by edit distance. */
+function similarity(a: string, b: string): number {
+  if (a === b) return 1
+  if (!a || !b) return 0
+  let row = Array.from({ length: b.length + 1 }, (_, i) => i)
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i]
+    for (let j = 1; j <= b.length; j++) next[j] = Math.min(row[j] + 1, next[j - 1] + 1, row[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+    row = next
+  }
+  return 1 - row[b.length] / Math.max(a.length, b.length)
+}
+
+/** Names this alike or more count as a probable rename when nothing in the files says so. */
+export const SIMILAR_NAME = 0.8
+
+/**
+ * Pairs removed entities with added ones of the same kind that are probably the same thing under a new IRI. A
+ * statement in either file that one replaces the other (dcterms:isReplacedBy, dcterms:replaces, OBO "term replaced by")
+ * or that they are equivalent is the surest sign, and then the old term may also still be there, only changed; failing
+ * that, the same or a similar label or local name. Each entity is in at most one pair, the surest first.
+ */
+function findRenames(entities: EntityDiff[], stores: Store[]) {
+  const added = entities.filter((e) => e.status === 'added' && e.kind !== 'other')
+  const said = (from: string, to: string): string | undefined => {
+    for (const store of stores) {
+      for (const [p, name, subjectIsOld] of REPLACED) {
+        const [s, o] = subjectIsOld ? [from, to] : [to, from]
+        if (store.countQuads(s, p, o, null) > 0) return `marked ${name}`
+      }
+      for (const p of EQUIVALENT) if (store.countQuads(from, p, to, null) + store.countQuads(to, p, from, null) > 0) return `marked ${shortName(p)}`
+    }
+  }
+  const pairs: { from: EntityDiff; to: EntityDiff; score: number; why: string }[] = []
+  for (const from of entities) {
+    if (from.status === 'added' || from.kind === 'other') continue
+    for (const to of added) {
+      if (to.kind !== from.kind) continue
+      const why = said(from.iri, to.iri)
+      if (why) {
+        pairs.push({ from, to, score: 2, why })
+        continue
+      }
+      if (from.status !== 'removed') continue
+      const byName = similarity(loose(shortName(from.iri).replace(/^[\w-]*:/, '')), loose(shortName(to.iri).replace(/^[\w-]*:/, '')))
+      const byLabel = similarity(loose(from.label), loose(to.label))
+      const score = Math.max(byName, byLabel)
+      if (score >= SIMILAR_NAME) pairs.push({ from, to, score, why: score === 1 ? (byName === 1 ? 'same local name' : 'same label') : 'similar name' })
+    }
+  }
+  pairs.sort((a, b) => b.score - a.score)
+  for (const { from, to, why } of pairs) {
+    if (from.renamedTo || to.renamedFrom) continue
+    from.renamedTo = { iri: to.iri, label: to.label, why }
+    to.renamedFrom = { iri: from.iri, label: from.label, why }
+  }
+}
+
+/** A probable rename in words, e.g. "Probably renamed from Margherita (similar name)", or nothing. */
+export function renameNote(e: EntityDiff): string | undefined {
+  if (e.renamedFrom) return `Probably renamed from ${e.renamedFrom.label} (${e.renamedFrom.why})`
+  if (e.renamedTo) return `Probably renamed to ${e.renamedTo.label} (${e.renamedTo.why})`
+}
+
 /** The differences from `before` to `after`, both Turtle; entities sorted added, changed, removed, then by label. */
 export function diffOntologies(before: string, after: string, base: string): OntologyDiff {
   const old = read(before, base)
@@ -170,6 +258,7 @@ export function diffOntologies(before: string, after: string, base: string): Ont
   }
   const rank: Record<Status, number> = { added: 0, changed: 1, removed: 2 }
   entities.sort((a, b) => rank[a.status] - rank[b.status] || a.label.localeCompare(b.label))
+  findRenames(entities, [now.store, old.store])
 
   const useLayout = !!old.layout && !!now.layout
   const was = arrows(old, useLayout)

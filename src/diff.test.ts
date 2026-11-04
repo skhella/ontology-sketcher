@@ -31,6 +31,40 @@ const edited: Ontology = {
   ],
 }
 
+const HEAD = `@prefix : <${P}> . @prefix owl: <http://www.w3.org/2002/07/owl#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> . @prefix dcterms: <http://purl.org/dc/terms/> .
+  :Pizza a owl:Class ; rdfs:label "Pizza" .`
+
+describe('probable renames', () => {
+  const renames = (before: string, after: string) =>
+    diffOntologies(HEAD + before, HEAD + after, P)
+      .entities.filter((e) => e.renamedFrom)
+      .map((e) => [e.renamedFrom!.label, e.label, e.renamedFrom!.why])
+
+  it('pairs a removed class with an added one of a similar name, both ways', () => {
+    const diff = diffOntologies(HEAD + ':Margherita a owl:Class ; rdfs:subClassOf :Pizza .', HEAD + ':Margarita a owl:Class ; rdfs:subClassOf :Pizza .', P)
+    expect(diff.entities.find((e) => e.status === 'added')!.renamedFrom).toMatchObject({ iri: P + 'Margherita', why: 'similar name' })
+    expect(diff.entities.find((e) => e.status === 'removed')!.renamedTo).toMatchObject({ iri: P + 'Margarita', why: 'similar name' })
+  })
+
+  it('sees the same label under a new IRI, and separators that differ', () => {
+    expect(renames(':Old1 a owl:Class ; rdfs:label "Topping" .', ':Topping a owl:Class ; rdfs:label "Topping" .')).toEqual([['Topping', 'Topping', 'same label']])
+    expect(renames(':has_topping a owl:ObjectProperty .', ':hasTopping a owl:ObjectProperty .')).toEqual([['has_topping', 'hasTopping', 'same local name']])
+  })
+
+  it('trusts dcterms:isReplacedBy and equivalence over names, even when the old term stays', () => {
+    expect(renames(':Old a owl:Class .', ':Old a owl:Class ; dcterms:isReplacedBy :Brand . :Brand a owl:Class .')).toEqual([['Old', 'Brand', 'marked dcterms:isReplacedBy']])
+    expect(renames(':Cheese a owl:Class . :Tomatoe a owl:Class .', ':Fromage a owl:Class ; owl:equivalentClass :Cheese . :Tomato a owl:Class .')).toEqual([
+      ['Cheese', 'Fromage', 'marked owl:equivalentClass'],
+      ['Tomatoe', 'Tomato', 'similar name'],
+    ])
+  })
+
+  it('leaves unlike names, and a class and a property, unpaired', () => {
+    expect(renames(':Margherita a owl:Class .', ':Hawaii a owl:Class .')).toEqual([])
+    expect(renames(':topping a owl:Class .', ':toppings a owl:ObjectProperty .')).toEqual([])
+  })
+})
+
 describe('diffOntologies', () => {
   it('finds nothing between two exports of the same ontology, even after moving a class', async () => {
     const before = await exported(sampleOntology)
