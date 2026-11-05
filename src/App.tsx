@@ -36,7 +36,7 @@ import type { IndividualChoices, ValueProperty } from './inspector/IndividualDet
 import { projectNames } from './projectNames'
 import { removeTextAxiom, setTextAxiom, textAxioms, type TextAxiom } from './textAxioms'
 import { shortName } from './vocab'
-import { diffOntologies, type EntityDiff, type OntologyDiff } from './diff'
+import { blankNodesNumbered, diffOntologies, type EntityDiff, type OntologyDiff } from './diff'
 import { canvasDiff, DIFF_COLORS, focusAround, GHOST, onlyStatus, pagesOnlyInFile, type DiffShow } from './diffCanvas'
 import { canvasTargets, type CanvasTarget } from './canvasTargets'
 import { DiffPanel } from './DiffPanel'
@@ -66,6 +66,7 @@ import { propertyEntries } from './propertyHierarchy'
 import { SampleData } from './SampleData'
 import { addDetailPage, classesNotOn, linkPage, loadCanvas, mergePages, placeClass, removePage, saveCanvas, type Workspace } from './pages'
 import { writeAutosave } from './autosave'
+import { safeStartNotice, type Start } from './safeStart'
 import { defaultProjectName, emptyProject, nameFromFileName, projectFileName, projectFromJson, projectToJson, PROJECT_EXTENSION, type Project } from './project'
 import { ClassNodeView } from './sketch/ClassNodeView'
 import { ConnectionLine } from './sketch/ConnectionLine'
@@ -131,8 +132,11 @@ function download(name: string, blob: Blob) {
   URL.revokeObjectURL(url)
 }
 
-/** `start` is the project autosaved in this browser, or the pizza sample on a first visit, see main.tsx. */
-export default function App({ start }: { start: Project }) {
+/**
+ * `start` is the project autosaved in this browser, or the pizza sample on a first visit; after a crash loop it is an
+ * empty page and the autosave is `setAside`, see safeStart.ts and main.tsx.
+ */
+export default function App({ start, safeStart, setAside }: { start: Project; safeStart?: Start['safe']; setAside?: string }) {
   const [initial] = useState(start)
   const [initialCanvas] = useState(() => loadCanvas(initial.workspace, initial.pageId))
   // The project's own name, asked for on the first save and used as the project file's name.
@@ -176,7 +180,7 @@ export default function App({ start }: { start: Project }) {
   // The ontology check (see lint.ts): its findings, undefined until the first run, or why it could not run.
   const [lint, setLint] = useState<{ findings?: Finding[]; error?: string }>({})
   const [problemClasses, setProblemClasses] = useState<string[]>([])
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(safeStart ? safeStartNotice(safeStart) : null)
   // The notice of an import that kept things the canvas can't draw, which offers to list them.
   const [importNotice, setImportNotice] = useState<string | null>(null)
   // Whether hidden classes and arrows are drawn (faded) on the canvas and in SVG images; see hidden.ts.
@@ -408,14 +412,30 @@ export default function App({ start }: { start: Project }) {
   const hidden = useMemo(() => hiddenOn(nodes, edges), [nodes, edges])
   const hiddenCount = nodes.filter((n) => n.data.hidden).length + edges.filter((e) => e.data?.hidden).length
   // While comparing, the export of every page is compared with the earlier file shortly after edits settle; a run
-  // overtaken by a newer one is dropped.
+  // overtaken by a newer one is dropped. Reading two large files is heavy (it crashed Safari on an iPad), so when the
+  // export comes out the same (blank node labels aside), e.g. after a click that only changed the selection, the last result stands.
+  const compared = useRef<{ owl: string; baseline: string; fileIsNewer: boolean; iri: string } | null>(null)
+  const clearComparison = () => {
+    compared.current = null
+    setComparison({})
+  }
   useEffect(() => {
-    if (!compareOpen || !baseline) return
+    if (!compareOpen || !baseline) {
+      compared.current = null
+      return
+    }
     let current = true
     const timer = setTimeout(() => {
       const ws = saveCanvas(workspace, pageId, nodes, edges)
       exportFiles('owl', ws, ws.pages.map((p) => p.id), { iri, namespaces, kept, keptStatements })
-        .then(([owl]) => current && setComparison({ diff: fileIsNewer ? diffOntologies(owl.text, baseline.text, iri) : diffOntologies(baseline.text, owl.text, iri) }))
+        .then(([owl]) => {
+          if (!current) return
+          const last = compared.current
+          const exported = blankNodesNumbered(owl.text)
+          if (last && last.owl === exported && last.baseline === baseline.text && last.fileIsNewer === fileIsNewer && last.iri === iri) return
+          setComparison({ diff: fileIsNewer ? diffOntologies(owl.text, baseline.text, iri) : diffOntologies(baseline.text, owl.text, iri) })
+          compared.current = { owl: exported, baseline: baseline.text, fileIsNewer, iri }
+        })
         .catch((e: unknown) => current && setComparison({ error: `Could not compare with ${baseline.name}: ${e instanceof Error ? e.message : String(e)}` }))
     }, 400)
     return () => {
@@ -436,7 +456,7 @@ export default function App({ start }: { start: Project }) {
     if (!file) return
     const wrong = wrongFileKind(file.name, ONTOLOGY_FILE)
     if (wrong) return setNotice(wrong)
-    setComparison({})
+    clearComparison()
     setOpenChanges(null)
     setBaseline({ name: file.name, text: await file.text() })
   }
@@ -981,6 +1001,19 @@ export default function App({ start }: { start: Project }) {
     download(projectFileName(iri, name), new Blob([projectToJson({ ...project(), ...(name && { name }) })], { type: 'application/json' }))
   }
 
+  // The project set aside after a crash loop, as a project file named after it.
+  const downloadSetAside = () => {
+    if (!setAside) return
+    let name = 'set-aside.sketcher.json'
+    try {
+      const p = projectFromJson(setAside)
+      name = projectFileName(p.iri, `${p.name || defaultProjectName(p.iri)} set aside`)
+    } catch {
+      // Unreadable: the plain name will do.
+    }
+    download(name, new Blob([setAside], { type: 'application/json' }))
+  }
+
   const [tool, setTool] = useState<Tool>('select')
   const panning = tool === 'hand'
   // V picks the select tool and H the hand, unless a text field has the keyboard.
@@ -1128,6 +1161,11 @@ export default function App({ start }: { start: Project }) {
                 <button onClick={saveProject} title="Download every page, class, axiom, constraint and position as one project file (Ctrl+S)">
                   Save project
                 </button>
+                {setAside && (
+                  <button onClick={downloadSetAside} title="Download the project that was set aside when the page kept closing while opening">
+                    Download set-aside project
+                  </button>
+                )}
                 <span className="menu-note">Your work is also kept in this browser as you go.</span>
               </div>
             </details>
@@ -1518,7 +1556,7 @@ export default function App({ start }: { start: Project }) {
               setDiffShow(show)
             }}
             onFileIsNewer={(newer) => {
-              setComparison({})
+              clearComparison()
               setOpenChanges(null)
               setFileIsNewer(newer)
             }}
@@ -1532,7 +1570,7 @@ export default function App({ start }: { start: Project }) {
             }}
             onChooseFile={() => compareInput.current?.click()}
             onUseImported={() => {
-              setComparison({})
+              clearComparison()
               setOpenChanges(null)
               setBaseline(lastImport)
             }}

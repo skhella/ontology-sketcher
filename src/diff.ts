@@ -269,3 +269,16 @@ export function diffOntologies(before: string, after: string, base: string): Ont
   ]
   return { entities, arrows: arrowDiffs, ...(old.layout && { oldLayout: old.layout }), ...(now.layout && { newLayout: now.layout }) }
 }
+
+/**
+ * Turtle text with its blank node labels renumbered in the order they first appear, so two exports that differ only
+ * in the labels the writer happened to pick (it counts on from earlier exports) come out equal.
+ */
+export function blankNodesNumbered(turtle: string): string {
+  const ids = new Map<string, string>()
+  return turtle.replace(/_:[A-Za-z0-9_](?:[\w.-]*[\w-])?/g, (label) => {
+    let id = ids.get(label)
+    if (!id) ids.set(label, (id = `_:b${ids.size}`))
+    return id
+  })
+}
