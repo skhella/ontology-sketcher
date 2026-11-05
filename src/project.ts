@@ -5,7 +5,7 @@ import { readQuestions, type CompetencyQuestion } from './questions'
 /**
  * A project is everything needed to pick the work up again: the ontology IRI, every page with its
  * positions, colours and curves, the other namespaces classes can live in, and the shared store of classes and relations with their axioms,
- * annotations, SHACL constraints and SKOS kinds. The same shape is autosaved in the browser and
+ * annotations, SHACL constraints and SKOS kinds. The same shape is autosaved in the browser (see autosave.ts) and
  * written to a project file. The name is the user's own; saving uses it as the file name. The competency questions
  * travel with the project only, never in the export.
  */
@@ -40,8 +40,12 @@ export function emptyProject(): Project {
   return { iri: 'http://example.org/ontology#', workspace, pageId }
 }
 
-export function projectToJson(project: Project): string {
-  return JSON.stringify({ format: FORMAT, version: VERSION, ...project }, null, 2)
+/**
+ * A project file's text, indented for people to read. The autosave writes it `compact` (about half the size) and
+ * notes when it was saved, see autosave.ts; reading ignores that field.
+ */
+export function projectToJson(project: Project, { compact = false, savedAt }: { compact?: boolean; savedAt?: number } = {}): string {
+  return JSON.stringify({ format: FORMAT, version: VERSION, ...(savedAt !== undefined && { savedAt }), ...project }, null, compact ? undefined : 2)
 }
 
 /** Reads a project file or autosave; throws with a message fit to show when the text is not one. */
@@ -83,26 +87,6 @@ export function projectFromJson(text: string): Project {
     ...(questions.length > 0 && { questions }),
     workspace: ws,
     pageId,
-  }
-}
-
-/** The project autosaved in this browser, or null when there is none or it cannot be read. */
-export function loadAutosave(storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage): Project | null {
-  try {
-    const text = storage?.getItem(AUTOSAVE_KEY)
-    return text ? projectFromJson(text) : null
-  } catch {
-    return null
-  }
-}
-
-/** Saves the project in this browser; returns false when storage is full or refused (e.g. a private window). */
-export function writeAutosave(project: Project, storage: Pick<Storage, 'setItem'> | undefined = globalThis.localStorage): boolean {
-  try {
-    storage?.setItem(AUTOSAVE_KEY, projectToJson(project))
-    return !!storage
-  } catch {
-    return false
   }
 }
 

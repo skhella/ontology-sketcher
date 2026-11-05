@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { loadCanvas, saveCanvas } from './pages'
-import { AUTOSAVE_KEY, emptyProject, loadAutosave, nameFromFileName, projectFileName, projectFromJson, projectToJson, sampleProject, writeAutosave } from './project'
-
-/** An in-memory stand-in for localStorage. */
-function memoryStorage() {
-  const items = new Map<string, string>()
-  return { getItem: (k: string) => items.get(k) ?? null, setItem: (k: string, v: string) => void items.set(k, v), items }
-}
+import { emptyProject, nameFromFileName, projectFileName, projectFromJson, projectToJson, sampleProject } from './project'
 
 describe('project', () => {
   it('round-trips every page, position, style and SHACL constraint through a project file', () => {
@@ -52,19 +46,13 @@ describe('project', () => {
     expect(opened.pageId).toBe(project.workspace.pages[0].id)
   })
 
-  it('autosaves to and restores from browser storage', () => {
-    const storage = memoryStorage()
-    expect(loadAutosave(storage)).toBeNull()
+  it('writes a compact autosave with its time, which reads back as the same project', () => {
     const project = sampleProject()
-    expect(writeAutosave(project, storage)).toBe(true)
-    expect(storage.items.has(AUTOSAVE_KEY)).toBe(true)
-    expect(loadAutosave(storage)).toEqual(project)
-  })
-
-  it('reports storage that refuses the save, and ignores an unreadable autosave', () => {
-    const full = { setItem: () => { throw new Error('QuotaExceededError') } }
-    expect(writeAutosave(sampleProject(), full)).toBe(false)
-    expect(loadAutosave({ getItem: () => '{broken' })).toBeNull()
+    const compact = projectToJson(project, { compact: true, savedAt: 42 })
+    expect(compact).not.toContain('\n')
+    expect(compact.length).toBeLessThan(projectToJson(project).length)
+    expect(JSON.parse(compact).savedAt).toBe(42)
+    expect(projectFromJson(compact)).toEqual(project)
   })
 
   it('names the file after the ontology IRI', () => {

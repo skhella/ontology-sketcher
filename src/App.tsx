@@ -65,7 +65,8 @@ import { lintProject } from './lintProject'
 import { propertyEntries } from './propertyHierarchy'
 import { SampleData } from './SampleData'
 import { addDetailPage, classesNotOn, linkPage, loadCanvas, mergePages, placeClass, removePage, saveCanvas, type Workspace } from './pages'
-import { defaultProjectName, emptyProject, loadAutosave, nameFromFileName, projectFileName, projectFromJson, projectToJson, sampleProject, writeAutosave, PROJECT_EXTENSION, type Project } from './project'
+import { writeAutosave } from './autosave'
+import { defaultProjectName, emptyProject, nameFromFileName, projectFileName, projectFromJson, projectToJson, PROJECT_EXTENSION, type Project } from './project'
 import { ClassNodeView } from './sketch/ClassNodeView'
 import { ConnectionLine } from './sketch/ConnectionLine'
 import { RelationEdgeView } from './sketch/RelationEdgeView'
@@ -130,9 +131,9 @@ function download(name: string, blob: Blob) {
   URL.revokeObjectURL(url)
 }
 
-export default function App() {
-  // The project autosaved in this browser comes back on reload; a first visit opens the pizza sample, see project.ts.
-  const [initial] = useState(() => loadAutosave() ?? sampleProject())
+/** `start` is the project autosaved in this browser, or the pizza sample on a first visit, see main.tsx. */
+export default function App({ start }: { start: Project }) {
+  const [initial] = useState(start)
   const [initialCanvas] = useState(() => loadCanvas(initial.workspace, initial.pageId))
   // The project's own name, asked for on the first save and used as the project file's name.
   const [projectName, setProjectName] = useState(initial.name ?? '')
@@ -891,9 +892,11 @@ export default function App() {
   useEffect(() => {
     const autosave = () => {
       const autosaved = { ...(projectName && { name: projectName }), iri, namespaces, kept, keptStatements, ...(questions.length > 0 && { questions }), workspace: saveCanvas(workspace, pageId, nodes, edges), pageId }
-      if (writeAutosave(autosaved) || storageWarned.current) return
-      storageWarned.current = true
-      setNotice('This browser is not keeping your work (storage is full or blocked). Use Project, Save project to keep a copy.')
+      void writeAutosave(autosaved).then((ok) => {
+        if (ok || storageWarned.current) return
+        storageWarned.current = true
+        setNotice('This browser is not keeping your work (storage is full or blocked). Use Project, Save project to keep a copy.')
+      })
     }
     const timer = setTimeout(autosave, 500)
     window.addEventListener('pagehide', autosave)
