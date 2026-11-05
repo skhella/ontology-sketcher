@@ -155,6 +155,36 @@ body,
   vertical-align: baseline;
 }
 
+/* The small arrow next to the logo folds the toolbar down to one row (src/toolbarCollapse.ts). */
+.toolbar .toolbar-toggle {
+  font-size: 15px;
+  padding: 2px 9px;
+}
+
+/* On phones the toolbar is tighter, so the folded row fits in one line. */
+@media (max-width: 700px) {
+  .toolbar {
+    gap: 8px;
+    padding: 6px 10px;
+  }
+
+  .brand-logo svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* The pencil logo stays; the name would push Undo and Redo onto a second row. */
+  .brand strong {
+    display: none;
+  }
+
+  .toolbar input,
+  .toolbar button,
+  .toolbar .menu summary {
+    font-size: 15px;
+  }
+}
+
 .canvas {
   position: relative;
   flex: 1;
