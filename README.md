@@ -207,6 +207,8 @@ shape:PizzaShape a sh:NodeShape;
 
 ## Try it
 
+Open [skhella.github.io/ontology-sketcher](https://skhella.github.io/ontology-sketcher/), or run it locally:
+
 ```sh
 git clone https://github.com/skhella/ontology-sketcher.git
 cd ontology-sketcher
