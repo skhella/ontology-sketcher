@@ -74,6 +74,7 @@ import { StylePanel } from './sketch/StylePanel'
 import { EDGE_DEFAULTS, type SketchStyle } from './sketch/style'
 import { useTheme } from './theme'
 import { useCanvasHelp } from './canvasHelp'
+import { useToolbarCollapse } from './toolbarCollapse'
 import { dotEndpoint, sized, toSvg } from './svgExport'
 import { excalifontCss, excalifontMeasure, handleEndpoint } from './svgBrowser'
 import { zip } from './zip'
@@ -202,6 +203,7 @@ export default function App() {
   const projectInput = useRef<HTMLInputElement>(null)
   const [theme, toggleTheme] = useTheme()
   const [helpShown, toggleHelp] = useCanvasHelp()
+  const [toolbarFolded, toggleToolbar] = useToolbarCollapse()
 
   // Between classes a new edge is subClassOf; from a concept it is skos:broader, or skos:topConceptOf into a scheme.
   const onConnect = useCallback(
@@ -1082,168 +1084,190 @@ export default function App() {
           <span className="brand-logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} />
           <strong>Ontology Sketcher</strong>
         </span>
-        <details className="menu" onClick={closeMenu}>
-          <summary title={projectName || undefined}>Project</summary>
-          <div className="menu-items">
-            <span className="menu-note menu-name">{projectName || 'Unnamed project'}</span>
-            <button onClick={renameProject} title="Give the project a name; Save project uses it as the file name">
-              Rename project…
-            </button>
-            <button onClick={newProject} title="Start over with one empty page">
-              New project
-            </button>
-            <button onClick={() => projectInput.current?.click()} title={`Open a project file (${PROJECT_EXTENSION}) saved earlier`}>
-              Open project…
-            </button>
-            <button onClick={saveProject} title="Download every page, class, axiom, constraint and position as one project file (Ctrl+S)">
-              Save project
-            </button>
-            <span className="menu-note">Your work is also kept in this browser as you go.</span>
-          </div>
-        </details>
+        <button
+          className="toolbar-toggle"
+          onClick={toggleToolbar}
+          aria-expanded={!toolbarFolded}
+          title={toolbarFolded ? 'Show all the toolbar buttons' : 'Fold the toolbar down to one row, to leave more room for the canvas'}
+        >
+          {toolbarFolded ? 'Tools ▾' : '▴'}
+        </button>
+        {/* The file pickers stay mounted while the toolbar is folded, so Ctrl+S and open panels keep working. */}
         <input ref={projectInput} type="file" accept={acceptFor(PROJECT_FILE)} hidden onChange={openProject} />
-        <button onClick={stepBack} disabled={steps.undo === 0} title="Undo the last change, on any page (Ctrl+Z, Cmd+Z on a Mac)">
-          Undo
-        </button>
-        <button onClick={stepForward} disabled={steps.redo === 0} title="Redo what was undone (Ctrl+Shift+Z or Ctrl+Y)">
-          Redo
-        </button>
-        <label>
-          Ontology IRI{' '}
-          <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />
-        </label>
-        <NamespacesMenu namespaces={namespaces} onChange={changeNamespaces} />
-        <button onClick={() => addNode()}>+ Class</button>
-        <button onClick={() => addNode('concept')} title="A SKOS concept: a term in a thesaurus or code list, exported as an individual">
-          + Concept
-        </button>
-        <button onClick={() => addNode('scheme')} title="A SKOS concept scheme: the thesaurus or code list concepts belong to">
-          + Scheme
-        </button>
-        <button onClick={() => addNode('individual')} title="An OWL individual, e.g. one value of a code list; draw an arrow to its class">
-          + Individual
-        </button>
-        <details className="menu" onClick={closeMenu}>
-          <summary>Import</summary>
-          <div className="menu-items">
-            <button onClick={() => fileInput.current?.click()} title="Load the classes and properties of an ontology in Turtle (.ttl) onto this page">
-              Ontology (Turtle)
-            </button>
-            <button onClick={() => drawingInput.current?.click()} title="Replace this page with the labelled shapes and arrows of an .excalidraw drawing">
-              Excalidraw drawing
-            </button>
-            <button onClick={() => shapesInput.current?.click()} title="Read a SHACL shapes file (Turtle) into the constraints of the classes on this page">
-              SHACL shapes (Turtle)
-            </button>
-            <button onClick={() => setPanel('library')} title="Download a standard ontology such as BFO, PROV-O or OWL-Time onto a new page">
-              Standard ontology…
-            </button>
-          </div>
-        </details>
         <input ref={fileInput} type="file" accept={acceptFor(ONTOLOGY_FILE)} hidden onChange={(e) => importFile(e, ONTOLOGY_FILE)} />
         <input ref={drawingInput} type="file" accept={acceptFor(DRAWING_FILE)} hidden onChange={(e) => importFile(e, DRAWING_FILE)} />
         <input ref={shapesInput} type="file" accept={acceptFor(SHAPES_FILE)} hidden onChange={importShapesFile} />
         <input ref={compareInput} type="file" accept={acceptFor(ONTOLOGY_FILE)} hidden onChange={compareWith} />
-        {placeable.length > 0 && (
-          <select value="" onChange={placeExisting} aria-label="Place a class from another page">
-            <option value="">Place existing class…</option>
-            {placeable.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        )}
-        <details className="menu" onClick={closeMenu}>
-          <summary>Export</summary>
-          <div className="menu-items">
-            <button onClick={() => startExport('owl')} title="ontology.ttl, plus shapes.ttl when classes have SHACL constraints">
-              OWL and SHACL (Turtle)
+        {toolbarFolded ? (
+          <>
+            <button onClick={stepBack} disabled={steps.undo === 0} title="Undo the last change, on any page (Ctrl+Z, Cmd+Z on a Mac)">
+              Undo
             </button>
-            <button onClick={() => startExport('cypher')} title="A Cypher script that loads the ontology (and shapes) into Neo4j with the neosemantics (n10s) plugin">
-              Neo4j script (Cypher)
+            <button onClick={stepForward} disabled={steps.redo === 0} title="Redo what was undone (Ctrl+Shift+Z or Ctrl+Y)">
+              Redo
             </button>
-            <button onClick={() => exportSvg({ dark: false, background: true })} title="This page as a drawing, for papers and slides">
-              Image of this page (SVG)
+          </>
+        ) : (
+          <>
+            <details className="menu" onClick={closeMenu}>
+              <summary title={projectName || undefined}>Project</summary>
+              <div className="menu-items">
+                <span className="menu-note menu-name">{projectName || 'Unnamed project'}</span>
+                <button onClick={renameProject} title="Give the project a name; Save project uses it as the file name">
+                  Rename project…
+                </button>
+                <button onClick={newProject} title="Start over with one empty page">
+                  New project
+                </button>
+                <button onClick={() => projectInput.current?.click()} title={`Open a project file (${PROJECT_EXTENSION}) saved earlier`}>
+                  Open project…
+                </button>
+                <button onClick={saveProject} title="Download every page, class, axiom, constraint and position as one project file (Ctrl+S)">
+                  Save project
+                </button>
+                <span className="menu-note">Your work is also kept in this browser as you go.</span>
+              </div>
+            </details>
+            <button onClick={stepBack} disabled={steps.undo === 0} title="Undo the last change, on any page (Ctrl+Z, Cmd+Z on a Mac)">
+              Undo
             </button>
-            {workspace.pages.length > 1 && (
-              <button onClick={startSvgExport} title="A drawing of each chosen page, downloaded together as a zip">
-                Images of several pages (SVG)
+            <button onClick={stepForward} disabled={steps.redo === 0} title="Redo what was undone (Ctrl+Shift+Z or Ctrl+Y)">
+              Redo
+            </button>
+            <label>
+              Ontology IRI{' '}
+              <input value={iri} onChange={(e) => setIri(e.target.value)} size={32} title="Namespace of the whole ontology; a selected class or edge shows its own IRI in the inspector" />
+            </label>
+            <NamespacesMenu namespaces={namespaces} onChange={changeNamespaces} />
+            <button onClick={() => addNode()}>+ Class</button>
+            <button onClick={() => addNode('concept')} title="A SKOS concept: a term in a thesaurus or code list, exported as an individual">
+              + Concept
+            </button>
+            <button onClick={() => addNode('scheme')} title="A SKOS concept scheme: the thesaurus or code list concepts belong to">
+              + Scheme
+            </button>
+            <button onClick={() => addNode('individual')} title="An OWL individual, e.g. one value of a code list; draw an arrow to its class">
+              + Individual
+            </button>
+            <details className="menu" onClick={closeMenu}>
+              <summary>Import</summary>
+              <div className="menu-items">
+                <button onClick={() => fileInput.current?.click()} title="Load the classes and properties of an ontology in Turtle (.ttl) onto this page">
+                  Ontology (Turtle)
+                </button>
+                <button onClick={() => drawingInput.current?.click()} title="Replace this page with the labelled shapes and arrows of an .excalidraw drawing">
+                  Excalidraw drawing
+                </button>
+                <button onClick={() => shapesInput.current?.click()} title="Read a SHACL shapes file (Turtle) into the constraints of the classes on this page">
+                  SHACL shapes (Turtle)
+                </button>
+                <button onClick={() => setPanel('library')} title="Download a standard ontology such as BFO, PROV-O or OWL-Time onto a new page">
+                  Standard ontology…
+                </button>
+              </div>
+            </details>
+            {placeable.length > 0 && (
+              <select value="" onChange={placeExisting} aria-label="Place a class from another page">
+                <option value="">Place existing class…</option>
+                {placeable.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            )}
+            <details className="menu" onClick={closeMenu}>
+              <summary>Export</summary>
+              <div className="menu-items">
+                <button onClick={() => startExport('owl')} title="ontology.ttl, plus shapes.ttl when classes have SHACL constraints">
+                  OWL and SHACL (Turtle)
+                </button>
+                <button onClick={() => startExport('cypher')} title="A Cypher script that loads the ontology (and shapes) into Neo4j with the neosemantics (n10s) plugin">
+                  Neo4j script (Cypher)
+                </button>
+                <button onClick={() => exportSvg({ dark: false, background: true })} title="This page as a drawing, for papers and slides">
+                  Image of this page (SVG)
+                </button>
+                {workspace.pages.length > 1 && (
+                  <button onClick={startSvgExport} title="A drawing of each chosen page, downloaded together as a zip">
+                    Images of several pages (SVG)
+                  </button>
+                )}
+              </div>
+            </details>
+            <button
+              onClick={() => setShowInferred((shown) => !shown)}
+              aria-pressed={showInferred}
+              title="Draw superclasses that follow from the ontology without being stated, as dashed violet arrows; select a class to see why"
+            >
+              Show inferred
+            </button>
+            <button
+              onClick={() => togglePanel('properties')}
+              aria-pressed={propertiesOpen}
+              title="Object and data properties as a tree by subPropertyOf, with domain, range and the pages each is on"
+            >
+              Properties
+            </button>
+            {(notDrawnCount > 0 || hiddenOpen) && (
+              <button
+                onClick={() => togglePanel('hidden')}
+                aria-pressed={hiddenOpen}
+                title="Individuals, complex axioms, properties without a class and other statements kept from an import that no page draws"
+              >
+                Not on canvas ({notDrawnCount})
               </button>
             )}
-          </div>
-        </details>
-        <button
-          onClick={() => setShowInferred((shown) => !shown)}
-          aria-pressed={showInferred}
-          title="Draw superclasses that follow from the ontology without being stated, as dashed violet arrows; select a class to see why"
-        >
-          Show inferred
-        </button>
-        <button
-          onClick={() => togglePanel('properties')}
-          aria-pressed={propertiesOpen}
-          title="Object and data properties as a tree by subPropertyOf, with domain, range and the pages each is on"
-        >
-          Properties
-        </button>
-        {(notDrawnCount > 0 || hiddenOpen) && (
-          <button
-            onClick={() => togglePanel('hidden')}
-            aria-pressed={hiddenOpen}
-            title="Individuals, complex axioms, properties without a class and other statements kept from an import that no page draws"
-          >
-            Not on canvas ({notDrawnCount})
-          </button>
-        )}
-        <button
-          onClick={() => togglePanel('lint')}
-          aria-pressed={lintOpen}
-          title="Look for clashing declarations, subclass cycles, missing labels, domains and ranges, and shapes about missing classes or properties"
-        >
-          Check ontology
-        </button>
-        <button onClick={() => setSampleOpen(true)} title="Check example instances against the classes' SHACL constraints">
-          Check sample data
-        </button>
-        <button
-          onClick={() => togglePanel('compare')}
-          aria-pressed={compareOpen}
-          title="Compare the canvas with an earlier Turtle file and colour what was added, changed or removed"
-        >
-          Compare
-        </button>
-        {(hiddenCount > 0 || showHidden) && (
-          <button
-            onClick={toggleShowHidden}
-            aria-pressed={showHidden}
-            title="Draw the classes and arrows hidden on this page, faded, or leave them out. SVG images follow this; the other exports always include everything."
-          >
-            {showHidden ? 'Leave out hidden' : `Show hidden (${hiddenCount})`}
-          </button>
-        )}
-        {(hiddenCount > 0 || hiddenListOpen) && (
-          <button onClick={() => togglePanel('hiddenList')} aria-pressed={hiddenListOpen} title="List what is hidden on this page and unhide several at once">
-            Hidden list
-          </button>
-        )}
-        <button onClick={() => togglePanel('questions')} aria-pressed={questionsOpen} title="What the ontology should answer, as SPARQL queries you can run against it">
-          Questions{questions.length > 0 ? ` (${questions.length})` : ''}
-        </button>
-        <button onClick={toggleTheme} aria-pressed={theme === 'dark'} title="Switch between light and dark mode">
-          {theme === 'dark' ? '☀ Light' : '☾ Dark'}
-        </button>
-        {helpShown ? (
-          <span className="hint">
-            Drag between boxes to add subClassOf, or broader between concepts. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its middle dot to curve it, or drag either end onto another class to move it. Drag on empty canvas to select several things and move them together; Shift-click adds to the selection. Pan with the hand tool (H), Space+drag or the middle mouse button; V goes back to selecting.
-            <button className="help-toggle" onClick={toggleHelp} title="Hide these tips" aria-label="Hide tips">
-              ×
+            <button
+              onClick={() => togglePanel('lint')}
+              aria-pressed={lintOpen}
+              title="Look for clashing declarations, subclass cycles, missing labels, domains and ranges, and shapes about missing classes or properties"
+            >
+              Check ontology
             </button>
-          </span>
-        ) : (
-          <button className="help-toggle" onClick={toggleHelp} title="Show tips on drawing and selecting" aria-label="Show tips">
-            ?
-          </button>
+            <button onClick={() => setSampleOpen(true)} title="Check example instances against the classes' SHACL constraints">
+              Check sample data
+            </button>
+            <button
+              onClick={() => togglePanel('compare')}
+              aria-pressed={compareOpen}
+              title="Compare the canvas with an earlier Turtle file and colour what was added, changed or removed"
+            >
+              Compare
+            </button>
+            {(hiddenCount > 0 || showHidden) && (
+              <button
+                onClick={toggleShowHidden}
+                aria-pressed={showHidden}
+                title="Draw the classes and arrows hidden on this page, faded, or leave them out. SVG images follow this; the other exports always include everything."
+              >
+                {showHidden ? 'Leave out hidden' : `Show hidden (${hiddenCount})`}
+              </button>
+            )}
+            {(hiddenCount > 0 || hiddenListOpen) && (
+              <button onClick={() => togglePanel('hiddenList')} aria-pressed={hiddenListOpen} title="List what is hidden on this page and unhide several at once">
+                Hidden list
+              </button>
+            )}
+            <button onClick={() => togglePanel('questions')} aria-pressed={questionsOpen} title="What the ontology should answer, as SPARQL queries you can run against it">
+              Questions{questions.length > 0 ? ` (${questions.length})` : ''}
+            </button>
+            <button onClick={toggleTheme} aria-pressed={theme === 'dark'} title="Switch between light and dark mode">
+              {theme === 'dark' ? '☀ Light' : '☾ Dark'}
+            </button>
+            {helpShown ? (
+              <span className="hint">
+                Drag between boxes to add subClassOf, or broader between concepts. Click a class or edge to see and edit its own IRI, definition and annotations on the right. Select an edge and drag its middle dot to curve it, or drag either end onto another class to move it. Drag on empty canvas to select several things and move them together; Shift-click adds to the selection. Pan with the hand tool (H), Space+drag or the middle mouse button; V goes back to selecting.
+                <button className="help-toggle" onClick={toggleHelp} title="Hide these tips" aria-label="Hide tips">
+                  ×
+                </button>
+              </span>
+            ) : (
+              <button className="help-toggle" onClick={toggleHelp} title="Show tips on drawing and selecting" aria-label="Show tips">
+                ?
+              </button>
+            )}
+          </>
         )}
       </header>
       <main className={panning ? 'canvas hand-tool' : 'canvas'}>
