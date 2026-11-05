@@ -5,7 +5,8 @@ import { needsLatinExtended } from './svgExport'
 
 // The browser side of the SVG export: measuring text and embedding the font, which toSvg leaves to its caller.
 
-const FONT_DIR = '/fonts/excalifont/'
+// BASE_URL follows the Vite base path (/ontology-sketcher/, where GitHub Pages serves the app).
+const FONT_DIR = `${import.meta.env.BASE_URL}fonts/excalifont/`
 
 /** Text widths in Excalifont, once the font has loaded. */
 export async function excalifontMeasure(): Promise<(text: string, fontSize: number) => number> {
