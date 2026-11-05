@@ -38,8 +38,8 @@ function finished(tx: IDBTransaction): Promise<void> {
   })
 }
 
-/** The autosave in IndexedDB, or undefined where the browser has none. */
-export function indexedDbStore(factory: IDBFactory | undefined = globalThis.indexedDB): AutosaveStore | undefined {
+/** The autosave (or another copy, under `key`) in IndexedDB, or undefined where the browser has none. */
+export function indexedDbStore(factory: IDBFactory | undefined = globalThis.indexedDB, key = AUTOSAVE_KEY): AutosaveStore | undefined {
   if (!factory) return undefined
   let db: Promise<IDBDatabase> | undefined
   const open = () => {
@@ -77,24 +77,24 @@ export function indexedDbStore(factory: IDBFactory | undefined = globalThis.inde
   return {
     get: () =>
       run('readonly', async (store) => {
-        const text: unknown = await done(store.get(AUTOSAVE_KEY))
+        const text: unknown = await done(store.get(key))
         return typeof text === 'string' ? text : null
       }),
     set: (text) =>
       run('readwrite', (store, tx) => {
-        store.put(text, AUTOSAVE_KEY)
+        store.put(text, key)
         return finished(tx)
       }),
     remove: () =>
       run('readwrite', (store, tx) => {
-        store.delete(AUTOSAVE_KEY)
+        store.delete(key)
         return finished(tx)
       }),
   }
 }
 
-/** The autosave in localStorage, or undefined where it is missing or blocked (reading it can throw). */
-export function localStore(storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>): AutosaveStore | undefined {
+/** The autosave (or another copy, under `key`) in localStorage, or undefined where it is missing or blocked (reading it can throw). */
+export function localStore(storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>, key = AUTOSAVE_KEY): AutosaveStore | undefined {
   try {
     storage ??= globalThis.localStorage
   } catch {
@@ -103,15 +103,15 @@ export function localStore(storage?: Pick<Storage, 'getItem' | 'setItem' | 'remo
   if (!storage) return undefined
   const s = storage
   return {
-    get: async () => s.getItem(AUTOSAVE_KEY),
-    set: async (text) => s.setItem(AUTOSAVE_KEY, text),
-    remove: async () => s.removeItem(AUTOSAVE_KEY),
+    get: async () => s.getItem(key),
+    set: async (text) => s.setItem(key, text),
+    remove: async () => s.removeItem(key),
   }
 }
 
 /** IndexedDB first, then localStorage. */
-export function browserStores(): AutosaveStore[] {
-  return [indexedDbStore(), localStore()].filter((s): s is AutosaveStore => !!s)
+export function browserStores(key = AUTOSAVE_KEY): AutosaveStore[] {
+  return [indexedDbStore(undefined, key), localStore(undefined, key)].filter((s): s is AutosaveStore => !!s)
 }
 
 /** When an autosave was written; 0 for one written before autosaves carried the time. */
@@ -124,21 +124,39 @@ function savedAtOf(text: string): number {
   }
 }
 
-/** The newest readable autosave in `stores`, or null when there is none. */
-export async function loadAutosave(stores: AutosaveStore[] = browserStores()): Promise<Project | null> {
-  let best: { project: Project; savedAt: number } | null = null
+/** The newest readable autosave in `stores` and its text, or null when there is none. */
+export async function newestAutosave(stores: AutosaveStore[] = browserStores()): Promise<{ project: Project; text: string } | null> {
+  let best: { project: Project; text: string; savedAt: number } | null = null
   for (const store of stores) {
     try {
       const text = await store.get()
       if (!text) continue
       const project = projectFromJson(text)
       const savedAt = savedAtOf(text)
-      if (!best || savedAt > best.savedAt) best = { project, savedAt }
+      if (!best || savedAt > best.savedAt) best = { project, text, savedAt }
     } catch {
       // Unreadable or refused: try the next place.
     }
   }
-  return best?.project ?? null
+  return best && { project: best.project, text: best.text }
+}
+
+/** The newest readable autosave in `stores`, or null when there is none. */
+export async function loadAutosave(stores: AutosaveStore[] = browserStores()): Promise<Project | null> {
+  return (await newestAutosave(stores))?.project ?? null
+}
+
+/** Keeps `text` in the first of `stores` that takes it; false when none does. */
+export async function keepText(text: string, stores: AutosaveStore[]): Promise<boolean> {
+  for (const store of stores) {
+    try {
+      await store.set(text)
+      return true
+    } catch {
+      // Refused: try the next place.
+    }
+  }
+  return false
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diffOntologies, type OntologyDiff } from './diff'
+import { blankNodesNumbered, diffOntologies, type OntologyDiff } from './diff'
 import { canvasDiff, focusAround, GHOST, onlyStatus, pagesOnlyInFile } from './diffCanvas'
 import { saveLayout } from './layout'
 import { sampleOntology, type Ontology } from './model'
@@ -199,5 +199,15 @@ describe('focusAround', () => {
 
   it('keeps nothing in focus for something not drawn', () => {
     expect(focusAround('x', nodes, edges)).toBeUndefined()
+  })
+})
+
+describe('blankNodesNumbered', () => {
+  it('makes two exports that differ only in blank node labels equal', () => {
+    const a = ':A owl:equivalentClass _:b553_n3-1744.\n_:b553_n3-1744 a rdfs:Datatype; owl:onDatatype _:x.'
+    const b = ':A owl:equivalentClass _:b306_n3-1744.\n_:b306_n3-1744 a rdfs:Datatype; owl:onDatatype _:y.'
+    expect(blankNodesNumbered(a)).toBe(blankNodesNumbered(b))
+    expect(blankNodesNumbered(a)).toBe(':A owl:equivalentClass _:b0.\n_:b0 a rdfs:Datatype; owl:onDatatype _:b1.')
+    expect(blankNodesNumbered(a)).not.toBe(blankNodesNumbered(b.replace('onDatatype _:y', 'onDatatype _:b306_n3-1744')))
   })
 })
