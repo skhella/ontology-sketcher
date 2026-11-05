@@ -79,6 +79,7 @@ import { dotEndpoint, sized, toSvg } from './svgExport'
 import { excalifontCss, excalifontMeasure, handleEndpoint } from './svgBrowser'
 import { zip } from './zip'
 import { FloatingPanel } from './FloatingPanel'
+import { acceptFor, DRAWING_FILE, type FileKind, ONTOLOGY_FILE, PROJECT_FILE, SHAPES_FILE, wrongFileKind } from './filePicker'
 
 const nodeTypes = { owlClass: ClassNodeView }
 const NO_CHANGES = new Map<string, EntityDiff>()
@@ -329,10 +330,12 @@ export default function App() {
     }
   }
 
-  const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
+  const importFile = async (event: ChangeEvent<HTMLInputElement>, kind: FileKind) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
+    const wrong = wrongFileKind(file.name, kind)
+    if (wrong) return setNotice(wrong)
     try {
       const text = await file.text()
       if (/\.(ttl|nt|owl|rdf)$/i.test(file.name) || !text.trimStart().startsWith('{')) {
@@ -379,6 +382,8 @@ export default function App() {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
+    const wrong = wrongFileKind(file.name, SHAPES_FILE)
+    if (wrong) return setNotice(wrong)
     try {
       const ws = saved()
       const result = await importShapesToWorkspace(await file.text(), iri, ws)
@@ -428,6 +433,8 @@ export default function App() {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
+    const wrong = wrongFileKind(file.name, ONTOLOGY_FILE)
+    if (wrong) return setNotice(wrong)
     setComparison({})
     setOpenChanges(null)
     setBaseline({ name: file.name, text: await file.text() })
@@ -1057,6 +1064,8 @@ export default function App() {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
+    const wrong = wrongFileKind(file.name, PROJECT_FILE)
+    if (wrong) return setNotice(wrong)
     try {
       const next = projectFromJson(await file.text())
       if (hasClasses() && !window.confirm(`Open ${file.name}? ${replaceWarning}`)) return
@@ -1084,11 +1093,11 @@ export default function App() {
           {toolbarFolded ? 'Tools ▾' : '▴'}
         </button>
         {/* The file pickers stay mounted while the toolbar is folded, so Ctrl+S and open panels keep working. */}
-        <input ref={projectInput} type="file" accept=".json,application/json" hidden onChange={openProject} />
-        <input ref={fileInput} type="file" accept=".ttl,.nt,.owl,text/turtle" hidden onChange={importFile} />
-        <input ref={drawingInput} type="file" accept=".excalidraw,.json,application/json" hidden onChange={importFile} />
-        <input ref={shapesInput} type="file" accept=".ttl,text/turtle" hidden onChange={importShapesFile} />
-        <input ref={compareInput} type="file" accept=".ttl,.nt,.owl,text/turtle" hidden onChange={compareWith} />
+        <input ref={projectInput} type="file" accept={acceptFor(PROJECT_FILE)} hidden onChange={openProject} />
+        <input ref={fileInput} type="file" accept={acceptFor(ONTOLOGY_FILE)} hidden onChange={(e) => importFile(e, ONTOLOGY_FILE)} />
+        <input ref={drawingInput} type="file" accept={acceptFor(DRAWING_FILE)} hidden onChange={(e) => importFile(e, DRAWING_FILE)} />
+        <input ref={shapesInput} type="file" accept={acceptFor(SHAPES_FILE)} hidden onChange={importShapesFile} />
+        <input ref={compareInput} type="file" accept={acceptFor(ONTOLOGY_FILE)} hidden onChange={compareWith} />
         {toolbarFolded ? (
           <>
             <button onClick={stepBack} disabled={steps.undo === 0} title="Undo the last change, on any page (Ctrl+Z, Cmd+Z on a Mac)">
